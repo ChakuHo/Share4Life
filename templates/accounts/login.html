@@ -79,14 +79,13 @@
   <!-- card .// -->
 
   <p class="text-center mt-4">
-    Don't have an account? <a href="{% url 'register' %}" class="font-weight-bold">Create Account</a>
+    Don't have an account? <a href="{% url 'register' %}" class="font-weight-bold text-danger">Create Account</a>
   </p>
   <br /><br />
   <!-- ============================ COMPONENT LOGIN  END.// ================================= -->
 </section>
 
 <style>
-/* Enhanced Login Form Styling */
 .section-content .card {
   border: none;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
@@ -107,8 +106,9 @@
 }
 
 .form-control:focus {
-  border-color: #007bff;
-  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+  /* CHANGED FROM BLUE TO NAVY */
+  border-color: #0a2558; 
+  box-shadow: 0 0 0 0.2rem rgba(10, 37, 88, 0.25);
   transform: translateY(-1px);
 }
 
@@ -117,11 +117,12 @@
 }
 
 .form-control.is-invalid {
-  border-color: #dc3545;
+  border-color: #e63946;
 }
 
 .section-content .btn-primary {
-  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  /* CHANGED FROM BRIGHT BLUE TO NAVY GRADIENT */
+  background: linear-gradient(135deg, #0a2558 0%, #061838 100%);
   border: none;
   border-radius: 10px;
   padding: 15px;
@@ -132,7 +133,7 @@
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(0, 123, 255, 0.3);
+  box-shadow: 0 8px 20px rgba(10, 37, 88, 0.3);
 }
 
 .btn-primary:disabled {
@@ -149,7 +150,7 @@
 
 .btn-outline-secondary:hover {
   background-color: #f8f9fa;
-  border-color: #007bff;
+  border-color: #0a2558;
 }
 
 .input-group .form-control {
@@ -159,12 +160,13 @@
 .alert {
   border-radius: 10px;
   border: none;
-  border-left: 5px solid #dc3545;
+  border-left: 5px solid #e63946;
 }
 
 .custom-control-input:checked ~ .custom-control-label::before {
-  background-color: #007bff;
-  border-color: #007bff;
+  /* CHANGED TO NAVY */
+  background-color: #0a2558;
+  border-color: #0a2558;
 }
 
 label {
@@ -174,6 +176,7 @@ label {
 }
 
 .text-primary {
+  color: #0a2558 !important; /* Force Navy */
   text-decoration: none;
   font-weight: 600;
 }
