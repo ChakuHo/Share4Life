@@ -1,0 +1,385 @@
+{% load static %}
+<header class="section-header sticky-header">
+  <nav class="navbar p-md-0 navbar-expand-sm navbar-light border-bottom top-nav">
+    <div class="container">
+      <button
+        class="navbar-toggler"
+        type="button"
+        data-toggle="collapse"
+        data-target="#navbarTop4"
+        aria-controls="navbarNav"
+        aria-expanded="false"
+        aria-label="Toggle navigation"
+      >
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarTop4">
+        <ul class="navbar-nav mr-auto">
+          <li class="nav-item dropdown">
+            <a href="#" class="nav-link"> English </a>
+          </li>
+          <li class="nav-item dropdown">
+            <a href="#" class="nav-link"> USD </a>
+          </li>
+        </ul>
+        <ul class="navbar-nav">
+          <li>
+            <a href="{% url 'contact' %}" class="nav-link">
+              <i class="fa fa-envelope"></i> Contact
+            </a>
+          </li>
+          <li>
+            <a href="tel:+977-1-4567890" class="nav-link">
+              <i class="fa fa-phone"></i> Call us
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <section class="header-main border-bottom main-nav">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-lg-2 col-md-3 col-6">
+          <a href="{% url 'home' %}" class="brand-wrap">
+            {% if site_settings and site_settings.logo %}
+            <img
+              class="logo"
+              src="{{ site_settings.logo.url }}"
+              alt="{{ site_settings.site_title|default:'Islington MarketPlace' }}"
+            />
+            {% else %}
+            <img
+              class="logo"
+              src="{% static 'images/logos/logo.png' %}"
+              alt="Islington MarketPlace"
+            />
+            {% endif %}
+          </a>
+        </div>
+        <div class="col-lg col-sm col-md col-6 flex-grow-0">
+          <div class="category-wrap dropdown d-inline-block float-right">
+            <button
+              type="button"
+              class="btn btn-primary dropdown-toggle category-btn"
+              data-toggle="dropdown"
+            >
+              <i class="fa fa-bars"></i> All category
+            </button>
+            <div class="dropdown-menu category-dropdown">
+              <a class="dropdown-item" href="{% url 'products:product' %}"
+                >All Products</a
+              >
+              {% for category in categories %}
+              <a
+                class="dropdown-item"
+                href="{% url 'products:products_by_category' category.slug %}"
+              >
+                {{ category.category_name }}
+              </a>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        <a href="{% url 'products:product' %}" class="btn btn-outline-primary store-btn"
+          >Store</a
+        >
+        <div class="col-lg col-md-6 col-sm-12 col">
+          <form
+            action="{% url 'products:search' %}"
+            class="search"
+            method="GET"
+          >
+            <div class="input-group w-100 search-wrapper">
+              <input
+                type="text"
+                class="form-control search-input"
+                style="width: 60%"
+                placeholder="Search"
+                name="keyword"
+              />
+              <div class="input-group-append">
+                <button class="btn btn-primary search-btn" type="submit">
+                  <i class="fa fa-search"></i>
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="col-lg-3 col-sm-6 col-8 order-2 order-lg-3">
+          <div class="d-flex justify-content-end mb-3 mb-lg-0">
+            <div class="widget-header user-widget">
+              {% if user.is_authenticated %}
+              <small class="title text-muted"
+                >Welcome {{ user.get_full_name|default:user.username }}!</small
+              >
+              <div>
+                <a href="{% url 'dashboard' %}" class="nav-link-custom">Dashboard</a>
+                <span class="dark-transp"> | </span>
+                <a href="{% url 'logout' %}" class="nav-link-custom" onclick="return confirm('Are you sure you want to logout?')">Logout</a>
+              </div>
+              {% else %}
+              <small class="title text-muted">Welcome guest!</small>
+              <div>
+                <a href="{% url 'login' %}" class="nav-link-custom">Login</a>
+                <span class="dark-transp"> | </span>
+                <a href="{% url 'register' %}" class="nav-link-custom">Register</a>
+              </div>
+              {% endif %}
+            </div>
+            
+            
+            <!-- CART WIDGET -->
+            <a href="{% url 'cart' %}" class="widget-header pl-3 ml-3 cart-widget">
+              <div class="icon icon-sm rounded-circle border cart-icon">
+                <i class="fa fa-shopping-cart"></i>
+              </div>
+              <span class="badge badge-pill badge-danger notify cart-badge"
+                >{{cart_count}}</span
+              >
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</header>
+
+<style>
+  /* Sticky Header Styles */
+.sticky-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: white;
+  transition: all 0.3s ease-in-out;
+  transform: translateY(0);
+}
+
+.sticky-header.scrolled {
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+  transform: translateY(0);
+}
+
+.sticky-header.hidden {
+  transform: translateY(-100%);
+}
+
+/* Top nav styling */
+.top-nav {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-bottom: 1px solid #dee2e6;
+  padding: 8px 0;
+}
+
+/* Main nav styling */
+.main-nav {
+  background: white;
+  padding: 15px 0;
+  transition: all 0.3s ease;
+}
+
+.sticky-header.scrolled .main-nav {
+  padding: 10px 0;
+}
+
+/* Logo animations */
+.logo {
+  transition: all 0.3s ease;
+  max-height: 50px;
+}
+
+.sticky-header.scrolled .logo {
+  max-height: 40px;
+}
+
+.category-btn {
+  transition: all 0.3s ease;
+  border-radius: 25px;
+  box-shadow: 0 2px 10px rgba(0, 123, 255, 0.2);
+}
+
+.category-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+}
+
+/* Category dropdown styling */
+.category-dropdown {
+  border-radius: 10px;
+  border: none;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  animation: fadeInUp 0.3s ease;
+}
+
+.category-dropdown .dropdown-item {
+  padding: 10px 20px;
+  transition: all 0.3s ease;
+}
+
+.category-dropdown .dropdown-item:hover {
+  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  color: white;
+  transform: translateX(5px);
+}
+
+/* Store button styling */
+.store-btn {
+  border-radius: 25px;
+  transition: all 0.3s ease;
+  border: 2px solid #007bff;
+}
+
+.store-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 123, 255, 0.3);
+}
+
+.search-wrapper {
+  transition: all 0.3s ease;
+}
+
+.search-input {
+  border-radius: 25px 0 0 25px;
+  border: 2px solid #e9ecef;
+  transition: all 0.3s ease;
+}
+
+.search-input:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.search-btn {
+  border-radius: 0 25px 25px 0;
+  border: 2px solid #007bff;
+  border-left: none;
+  transition: all 0.3s ease;
+}
+
+.search-btn:hover {
+  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+}
+
+/* User widget styling */
+.nav-link-custom {
+  color: #007bff;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+.nav-link-custom:hover {
+  color: #0056b3;
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+.cart-widget {
+  transition: all 0.3s ease;
+}
+
+.cart-widget:hover {
+  transform: translateY(-2px);
+}
+
+.cart-icon {
+  background: linear-gradient(135deg, #073912 0%, #078660 100%);
+  border: none !important;
+  color: rgb(255, 255, 255);
+  transition: all 0.3s ease;
+}
+
+.cart-widget:hover .cart-icon {
+  transform: scale(1.1);
+  box-shadow: 0 5px 15px rgba(11, 160, 46, 0.3);
+}
+
+.cart-badge {
+  animation: pulse 2s infinite;
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Body padding to account for fixed header */
+body {
+  padding-top: 120px; 
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  body {
+    padding-top: 140px;
+  }
+  
+  .sticky-header.scrolled .main-nav {
+    padding: 8px 0;
+  }
+}
+
+</style>
+
+<script>
+  // Sticky Header Script
+document.addEventListener('DOMContentLoaded', function() {
+    const header = document.querySelector('.sticky-header');
+    let lastScrollTop = 0;
+    let ticking = false;
+
+    function updateHeader() {
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        
+        if (scrollTop > 100) {
+            header.classList.add('scrolled');
+        } else {
+            header.classList.remove('scrolled');
+        }
+
+        // Hide/show header based on scroll direction
+        if (scrollTop > lastScrollTop && scrollTop > 200) {
+            // Scrolling down
+            header.classList.add('hidden');
+        } else {
+            // Scrolling up
+            header.classList.remove('hidden');
+        }
+
+        lastScrollTop = scrollTop;
+        ticking = false;
+    }
+
+    function requestTick() {
+        if (!ticking) {
+            requestAnimationFrame(updateHeader);
+            ticking = true;
+        }
+    }
+
+    window.addEventListener('scroll', requestTick);
+});
+</script>

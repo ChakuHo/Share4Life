@@ -1,0 +1,889 @@
+{% load static %}
+
+<footer class="site-footer">
+  <!-- Newsletter Section -->
+  <div class="footer-newsletter">
+    <div class="container">
+      <div class="newsletter-content">
+        <div class="newsletter-info">
+          <h4>Stay Updated</h4>
+          <p>Get the latest deals and updates delivered to your inbox.</p>
+        </div>
+        <div class="newsletter-form-wrapper">
+          <form class="newsletter-form" id="newsletterForm">
+            <div class="form-group">
+              <input type="email" class="form-control" placeholder="Enter your email" required>
+              <button type="submit" class="btn-subscribe">
+                Subscribe
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Footer -->
+  <div class="footer-main">
+    <div class="container">
+      <div class="row">
+        <!-- Company Info -->
+        <div class="col-lg-3 col-md-6 mb-4">
+          <div class="footer-section">
+            <div class="footer-logo">
+              {% if site_settings and site_settings.logo %}
+                <img src="{{ site_settings.logo.url }}" alt="Logo" class="logo-img">
+              {% endif %}
+              <h5>
+                {% if site_settings and site_settings.site_title %}
+                  {{ site_settings.site_title }}
+                {% else %}
+                  ISLINGTON MARKETPLACE
+                {% endif %}
+              </h5>
+            </div>
+            <p class="footer-desc">
+              Your trusted marketplace for quality products. Discover amazing deals from verified sellers.
+            </p>
+            
+            <div class="social-links">
+              <h6>Follow Us</h6>
+              <div class="social-icons">
+                <a href="#" class="social-icon facebook"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" class="social-icon instagram"><i class="fab fa-instagram"></i></a>
+                <a href="#" class="social-icon twitter"><i class="fab fa-twitter"></i></a>
+                <a href="#" class="social-icon youtube"><i class="fab fa-youtube"></i></a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Links -->
+        <div class="col-lg-2 col-md-6 mb-4">
+          <div class="footer-section">
+            <h6 class="footer-title">Quick Links</h6>
+            <ul class="footer-links">
+              <li><a href="{% url 'home' %}">Home</a></li>
+              <li><a href="{% url 'products:product' %}">Shop Now</a></li>
+              <li><a href="{% url 'about' %}">About Us</a></li>
+              <li><a href="{% url 'contact' %}">Contact</a></li>
+              {% if user.is_authenticated %}
+                <li><a href="{% url 'dashboard' %}">My Account</a></li>
+                <li><a href="{% url 'become_seller' %}">Become Seller</a></li>
+              {% else %}
+                <li><a href="{% url 'login' %}">Login</a></li>
+                <li><a href="{% url 'register' %}">Sign Up</a></li>
+              {% endif %}
+            </ul>
+          </div>
+        </div>
+
+        <!-- Customer Service -->
+        <div class="col-lg-2 col-md-6 mb-4">
+          <div class="footer-section">
+            <h6 class="footer-title">Customer Service</h6>
+            <ul class="footer-links">
+              <li><a href="#" data-toggle="modal" data-target="#helpModal">Help Center</a></li>
+              <li><a href="#" data-toggle="modal" data-target="#shippingModal">Shipping Info</a></li>
+              <li><a href="#" data-toggle="modal" data-target="#returnsModal">Returns</a></li>
+              <li><a href="#" data-toggle="modal" data-target="#trackModal">Track Order</a></li>
+              <li><a href="#" data-toggle="modal" data-target="#supportModal">Support</a></li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Categories -->
+        <div class="col-lg-2 col-md-6 mb-4">
+          <div class="footer-section">
+            <h6 class="footer-title">Categories</h6>
+            <ul class="footer-links">
+              {% for category in categories|slice:":5" %}
+              <li>
+                <a href="{% url 'products:products_by_category' category.slug %}">
+                  {{ category.category_name }}
+                </a>
+              </li>
+              {% endfor %}
+              {% if categories|length > 5 %}
+              <li><a href="{% url 'products:product' %}">View All</a></li>
+              {% endif %}
+            </ul>
+          </div>
+        </div>
+
+        <!-- Contact Info -->
+        <div class="col-lg-3 col-md-6 mb-4">
+          <div class="footer-section">
+            <h6 class="footer-title">Contact Info</h6>
+            <div class="contact-info">
+              {% if site_settings and site_settings.phone %}
+              <div class="contact-item">
+                <i class="fas fa-phone"></i>
+                <span>{{ site_settings.phone }}</span>
+              </div>
+              {% endif %}
+              
+              {% if site_settings and site_settings.email %}
+              <div class="contact-item">
+                <i class="fas fa-envelope"></i>
+                <span>{{ site_settings.email }}</span>
+              </div>
+              {% endif %}
+              
+              {% if site_settings and site_settings.address %}
+              <div class="contact-item">
+                <i class="fas fa-map-marker-alt"></i>
+                <span>{{ site_settings.address }}</span>
+              </div>
+              {% endif %}
+
+              <div class="contact-item">
+                <i class="fas fa-clock"></i>
+                <span>24/7 Online Support</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer Bottom -->
+  <div class="footer-bottom">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-6">
+          <p class="copyright">
+            &copy; 2025 
+            {% if site_settings and site_settings.site_title %}
+              {{ site_settings.site_title }}
+            {% else %}
+              ISLINGTON MARKETPLACE
+            {% endif %}
+            . All rights reserved.
+          </p>
+        </div>
+        
+        <div class="col-md-3">
+          <div class="footer-bottom-links">
+            <a href="#" data-toggle="modal" data-target="#privacyModal">Privacy</a>
+            <a href="#" data-toggle="modal" data-target="#termsModal">Terms</a>
+            <a href="{% url 'contact' %}">Support</a>
+          </div>
+        </div>
+        
+        <div class="col-md-3">
+          <div class="payment-methods">
+            <span>Payment:</span>
+            <div class="payment-icons">
+              <span class="payment-icon">QR</span>
+              <span class="payment-icon">eSewa</span>
+              <span class="payment-icon">COD</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Back to Top Button -->
+  <button class="back-to-top" id="backToTop">
+    <i class="fas fa-chevron-up"></i>
+  </button>
+</footer>
+
+<!-- Modals -->
+<div class="modal fade" id="helpModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Help Center</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="help-topics">
+          <h6>Frequently Asked Questions</h6>
+          <ul>
+            <li>How to place an order?</li>
+            <li>Payment methods available</li>
+            <li>How to track my order?</li>
+            <li>Return and refund policy</li>
+            <li>How to become a seller?</li>
+          </ul>
+          <p>For more assistance, please contact our support team.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="shippingModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Shipping Information</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="shipping-info">
+          <div class="shipping-option">
+            <h6>Standard Delivery</h6>
+            <p>3-5 business days - Rs. 100</p>
+          </div>
+          <div class="shipping-option">
+            <h6>Express Delivery</h6>
+            <p>1-2 business days - Rs. 200</p>
+          </div>
+          <div class="shipping-option">
+            <h6>Free Delivery</h6>
+            <p>Orders over Rs. 2000 - Free</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="returnsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Returns & Exchanges</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="return-policy">
+          <h6>Return Policy</h6>
+          <ul>
+            <li>30-day return window</li>
+            <li>Items must be unused and in original packaging</li>
+            <li>Free returns for defective items</li>
+            <li>Return shipping costs may apply for non-defective items</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="trackModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Track Your Order</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="track-order">
+          <div class="form-group">
+            <label>Enter Order Number:</label>
+            <div class="input-group">
+              <input type="text" class="form-control" placeholder="e.g. ORD123456" id="trackingNumber">
+              <div class="input-group-append">
+                <button class="btn btn-primary" type="button" onclick="trackOrder()">Track</button>
+              </div>
+            </div>
+          </div>
+          <div class="tracking-result" id="trackingResult" style="display: none;">
+            <h6>Order Status</h6>
+            <div class="status-timeline">
+              <div class="status-item completed">
+                <span class="status-dot"></span>
+                <span class="status-text">Order Placed</span>
+              </div>
+              <div class="status-item active">
+                <span class="status-dot"></span>
+                <span class="status-text">Processing</span>
+              </div>
+              <div class="status-item">
+                <span class="status-dot"></span>
+                <span class="status-text">Shipped</span>
+              </div>
+              <div class="status-item">
+                <span class="status-dot"></span>
+                <span class="status-text">Delivered</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="supportModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Customer Support</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="support-options">
+          <div class="support-option">
+            <h6>Email Support</h6>
+            <p>Get help via email</p>
+            <a href="mailto:support@marketplace.com" class="btn btn-outline-primary btn-sm">Send Email</a>
+          </div>
+          <div class="support-option">
+            <h6>Phone Support</h6>
+            <p>Call us for immediate help</p>
+            <a href="tel:+977-1-234567" class="btn btn-primary btn-sm">Call Now</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="privacyModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Privacy Policy</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="policy-content">
+          <h6>Information Collection</h6>
+          <p>We collect information you provide when creating an account, making purchases, or contacting us.</p>
+          
+          <h6>Information Use</h6>
+          <p>We use your information to provide services, process orders, and improve user experience.</p>
+          
+          <h6>Data Protection</h6>
+          <p>We implement security measures to protect your personal information.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="termsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Terms of Service</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="terms-content">
+          <h6>User Agreement</h6>
+          <p>By using our service, you agree to these terms and conditions.</p>
+          
+          <h6>Account Responsibilities</h6>
+          <p>Users are responsible for maintaining account security and following our guidelines.</p>
+          
+          <h6>Service Usage</h6>
+          <p>Our platform should be used for legitimate purposes only.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* SCOPED FOOTER STYLES */
+
+.site-footer {
+  margin-top: 60px;
+  background: #f8f9fa;
+}
+
+/* Newsletter Section */
+.footer-newsletter {
+  background: #007bff;
+  color: white;
+  padding: 40px 0;
+}
+
+.newsletter-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 30px;
+}
+
+.newsletter-info h4 {
+  margin: 0 0 8px 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.newsletter-info p {
+  margin: 0;
+  opacity: 0.9;
+}
+
+.newsletter-form-wrapper {
+  max-width: 400px;
+  width: 100%;
+}
+
+.newsletter-form .form-group {
+  display: flex;
+  margin: 0;
+}
+
+.newsletter-form .form-control {
+  border: none;
+  border-radius: 4px 0 0 4px;
+  padding: 12px 16px;
+  flex: 1;
+}
+
+.newsletter-form .form-control:focus {
+  box-shadow: none;
+  border-color: transparent;
+}
+
+.btn-subscribe {
+  background: #0056b3;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 0 4px 4px 0;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-subscribe:hover {
+  background: #004085;
+}
+
+/* Main Footer */
+.footer-main {
+  background: white;
+  padding: 50px 0 30px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.footer-section {
+  height: 100%;
+}
+
+.footer-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.footer-logo .logo-img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.footer-logo h5 {
+  margin: 0;
+  color: #007bff;
+  font-weight: 600;
+  font-size: 1.2rem;
+}
+
+.footer-desc {
+  color: #6c757d;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 25px;
+}
+
+.footer-title {
+  color: #333;
+  font-weight: 600;
+  margin-bottom: 20px;
+  font-size: 1.1rem;
+}
+
+.footer-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.footer-links li {
+  margin-bottom: 8px;
+}
+
+.footer-links a {
+  color: #6c757d;
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: color 0.3s ease;
+}
+
+.footer-links a:hover {
+  color: #007bff;
+  text-decoration: none;
+}
+
+/* Social Links */
+.social-links h6 {
+  color: #333;
+  font-weight: 600;
+  margin-bottom: 15px;
+  font-size: 1rem;
+}
+
+.social-icons {
+  display: flex;
+  gap: 10px;
+}
+
+.social-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  text-decoration: none;
+  transition: transform 0.3s ease;
+}
+
+.social-icon:hover {
+  transform: translateY(-2px);
+  text-decoration: none;
+  color: white;
+}
+
+.social-icon.facebook { background: #1877f2; }
+.social-icon.instagram { background: #e4405f; }
+.social-icon.twitter { background: #1da1f2; }
+.social-icon.youtube { background: #ff0000; }
+
+/* Contact Info */
+.contact-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.contact-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+.contact-item i {
+  color: #007bff;
+  width: 16px;
+  font-size: 14px;
+}
+
+/* Footer Bottom */
+.footer-bottom {
+  background: #f8f9fa;
+  padding: 20px 0;
+  border-top: 1px solid #dee2e6;
+}
+
+.copyright {
+  margin: 0;
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+.footer-bottom-links {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+}
+
+.footer-bottom-links a {
+  color: #6c757d;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.footer-bottom-links a:hover {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.payment-methods {
+  text-align: right;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.payment-methods span {
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+.payment-icons {
+  display: flex;
+  gap: 5px;
+}
+
+.payment-icon {
+  background: white;
+  border: 1px solid #dee2e6;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+/* Back to Top */
+.back-to-top {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 50px;
+  height: 50px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  transition: all 0.3s ease;
+}
+
+.back-to-top:hover {
+  background: #0056b3;
+  transform: translateY(-3px);
+}
+
+.back-to-top.show {
+  display: flex;
+}
+
+/* Modal Enhancements */
+.modal-header {
+  background: #007bff;
+  color: white;
+  border-bottom: none;
+}
+
+.modal-header .close {
+  color: white;
+  opacity: 0.8;
+}
+
+.modal-body {
+  padding: 25px;
+}
+
+.help-topics ul,
+.return-policy ul {
+  list-style: none;
+  padding: 0;
+}
+
+.help-topics li,
+.return-policy li {
+  padding: 5px 0;
+  border-bottom: 1px solid #f1f1f1;
+}
+
+.shipping-option,
+.support-option {
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 5px;
+  margin-bottom: 15px;
+}
+
+.shipping-option h6,
+.support-option h6 {
+  margin-bottom: 5px;
+  color: #333;
+}
+
+.status-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #dee2e6;
+  flex-shrink: 0;
+}
+
+.status-item.completed .status-dot {
+  background: #28a745;
+}
+
+.status-item.active .status-dot {
+  background: #007bff;
+}
+
+.status-text {
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+.status-item.completed .status-text,
+.status-item.active .status-text {
+  color: #333;
+  font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .newsletter-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 20px;
+  }
+  
+  .newsletter-info h4 {
+    font-size: 1.3rem;
+  }
+  
+  .footer-main {
+    padding: 40px 0 20px;
+  }
+  
+  .footer-bottom .row {
+    text-align: center;
+  }
+  
+  .footer-bottom-links {
+    justify-content: center;
+    margin: 10px 0;
+  }
+  
+  .payment-methods {
+    justify-content: center;
+  }
+  
+  .back-to-top {
+    bottom: 20px;
+    right: 20px;
+    width: 45px;
+    height: 45px;
+  }
+}
+
+@media (max-width: 576px) {
+  .newsletter-form .form-group {
+    flex-direction: column;
+  }
+  
+  .newsletter-form .form-control {
+    border-radius: 4px;
+    margin-bottom: 10px;
+  }
+  
+  .btn-subscribe {
+    border-radius: 4px;
+    width: 100%;
+  }
+  
+  .social-icons {
+    justify-content: center;
+  }
+  
+  .footer-bottom .row > div {
+    margin-bottom: 15px;
+  }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Newsletter form handling
+    const newsletterForm = document.getElementById('newsletterForm');
+    if (newsletterForm) {
+        newsletterForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const submitBtn = this.querySelector('.btn-subscribe');
+            const originalText = submitBtn.textContent;
+            
+            submitBtn.textContent = 'Subscribing...';
+            submitBtn.disabled = true;
+            
+            // Simulate API call
+            setTimeout(function() {
+                submitBtn.textContent = 'Subscribed!';
+                setTimeout(function() {
+                    submitBtn.textContent = originalText;
+                    submitBtn.disabled = false;
+                    newsletterForm.reset();
+                }, 2000);
+            }, 1000);
+        });
+    }
+
+    // Back to top button
+    const backToTopBtn = document.getElementById('backToTop');
+    
+    function toggleBackToTop() {
+        if (window.pageYOffset > 300) {
+            backToTopBtn.classList.add('show');
+        } else {
+            backToTopBtn.classList.remove('show');
+        }
+    }
+
+    window.addEventListener('scroll', toggleBackToTop);
+    
+    backToTopBtn.addEventListener('click', function() {
+        window.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+        });
+    });
+
+    // Social link tracking (for analytics)
+    document.querySelectorAll('.social-icon').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            const platform = this.classList[1];
+            console.log('Social click:', platform);
+            // Add analytics tracking here
+        });
+    });
+});
+
+// Track order function
+function trackOrder() {
+    const trackingNumber = document.getElementById('trackingNumber').value.trim();
+    const trackingResult = document.getElementById('trackingResult');
+    
+    if (trackingNumber) {
+        trackingResult.style.display = 'block';
+        console.log('Tracking order:', trackingNumber);
+        // Here you would make an actual API call to track the order
+    } else {
+        alert('Please enter a valid tracking number');
+    }
+}
+
+// Simple email validation
+function validateEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
+
+// Contact form handler (if you add one later)
+function handleContactForm(formData) {
+    console.log('Contact form submitted:', formData);
+    // Handle contact form submission
+}
+</script>

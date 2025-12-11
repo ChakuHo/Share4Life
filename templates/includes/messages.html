@@ -1,0 +1,254 @@
+<!-- templates/includes/messages.html -->
+{% load static %}
+
+{% if messages %}
+<div id="messages-container" class="messages-container">
+  <!-- Clear All Button (only show if more than 2 messages) -->
+  {% if messages|length > 2 %}
+  <div class="text-right mb-2">
+    <button type="button" class="btn btn-sm btn-outline-danger clear-all-messages" onclick="clearAllMessages()">
+      <i class="fa fa-trash mr-1"></i>Clear All ({{ messages|length }})
+    </button>
+  </div>
+  {% endif %}
+
+  <!-- Messages List -->
+  {% for message in messages %}
+  <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show message-item" 
+       role="alert" 
+       data-message-id="{{ forloop.counter }}">
+    
+    <!-- Message Icon -->
+    <i class="fa fa-{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' or message.tags == 'danger' %}exclamation-triangle{% elif message.tags == 'warning' %}exclamation-circle{% else %}info-circle{% endif %} mr-2"></i>
+    
+    <!-- Message Content -->
+    <span class="message-text">{{ message }}</span>
+    
+    <!-- Close Button -->
+    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+      <span aria-hidden="true">&times;</span>
+    </button>
+    
+    <!-- Auto-hide timer (visual indicator) -->
+    <div class="message-timer" style="display: none;">
+      <div class="timer-bar"></div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Messages Styling -->
+<style>
+.messages-container {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  width: 400px;
+  max-width: 90vw;
+  z-index: 9999;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.message-item {
+  margin-bottom: 10px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  border: none;
+  position: relative;
+  animation: slideIn 0.3s ease-out;
+}
+
+.message-timer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255,255,255,0.3);
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+}
+
+.timer-bar {
+  height: 100%;
+  background: rgba(255,255,255,0.8);
+  width: 0%;
+  transition: width linear;
+}
+
+.clear-all-messages {
+  background: transparent;
+  border: 1px solid #dc3545;
+  color: #dc3545;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 15px;
+  transition: all 0.3s ease;
+}
+
+.clear-all-messages:hover {
+  background: #dc3545;
+  color: white;
+  transform: scale(1.05);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.message-removing {
+  animation: slideOut 0.3s ease-out forwards;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .messages-container {
+    top: 60px;
+    right: 10px;
+    left: 10px;
+    width: auto;
+  }
+}
+
+/* Different alert styles */
+.alert-success {
+  background: linear-gradient(45deg, #d4edda, #c3e6cb);
+  border-color: #b8dacc;
+  color: #155724;
+}
+
+.alert-danger, .alert-error {
+  background: linear-gradient(45deg, #f8d7da, #f1b0b7);
+  border-color: #f1b0b7;
+  color: #721c24;
+}
+
+.alert-warning {
+  background: linear-gradient(45deg, #fff3cd, #ffeaa7);
+  border-color: #ffeaa7;
+  color: #856404;
+}
+
+.alert-info {
+  background: linear-gradient(45deg, #d1ecf1, #abdde5);
+  border-color: #abdde5;
+  color: #0c5460;
+}
+</style>
+
+<!-- Messages JavaScript -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-hide messages after 5 seconds (except errors)
+    const messages = document.querySelectorAll('.message-item');
+    
+    messages.forEach((message, index) => {
+        const isError = message.classList.contains('alert-danger') || message.classList.contains('alert-error');
+        
+        if (!isError) {
+            // Show timer for non-error messages
+            const timer = message.querySelector('.message-timer');
+            const timerBar = message.querySelector('.timer-bar');
+            
+            if (timer && timerBar) {
+                timer.style.display = 'block';
+                timerBar.style.transition = 'width 5s linear';
+                
+                // Start timer animation
+                setTimeout(() => {
+                    timerBar.style.width = '100%';
+                }, 100);
+                
+                // Auto-hide after 5 seconds
+                setTimeout(() => {
+                    hideMessage(message);
+                }, 5000);
+            }
+        }
+        
+        // Add click handler to close button
+        const closeBtn = message.querySelector('.close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function() {
+                hideMessage(message);
+            });
+        }
+    });
+});
+
+function hideMessage(messageElement) {
+    messageElement.classList.add('message-removing');
+    
+    setTimeout(() => {
+        messageElement.remove();
+        
+        // If no messages left, hide container
+        const container = document.getElementById('messages-container');
+        if (container && container.querySelectorAll('.message-item').length === 0) {
+            container.style.display = 'none';
+        }
+    }, 300);
+}
+
+function clearAllMessages() {
+    const messages = document.querySelectorAll('.message-item');
+    const container = document.getElementById('messages-container');
+    
+    messages.forEach((message, index) => {
+        setTimeout(() => {
+            hideMessage(message);
+        }, index * 100); // Stagger the animations
+    });
+    
+    // Clear messages from Django session via AJAX
+    fetch('{% url "clear_messages" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json',
+        },
+        credentials: 'same-origin'
+    }).catch(error => {
+        console.error('Error clearing messages:', error);
+    });
+    
+    // Hide the clear all button
+    const clearBtn = document.querySelector('.clear-all-messages');
+    if (clearBtn) {
+        clearBtn.style.display = 'none';
+    }
+}
+
+// Limit the number of visible messages (max 10)
+function limitMessages() {
+    const messages = document.querySelectorAll('.message-item');
+    if (messages.length > 10) {
+        for (let i = 10; i < messages.length; i++) {
+            messages[i].remove();
+        }
+    }
+}
+
+// Call on page load
+limitMessages();
+</script>
+{% endif %}

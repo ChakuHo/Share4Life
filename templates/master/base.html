@@ -1,0 +1,133 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="pragma" content="no-cache" />
+    <meta http-equiv="cache-control" content="max-age=604800" />
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
+    />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+
+    <title>
+      {% block title %}{{ site_setting.site_name|default:"Islington MarketPlace" }}{% endblock %}
+    </title>
+    <meta
+      name="description"
+      content="{% if site_settings.meta_description %}{{ site_settings.meta_description }}{% else %}Islington MarketPlace{% endif %}"
+    />
+    <meta
+      name="keywords"
+      content="{% if site_settings.meta_keywords %}{{ site_settings.meta_keywords }}{% else %}Islington MarketPlace, Islington{% endif %}"
+    />
+
+    <!-- Dynamic Logo for social media -->
+    {% if site_settings.logo %}
+    <meta property="og:image" content="{{ site_settings.logo.url }}" />
+    {% endif %}
+
+    <!-- Dynamic Favicon -->
+    {% if site_settings.favicon %}
+    <link
+      href="{{ site_settings.favicon.url }}"
+      rel="shortcut icon"
+      type="image/x-icon"
+    />
+    {% endif %}
+
+    <!-- Open Graph for social media -->
+    <meta
+      property="og:title"
+      content="{% if site_settings.site_title %}{{ site_settings.site_title }}{% else %}Islington MarketPlace{% endif %}"
+    />
+    <meta
+      property="og:description"
+      content="{% if site_settings.meta_description %}{{ site_settings.meta_description }}{% else %}Islington MarketPlace{% endif %}"
+    />
+
+    <!--  CSS and JS files -->
+    <script
+      src="{% static 'js/jquery-2.0.0.min.js' %}"
+      type="text/javascript"
+    ></script>
+    <script
+      src="{% static 'js/bootstrap.bundle.min.js' %}"
+      type="text/javascript"
+    ></script>
+    <link
+      href="{% static 'css/bootstrap.css' %}"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <link
+      href="{% static 'fonts/fontawesome/css/all.min.css' %}"
+      type="text/css"
+      rel="stylesheet"
+    />
+    <link href="{% static 'css/ui.css' %}" rel="stylesheet" type="text/css" />
+    <link
+      href="{% static 'css/responsive.css' %}"
+      rel="stylesheet"
+      media="only screen and (max-width: 1200px)"
+    />
+    <script src="{% static 'js/script.js' %}" type="text/javascript"></script>
+
+    <script type="text/javascript">
+      $(document).ready(function () {
+        // jQuery code
+      });
+    </script>
+  </head>
+  <body>
+    <!-- Navigation -->
+    {% include 'includes/navbar.html' %}
+    
+    <!-- Messages System -->
+    {% include 'includes/messages.html' %}
+    
+    <!-- CSRF Token for AJAX calls -->
+    {% csrf_token %}
+    
+    <!-- Main Content -->
+    {% block content %}{% endblock %}
+    
+    <!-- Footer  -->
+    {% include 'includes/footer.html' %}
+  </body>
+</html>
+
+<script>
+
+function checkAuthStatus() {
+    // Only run on protected pages
+    const protectedPaths = ['/users/dashboard/', '/users/my-selling-items/', '/orders/my-orders/'];
+    const currentPath = window.location.pathname;
+    
+    if (protectedPaths.some(path => currentPath.startsWith(path))) {
+        fetch('/users/notifications/ajax/', {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => {
+            if (response.status === 401 || response.status === 403) {
+                alert('Your session has expired. Please login again.');
+                window.location.href = '/users/login/';
+            }
+        })
+        .catch(error => {
+            // Silently handle errors
+        });
+    }
+}
+
+// Check every 5 minutes
+setInterval(checkAuthStatus, 300000);
+</script>

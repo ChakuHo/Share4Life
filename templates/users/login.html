@@ -1,0 +1,273 @@
+{% extends "master/base.html" %} {% load static %} {% block content %}
+
+<!-- ========================= SECTION CONTENT ========================= -->
+<section class="section-content padding-y" style="min-height: 84vh">
+  <!-- ============================ COMPONENT LOGIN   ================================= -->
+  <div class="card mx-auto" style="max-width: 420px; margin-top: 100px">
+    <div class="card-body">
+      <header class="mb-4 text-center">
+        <h4 class="card-title">
+          <i class="fa fa-sign-in-alt text-primary"></i> Welcome Back
+        </h4>
+        <p class="text-muted">Sign in to your account</p>
+      </header>
+      
+      <form action="{% url 'login' %}" method="POST" id="login-form">
+        {% csrf_token %} 
+        {% if error %}
+        <div class="alert alert-danger">
+          <i class="fa fa-exclamation-triangle"></i> {{ error }}
+        </div>
+        {% endif %}
+        
+        <div class="form-group">
+          <label for="username">
+            <i class="fa fa-user text-muted"></i> Username or Email
+          </label>
+          <input
+            type="text"
+            name="username"
+            id="username"
+            class="form-control"
+            placeholder="Enter username or email"
+            required
+          />
+        </div>
+        
+        <div class="form-group">
+          <label for="password">
+            <i class="fa fa-lock text-muted"></i> Password
+          </label>
+          <div class="input-group">
+            <input
+              type="password"
+              name="password"
+              id="password"
+              class="form-control"
+              placeholder="Enter password"
+              required
+            />
+            <div class="input-group-append">
+              <button type="button" class="btn btn-outline-secondary" id="toggle-password">
+                <i class="fa fa-eye"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="form-group d-flex justify-content-between align-items-center">
+          <div class="custom-control custom-checkbox">
+            <input type="checkbox" class="custom-control-input" id="remember-me">
+            <label class="custom-control-label" for="remember-me">Remember me</label>
+          </div>
+          <a href="#" class="text-primary">Forgot password?</a>
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-block btn-lg" id="login-btn">
+          <i class="fa fa-sign-in-alt"></i> Sign In
+        </button>
+        
+        <div class="text-center mt-3">
+          <small class="text-muted">
+            <i class="fa fa-shield-alt text-success"></i> Your data is secure with us
+          </small>
+        </div>
+      </form>
+    </div>
+    <!-- card-body.// -->
+  </div>
+  <!-- card .// -->
+
+  <p class="text-center mt-4">
+    Don't have an account? <a href="{% url 'register' %}" class="font-weight-bold">Create Account</a>
+  </p>
+  <br /><br />
+  <!-- ============================ COMPONENT LOGIN  END.// ================================= -->
+</section>
+
+<style>
+/* Enhanced Login Form Styling */
+.section-content .card {
+  border: none;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  border-radius: 15px;
+  overflow: hidden;
+}
+
+.card-body {
+  padding: 2.5rem;
+}
+
+.section-content .form-control {
+  border-radius: 8px;
+  border: 2px solid #e9ecef;
+  padding: 12px 15px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.form-control:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+  transform: translateY(-1px);
+}
+
+.form-control.is-valid {
+  border-color: #28a745;
+}
+
+.form-control.is-invalid {
+  border-color: #dc3545;
+}
+
+.section-content .btn-primary {
+  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  border: none;
+  border-radius: 10px;
+  padding: 15px;
+  font-weight: 600;
+  font-size: 16px;
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 123, 255, 0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-outline-secondary {
+  border-color: #e9ecef;
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+}
+
+.btn-outline-secondary:hover {
+  background-color: #f8f9fa;
+  border-color: #007bff;
+}
+
+.input-group .form-control {
+  border-radius: 8px 0 0 8px;
+}
+
+.alert {
+  border-radius: 10px;
+  border: none;
+  border-left: 5px solid #dc3545;
+}
+
+.custom-control-input:checked ~ .custom-control-label::before {
+  background-color: #007bff;
+  border-color: #007bff;
+}
+
+label {
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 8px;
+}
+
+.text-primary {
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.text-primary:hover {
+  text-decoration: underline;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+  .card-body {
+    padding: 1.5rem;
+  }
+  
+  .form-control {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+}
+
+/* Loading animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.fa-spinner {
+  animation: spin 1s linear infinite;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('login-form');
+    const loginBtn = document.getElementById('login-btn');
+    const passwordInput = document.getElementById('password');
+    const togglePasswordBtn = document.getElementById('toggle-password');
+    const usernameInput = document.getElementById('username');
+    
+    // Form submission handling
+    form.addEventListener('submit', function(e) {
+        // Basic validation
+        if (!usernameInput.value.trim() || !passwordInput.value) {
+            e.preventDefault();
+            alert('Please enter both username/email and password');
+            return;
+        }
+        
+        // Show loading state
+        loginBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Signing In...';
+        loginBtn.disabled = true;
+    });
+    
+    // Toggle password visibility
+    togglePasswordBtn.addEventListener('click', function() {
+        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        passwordInput.setAttribute('type', type);
+        
+        const icon = this.querySelector('i');
+        if (type === 'password') {
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        } else {
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        }
+    });
+    
+    // Input validation styling
+    usernameInput.addEventListener('input', function() {
+        if (this.value.trim()) {
+            this.classList.remove('is-invalid');
+            this.classList.add('is-valid');
+        } else {
+            this.classList.remove('is-valid');
+        }
+    });
+    
+    passwordInput.addEventListener('input', function() {
+        if (this.value.length >= 1) {
+            this.classList.remove('is-invalid');
+            this.classList.add('is-valid');
+        } else {
+            this.classList.remove('is-valid');
+        }
+    });
+    
+    // Enter key handling
+    form.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            form.submit();
+        }
+    });
+});
+</script>
+
+<!-- ========================= SECTION CONTENT END// ========================= -->
+{% endblock %}

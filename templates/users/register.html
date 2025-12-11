@@ -1,0 +1,798 @@
+{% extends "master/base.html" %} {% load static %} {% block content %}
+
+<!-- ========================= SECTION CONTENT ========================= -->
+<section class="section-content padding-y">
+  <!-- ============================ COMPONENT REGISTER   ================================= -->
+  <div class="card mx-auto" style="max-width: 600px; margin-top: 40px">
+    <article class="card-body">
+      <header class="mb-4">
+        <h4 class="card-title">
+          <i class="fa fa-user-plus text-primary"></i> Create Your Account
+        </h4>
+        <p class="text-muted">Join ISLINGTON MARKETPLACE today!</p>
+      </header>
+      
+      <form action="{% url 'register' %}" method="POST" id="register-form" novalidate>
+        {% csrf_token %}
+        
+        {% if error %}
+        <div class="alert alert-danger alert-dismissible fade show">
+          <i class="fa fa-exclamation-triangle"></i> {{ error }}
+          <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        {% endif %}
+        
+        <!-- Personal Information -->
+        <div class="card mb-4">
+          <div class="card-body">
+            <h6 class="card-subtitle mb-3">
+              <i class="fa fa-user text-primary"></i> Personal Information
+            </h6>
+            
+            <div class="form-row">
+              <div class="col form-group">
+                <label for="first_name">First Name <span class="text-danger">*</span></label>
+                <input type="text" 
+                       name="first_name" 
+                       id="first_name"
+                       class="form-control" 
+                       placeholder="Enter first name"
+                       minlength="2"
+                       maxlength="30"
+                       pattern="[A-Za-z\s]{2,30}"
+                       title="First name must be 2-30 characters, letters only"
+                       required />
+                <div class="invalid-feedback"></div>
+              </div>
+              <div class="col form-group">
+                <label for="last_name">Last Name <span class="text-danger">*</span></label>
+                <input type="text" 
+                       name="last_name" 
+                       id="last_name"
+                       class="form-control" 
+                       placeholder="Enter last name"
+                       minlength="2"
+                       maxlength="30"
+                       pattern="[A-Za-z\s]{2,30}"
+                       title="Last name must be 2-30 characters, letters only"
+                       required />
+                <div class="invalid-feedback"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Account Information -->
+        <div class="card mb-4">
+          <div class="card-body">
+            <h6 class="card-subtitle mb-3">
+              <i class="fa fa-at text-primary"></i> Account Information
+            </h6>
+            
+            <div class="form-group">
+              <label for="username">Username <span class="text-danger">*</span></label>
+              <input type="text" 
+                     name="username" 
+                     id="username"
+                     class="form-control" 
+                     placeholder="Choose a username"
+                     minlength="3"
+                     maxlength="30"
+                     pattern="[a-zA-Z0-9_]{3,30}"
+                     title="Username must be 3-30 characters, letters, numbers and underscore only"
+                     required />
+              <small class="form-text text-muted">3-30 characters, letters, numbers and underscore only</small>
+              <div class="invalid-feedback"></div>
+            </div>
+            
+            <div class="form-group">
+              <label for="email">Email Address <span class="text-danger">*</span></label>
+              <input type="email" 
+                     name="email" 
+                     id="email"
+                     class="form-control" 
+                     placeholder="your@email.com" 
+                     required />
+              <small class="form-text text-muted">We'll never share your email with anyone else.</small>
+              <div class="invalid-feedback"></div>
+            </div>
+            
+            <div class="form-group">
+              <label for="phone">Phone Number <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <div class="input-group-prepend">
+                  <select class="custom-select country-code" id="country-code">
+                    <option value="+977">🇳🇵 +977</option>
+                    <option value="+91">🇮🇳 +91</option>
+                    <option value="+1">🇺🇸 +1</option>
+                    <option value="+44">🇬🇧 +44</option>
+                    <option value="+61">🇦🇺 +61</option>
+                  </select>
+                </div>
+                <input type="tel" 
+                       name="phone" 
+                       id="phone"
+                       class="form-control"
+                       placeholder="9812345678"
+                       required />
+              </div>
+              <small class="form-text text-muted phone-help">
+                Nepal: 10 digits starting with 97/98 (e.g., 9812345678)<br>
+                India: 10 digits starting with 6/7/8/9 (e.g., 9876543210)
+              </small>
+              <div class="invalid-feedback"></div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Location Information -->
+        <div class="card mb-4">
+          <div class="card-body">
+            <h6 class="card-subtitle mb-3">
+              <i class="fa fa-map-marker-alt text-primary"></i> Location Information
+            </h6>
+            
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label for="city">City <span class="text-danger">*</span></label>
+                <input type="text" 
+                       name="city" 
+                       id="city"
+                       class="form-control" 
+                       placeholder="Your city"
+                       minlength="2"
+                       maxlength="50"
+                       pattern="[A-Za-z\s\-\.]{2,50}"
+                       title="City name must be 2-50 characters, letters only"
+                       required />
+                <div class="invalid-feedback"></div>
+              </div>
+              <div class="form-group col-md-6">
+                <label for="country">Country <span class="text-danger">*</span></label>
+                <select name="country" id="country" class="form-control country-select" required>
+                  <option value="">Choose your country</option>
+                  <option value="Nepal">🇳🇵 Nepal</option>
+                  <option value="India">🇮🇳 India</option>
+                  <option value="USA">🇺🇸 United States</option>
+                  <option value="UK">🇬🇧 United Kingdom</option>
+                  <option value="Canada">🇨🇦 Canada</option>
+                  <option value="Australia">🇦🇺 Australia</option>
+                  <option value="Other">🌍 Other</option>
+                </select>
+                <div class="invalid-feedback"></div>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label for="zip">ZIP/Postal Code</label>
+              <input type="text" 
+                     name="zip" 
+                     id="zip"
+                     class="form-control" 
+                     placeholder="ZIP/Postal code (optional)"
+                     maxlength="10" />
+              <small class="form-text text-muted">Optional - helps with delivery estimates</small>
+              <div class="invalid-feedback"></div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Password Information -->
+        <div class="card mb-4">
+          <div class="card-body">
+            <h6 class="card-subtitle mb-3">
+              <i class="fa fa-lock text-primary"></i> Security
+            </h6>
+            
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label for="password">Create Password <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <input class="form-control" 
+                         name="password" 
+                         id="password"
+                         type="password" 
+                         placeholder="Create password"
+                         minlength="8"
+                         maxlength="50"
+                         required />
+                  <div class="input-group-append">
+                    <button class="btn btn-outline-secondary password-toggle" type="button" data-target="password">
+                      <i class="fa fa-eye"></i>
+                    </button>
+                  </div>
+                </div>
+                <small class="form-text text-muted">Minimum 8 characters with uppercase, lowercase, number</small>
+                <div class="invalid-feedback"></div>
+              </div>
+              <div class="form-group col-md-6">
+                <label for="confirm_password">Confirm Password <span class="text-danger">*</span></label>
+                <div class="input-group">
+                  <input class="form-control" 
+                         name="confirm_password" 
+                         id="confirm_password"
+                         type="password" 
+                         placeholder="Confirm password" 
+                         required />
+                  <div class="input-group-append">
+                    <button class="btn btn-outline-secondary password-toggle" type="button" data-target="confirm_password">
+                      <i class="fa fa-eye"></i>
+                    </button>
+                  </div>
+                </div>
+                <small class="form-text text-muted">Must match password</small>
+                <div class="invalid-feedback"></div>
+              </div>
+            </div>
+            
+            <!-- Password strength indicator -->
+            <div class="password-strength mt-2" id="password-strength" style="display: none;">
+              <div class="progress" style="height: 5px;">
+                <div class="progress-bar" role="progressbar"></div>
+              </div>
+              <small class="strength-text"></small>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Terms and Submit -->
+        <div class="form-group">
+          <div class="custom-control custom-checkbox">
+            <input type="checkbox" class="custom-control-input" id="terms" required>
+            <label class="custom-control-label" for="terms">
+              I agree to the <a href="#" onclick="openModal('termsModal')" class="text-primary">Terms & Conditions</a> and <a href="#" onclick="openModal('privacyModal')" class="text-primary">Privacy Policy</a> <span class="text-danger">*</span>
+            </label>
+            <div class="invalid-feedback"></div>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <button type="submit" class="btn btn-primary btn-block btn-lg" id="register-btn">
+            <i class="fa fa-user-plus"></i> Create Account
+          </button>
+        </div>
+      </form>
+    </article>
+  </div>
+  
+  <p class="text-center mt-4">
+    Already have an account? <a href="{% url 'login' %}" class="text-primary">Sign In</a>
+  </p>
+  <br /><br />
+</section>
+
+<!-- Terms Modal -->
+<div class="modal fade" id="termsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Terms & Conditions</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <h6>1. Acceptance of Terms</h6>
+        <p>By creating an account, you agree to these terms and conditions.</p>
+        <h6>2. Account Responsibility</h6>
+        <p>You are responsible for maintaining the confidentiality of your account credentials.</p>
+        <h6>3. Prohibited Activities</h6>
+        <p>You may not use our service for any illegal or unauthorized purpose.</p>
+        <h6>4. Privacy</h6>
+        <p>We respect your privacy and protect your personal information as outlined in our Privacy Policy.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Privacy Modal -->
+<div class="modal fade" id="privacyModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Privacy Policy</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <h6>Information Collection</h6>
+        <p>We collect information you provide when creating an account and making purchases.</p>
+        <h6>Information Use</h6>
+        <p>We use your information to provide services, process orders, and improve user experience.</p>
+        <h6>Information Protection</h6>
+        <p>We implement security measures to protect your personal information.</p>
+        <h6>Third Parties</h6>
+        <p>We do not sell your personal information to third parties.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* Enhanced Registration Form Styling */
+.section-content .card {
+  border: none;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-radius: 15px;
+}
+
+.card-subtitle {
+  font-weight: 600;
+  color: #495057;
+  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 8px;
+}
+
+.section-content .form-control {
+  border-radius: 8px;
+  border: 2px solid #e9ecef;
+  padding: 12px 15px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.country-code {
+  border-radius: 8px 0 0 8px;
+  border-right: none;
+  width: 120px;
+  background: #f8f9fa;
+}
+
+.country-select {
+  padding: 12px 15px !important;
+  height: auto !important;
+  line-height: 1.5 !important;
+}
+
+.country-select option {
+  padding: 8px 12px;
+  color: #495057;
+}
+
+.form-control:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+  transform: translateY(-1px);
+}
+
+.form-control.is-valid {
+  border-color: #28a745;
+  background-image: url("data:image/svg+xml;charset=utf8,%3Csvg viewBox='0 0 8 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.3 6.73L.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1z' fill='%2328a745'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right calc(0.375em + 0.1875rem) center;
+  background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+}
+
+.form-control.is-invalid {
+  border-color: #dc3545;
+}
+
+.invalid-feedback {
+  display: block;
+  color: #dc3545;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.password-toggle {
+  border-radius: 0 8px 8px 0;
+  border-left: none;
+}
+
+.section-content .btn-primary {
+  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  border: none;
+  border-radius: 10px;
+  padding: 15px;
+  font-weight: 600;
+  font-size: 16px;
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 123, 255, 0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  transform: none;
+  box-shadow: none;
+}
+
+.progress-bar {
+  transition: all 0.3s ease;
+}
+
+.strength-weak { background-color: #dc3545; }
+.strength-medium { background-color: #ffc107; }
+.strength-strong { background-color: #28a745; }
+
+.custom-control-input:checked ~ .custom-control-label::before {
+  background-color: #007bff;
+  border-color: #007bff;
+}
+
+.phone-help {
+  line-height: 1.3;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+  .card {
+    margin: 20px 15px;
+  }
+  
+  .form-control {
+    font-size: 16px;
+  }
+  
+  .country-code {
+    width: 100px;
+    font-size: 14px;
+  }
+}
+
+
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('register-form');
+    const registerBtn = document.getElementById('register-btn');
+    const passwordInput = document.getElementById('password');
+    const confirmPasswordInput = document.getElementById('confirm_password');
+    const phoneInput = document.getElementById('phone');
+    const countryCodeSelect = document.getElementById('country-code');
+    const usernameInput = document.getElementById('username');
+    const emailInput = document.getElementById('email');
+    const zipInput = document.getElementById('zip');
+    const termsCheckbox = document.getElementById('terms');
+    const firstNameInput = document.getElementById('first_name');
+    const lastNameInput = document.getElementById('last_name');
+    const cityInput = document.getElementById('city');
+    const countrySelect = document.getElementById('country');
+    
+    // Password toggle functionality
+    document.querySelectorAll('.password-toggle').forEach(button => {
+        button.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            const target = document.getElementById(targetId);
+            const icon = this.querySelector('i');
+            
+            if (target.type === 'password') {
+                target.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                target.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        });
+    });
+    
+    // Form submission handling
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (!validateForm()) {
+            return;
+        }
+        
+        registerBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Creating Account...';
+        registerBtn.disabled = true;
+        
+        // Submit the form
+        this.submit();
+    });
+    
+    // Phone validation based on country code
+    function getPhoneValidation(countryCode) {
+        switch(countryCode) {
+            case '+977': // Nepal
+                return {
+                    pattern: /^(97|98)\d{8}$/,
+                    message: 'Nepal phone must be 10 digits starting with 97 or 98',
+                    placeholder: '9812345678'
+                };
+            case '+91': // India
+                return {
+                    pattern: /^[6789]\d{9}$/,
+                    message: 'India phone must be 10 digits starting with 6, 7, 8, or 9',
+                    placeholder: '9876543210'
+                };
+            case '+1': // US/Canada
+                return {
+                    pattern: /^\d{10}$/,
+                    message: 'US/Canada phone must be 10 digits',
+                    placeholder: '2025551234'
+                };
+            case '+44': // UK
+                return {
+                    pattern: /^7\d{9}$/,
+                    message: 'UK mobile must be 10 digits starting with 7',
+                    placeholder: '7123456789'
+                };
+            case '+61': // Australia
+                return {
+                    pattern: /^4\d{8}$/,
+                    message: 'Australia mobile must be 9 digits starting with 4',
+                    placeholder: '412345678'
+                };
+            default:
+                return {
+                    pattern: /^\d{7,15}$/,
+                    message: 'Phone number must be 7-15 digits',
+                    placeholder: 'Phone number'
+                };
+        }
+    }
+    
+    // Update phone validation when country code changes
+    countryCodeSelect.addEventListener('change', function() {
+        const validation = getPhoneValidation(this.value);
+        phoneInput.placeholder = validation.placeholder;
+        
+        if (phoneInput.value) {
+            validatePhone(phoneInput);
+        }
+    });
+    
+    // Validation functions
+    function validatePhone(input) {
+        const phone = input.value.trim();
+        const countryCode = countryCodeSelect.value;
+        const validation = getPhoneValidation(countryCode);
+        
+        if (!phone) {
+            showError(input, 'Phone number is required');
+            return false;
+        }
+        
+        if (!validation.pattern.test(phone)) {
+            showError(input, validation.message);
+            return false;
+        }
+        
+        showSuccess(input);
+        return true;
+    }
+    
+    function validatePassword(input) {
+        const password = input.value;
+        const strengthDiv = document.getElementById('password-strength');
+        const progressBar = strengthDiv.querySelector('.progress-bar');
+        const strengthText = strengthDiv.querySelector('.strength-text');
+        
+        if (password.length === 0) {
+            strengthDiv.style.display = 'none';
+            showError(input, 'Password is required');
+            return false;
+        }
+        
+        strengthDiv.style.display = 'block';
+        let strength = 0;
+        let message = '';
+        let issues = [];
+        
+        // Check password criteria
+        if (password.length >= 8) strength += 25;
+        else issues.push('at least 8 characters');
+        
+        if (/[a-z]/.test(password)) strength += 25;
+        else issues.push('lowercase letter');
+        
+        if (/[A-Z]/.test(password)) strength += 25;
+        else issues.push('uppercase letter');
+        
+        if (/[0-9]/.test(password)) strength += 25;
+        else issues.push('number');
+        
+        // Update progress bar and message
+        progressBar.style.width = strength + '%';
+        
+        if (strength < 75) {
+            progressBar.className = 'progress-bar strength-weak';
+            message = 'Weak - needs: ' + issues.join(', ');
+            showError(input, 'Password must contain ' + issues.join(', '));
+            return false;
+        } else if (strength < 100) {
+            progressBar.className = 'progress-bar strength-medium';
+            message = 'Medium - needs: ' + issues.join(', ');
+            if (issues.length > 0) {
+                showError(input, 'Password must contain ' + issues.join(', '));
+                return false;
+            }
+        } else {
+            progressBar.className = 'progress-bar strength-strong';
+            message = 'Strong password';
+            showSuccess(input);
+        }
+        
+        strengthText.textContent = message;
+        return strength >= 100;
+    }
+    
+    function validateConfirmPassword(input) {
+        const password = passwordInput.value;
+        const confirmPassword = input.value;
+        
+        if (!confirmPassword) {
+            showError(input, 'Please confirm your password');
+            return false;
+        }
+        
+        if (password !== confirmPassword) {
+            showError(input, 'Passwords do not match');
+            return false;
+        }
+        
+        showSuccess(input);
+        return true;
+    }
+    
+    function validateName(input, fieldName) {
+        const name = input.value.trim();
+        
+        if (!name) {
+            showError(input, fieldName + ' is required');
+            return false;
+        }
+        
+        if (name.length < 2) {
+            showError(input, fieldName + ' must be at least 2 characters');
+            return false;
+        }
+        
+        if (!/^[A-Za-z\s]{2,30}$/.test(name)) {
+            showError(input, fieldName + ' must contain only letters');
+            return false;
+        }
+        
+        showSuccess(input);
+        return true;
+    }
+    
+    function validateUsername(input) {
+        const username = input.value.trim();
+        
+        if (!username) {
+            showError(input, 'Username is required');
+            return false;
+        }
+        
+        if (!/^[a-zA-Z0-9_]{3,30}$/.test(username)) {
+            showError(input, 'Username must be 3-30 characters, letters, numbers and underscore only');
+            return false;
+        }
+        
+        showSuccess(input);
+        return true;
+    }
+    
+    function validateEmail(input) {
+        const email = input.value.trim();
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        
+        if (!email) {
+            showError(input, 'Email is required');
+            return false;
+        }
+        
+        if (!emailPattern.test(email)) {
+            showError(input, 'Please enter a valid email address');
+            return false;
+        }
+        
+        showSuccess(input);
+        return true;
+    }
+    
+    function validateCity(input) {
+        const city = input.value.trim();
+        
+        if (!city) {
+            showError(input, 'City is required');
+            return false;
+        }
+        
+        if (!/^[A-Za-z\s\-\.]{2,50}$/.test(city)) {
+            showError(input, 'City must contain only letters, spaces, hyphens and dots');
+            return false;
+        }
+        
+        showSuccess(input);
+        return true;
+    }
+    
+    function validateCountry(input) {
+        if (!input.value) {
+            showError(input, 'Please select your country');
+            return false;
+        }
+        
+        showSuccess(input);
+        return true;
+    }
+    
+    function validateTerms(input) {
+        if (!input.checked) {
+            showError(input, 'You must accept the Terms & Conditions');
+            return false;
+        }
+        
+        hideError(input);
+        return true;
+    }
+    
+    // Overall form validation
+    function validateForm() {
+        let isValid = true;
+        
+        if (!validateName(firstNameInput, 'First name')) isValid = false;
+        if (!validateName(lastNameInput, 'Last name')) isValid = false;
+        if (!validateUsername(usernameInput)) isValid = false;
+        if (!validateEmail(emailInput)) isValid = false;
+        if (!validatePhone(phoneInput)) isValid = false;
+        if (!validateCity(cityInput)) isValid = false;
+        if (!validateCountry(countrySelect)) isValid = false;
+        if (!validatePassword(passwordInput)) isValid = false;
+        if (!validateConfirmPassword(confirmPasswordInput)) isValid = false;
+        if (!validateTerms(termsCheckbox)) isValid = false;
+        
+        return isValid;
+    }
+    
+    // Helper functions
+    function showError(input, message) {
+        input.classList.remove('is-valid');
+        input.classList.add('is-invalid');
+        const feedback = input.parentNode.querySelector('.invalid-feedback');
+        if (feedback) {
+            feedback.textContent = message;
+        }
+    }
+    
+    function showSuccess(input) {
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+        hideError(input);
+    }
+    
+    function hideError(input) {
+        const feedback = input.parentNode.querySelector('.invalid-feedback');
+        if (feedback) {
+            feedback.textContent = '';
+        }
+    }
+    
+    // Real-time validation
+    firstNameInput.addEventListener('blur', () => validateName(firstNameInput, 'First name'));
+    lastNameInput.addEventListener('blur', () => validateName(lastNameInput, 'Last name'));
+    usernameInput.addEventListener('blur', () => validateUsername(usernameInput));
+    emailInput.addEventListener('blur', () => validateEmail(emailInput));
+    phoneInput.addEventListener('blur', () => validatePhone(phoneInput));
+    cityInput.addEventListener('blur', () => validateCity(cityInput));
+    countrySelect.addEventListener('change', () => validateCountry(countrySelect));
+    passwordInput.addEventListener('input', () => validatePassword(passwordInput));
+    confirmPasswordInput.addEventListener('blur', () => validateConfirmPassword(confirmPasswordInput));
+    termsCheckbox.addEventListener('change', () => validateTerms(termsCheckbox));
+    
+    // Initialize phone validation
+    const initialValidation = getPhoneValidation(countryCodeSelect.value);
+    phoneInput.placeholder = initialValidation.placeholder;
+});
+
+// Modal functions
+function openModal(modalId) {
+    $('#' + modalId).modal('show');
+}
+</script>
+
+{% endblock %}
