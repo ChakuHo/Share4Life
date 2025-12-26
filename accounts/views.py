@@ -1,65 +1,85 @@
 from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from .forms import RegistrationForm
-from .models import UserProfile
+from .models import CustomUser
+
+from blood.models import PublicBloodRequest
+from crowdfunding.models import Campaign
+
+def home(request):
+    """
+    The Dynamic Landing Page.
+    Fetches data from Blood and Crowdfunding apps.
+    """
+    context = {}
+
+    # 1. Fetch Blood Requests
+    # Get all active requests sorted by newest first
+    all_requests = PublicBloodRequest.objects.filter(is_active=True).order_by('-created_at')
+    
+    context['urgent_requests'] = all_requests[:5]  # Pass top 5 to the Ticker
+    context['recent_requests'] = all_requests[:4]  # Pass top 4 to the Cards Grid
+
+    # 2. Fetch Featured Campaign
+    # Get the first campaign marked as featured
+    context['featured_campaign'] = Campaign.objects.filter(is_featured=True).first()
+    
+    return render(request, 'home.html', context)
+
+@login_required
+def dashboard(request):
+    return render(request, 'users/dashboard.html', {'user': request.user})
 
 def register(request):
     if request.method == 'POST':
-        # We manually map your HTML fields to the form
-        # because your HTML uses 'phone' but model has 'phone_number' etc.
         form = RegistrationForm(request.POST)
         
-        # We need to manually handle the data because we are mixing User and Profile data
-        username = request.POST.get('username')
-        email = request.POST.get('email')
-        password = request.POST.get('password')
-        confirm_password = request.POST.get('confirm_password')
-        first_name = request.POST.get('first_name')
-        last_name = request.POST.get('last_name')
-        phone = request.POST.get('phone')
-        city = request.POST.get('city')
-        # country = request.POST.get('country') # We can store this in profile later if we add a field
+        if form.is_valid():
+            username = form.cleaned_data['username']
+            email = form.cleaned_data['email']
+            password = form.cleaned_data['password']
+            first_name = form.cleaned_data['first_name']
+            last_name = form.cleaned_data['last_name']
+            phone = form.cleaned_data['phone']
+            city = form.cleaned_data['city']
 
-        # Backend Validation
-        if password != confirm_password:
-            messages.error(request, "Passwords do not match!")
-            return render(request, 'accounts/register.html', {'error': "Passwords do not match"})
+            try:
+                # Create the User (Handles password hashing)
+                user = CustomUser.objects.create_user(
+                    username=username,
+                    email=email,
+                    password=password,
+                    first_name=first_name,
+                    last_name=last_name,
+                    phone_number=phone
+                )
+                
+                # Update the Profile (Created automatically by signal)
+                user.profile.city = city
+                user.profile.save()
 
-        if CustomUser.objects.filter(username=username).exists():
-            messages.error(request, "Username already taken!")
-            return render(request, 'accounts/register.html', {'error': "Username taken"})
-
-        if CustomUser.objects.filter(email=email).exists():
-            messages.error(request, "Email already registered!")
-            return render(request, 'accounts/register.html', {'error': "Email taken"})
-
-        # Create the User
-        try:
-            user = CustomUser.objects.create_user(
-                username=username, 
-                email=email, 
-                password=password,
-                first_name=first_name,
-                last_name=last_name,
-                phone_number=phone # Saving phone to CustomUser
-            )
+                messages.success(request, "Account created successfully! Please login.")
+                return redirect('login')
             
-            # Update the Profile (City/Location)
-            profile = user.profile
-            profile.city = city
-            profile.save()
+            except Exception as e:
+                messages.error(request, f"System Error: {e}")
+        else:
+            # Show form errors
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field}: {error}")
+                    
+    else:
+        form = RegistrationForm()
 
-            messages.success(request, "Account created successfully! Please login.")
-            return redirect('login')
-
-        except Exception as e:
-            messages.error(request, f"An error occurred: {e}")
-            return render(request, 'accounts/register.html')
-
-    return render(request, 'accounts/register.html')
+    return render(request, 'accounts/register.html', {'form': form})
 
 def login_view(request):
+    if request.user.is_authenticated:
+        return redirect('home')
+
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
@@ -69,12 +89,10 @@ def login_view(request):
         if user is not None:
             login(request, user)
             messages.success(request, f"Welcome back, {user.first_name}!")
-            # Redirect to home page (we need to create this URL next)
-            return redirect('home') 
+            return redirect('home')
         else:
             messages.error(request, "Invalid username or password")
-            return render(request, 'accounts/login.html', {'error': "Invalid credentials"})
-
+    
     return render(request, 'accounts/login.html')
 
 def logout_view(request):

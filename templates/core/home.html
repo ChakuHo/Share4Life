@@ -1,13 +1,212 @@
-{% extends 'master/base.html' %}
+{% extends "master/base.html" %}
+{% load static %}
+
 {% block content %}
-<div class="container mt-5">
-    <h1>Welcome Home!</h1>
-    {% if user.is_authenticated %}
-        <p>Hello, {{ user.first_name }}!</p>
-        <a href="{% url 'logout' %}" class="btn btn-danger">Logout</a>
-    {% else %}
-        <a href="{% url 'login' %}" class="btn btn-primary">Login</a>
-        <a href="{% url 'register' %}" class="btn btn-secondary">Register</a>
-    {% endif %}
+
+<!-- ========================= 1. HERO SECTION (SEARCH & ACTION) ========================= -->
+<section class="section-intro padding-y-lg text-white" style="background: linear-gradient(rgba(10, 37, 88, 0.9), rgba(10, 37, 88, 0.8)), url('{% static 'images/hospital-bg.jpg' %}') center/cover no-repeat; min-height: 500px; display: flex; align-items: center;">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-7">
+                <span class="badge badge-danger text-uppercase px-3 py-2 mb-3 shadow">Saving Lives, Together</span>
+                <h1 class="display-4 font-weight-bold mb-3">Every Drop Counts,<br>Every Penny Helps.</h1>
+                <p class="lead mb-4" style="opacity: 0.9;">
+                    The integrated platform for Blood Donation, Organ Pledging, and Medical Crowdfunding. Find donors nearby in seconds.
+                </p>
+                
+                <!-- Main Search Widget (Airbnb Style) -->
+                <div class="bg-white p-2 rounded shadow-lg d-inline-block w-100" style="max-width: 600px;">
+                    <form action="#" method="GET" class="row no-gutters">
+                        <div class="col-md-4">
+                            <select class="form-control border-0 custom-select-lg" style="height: 50px;">
+                                <option selected>Blood Group</option>
+                                <option>A+</option>
+                                <option>O+</option>
+                                <option>B+</option>
+                                <option>AB+</option>
+                            </select>
+                        </div>
+                        <div class="col-md-5 border-left">
+                            <input type="text" class="form-control border-0" placeholder="Enter City or Area" style="height: 50px; padding-left: 20px;">
+                        </div>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-danger btn-block h-100 font-weight-bold" style="border-radius: 5px;">
+                                <i class="fa fa-search"></i> Find
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Right Side: Quick Stats/Image -->
+            <div class="col-md-5 text-center d-none d-md-block">
+                <img src="{% static 'images/hero-vector.svg' %}" alt="Share4Life" class="img-fluid" style="opacity: 0.9;">
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ========================= 2. LIVE URGENT TICKER ========================= -->
+<div class="bg-danger text-white py-2 shadow-sm">
+    <div class="container d-flex align-items-center">
+        <span class="badge badge-light text-danger mr-3 font-weight-bold">URGENT NEEDS:</span>
+        <marquee behavior="scroll" direction="left" scrollamount="6">
+            <span class="mr-5"><i class="fa fa-tint"></i> A+ Blood needed at Norvic Hospital (5km away)</span>
+            <span class="mr-5"><i class="fa fa-tint"></i> O- Blood needed at Teaching Hospital (Critical)</span>
+            <span class="mr-5"><i class="fa fa-hand-holding-usd"></i> Kidney Transplant Fund for Ram Sharma needs 50k more</span>
+        </marquee>
+    </div>
 </div>
+
+<!-- ========================= 3. THREE PILLARS (FEATURES) ========================= -->
+<section class="section-features padding-y bg-light">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="font-weight-bold" style="color: #0A2558;">How You Can Help</h2>
+            <p class="text-muted">Choose a category to start making an impact</p>
+        </div>
+
+        <div class="row">
+            <!-- Card 1: Blood -->
+            <div class="col-md-4">
+                <div class="card card-hover border-0 shadow-sm mb-4">
+                    <div class="card-body text-center p-4">
+                        <div class="icon-box mb-3 mx-auto bg-soft-danger text-danger rounded-circle d-flex align-items-center justify-content-center" style="width: 70px; height: 70px; font-size: 28px; background-color: #fde8e9;">
+                            <i class="fa fa-heartbeat"></i>
+                        </div>
+                        <h5 class="font-weight-bold">Donate Blood</h5>
+                        <p class="text-muted">Find nearby emergency requests using GPS. Be a hero in real-time.</p>
+                        <a href="#" class="btn btn-outline-danger btn-sm rounded-pill px-4">Find Requests</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 2: Organ -->
+            <div class="col-md-4">
+                <div class="card card-hover border-0 shadow-sm mb-4">
+                    <div class="card-body text-center p-4">
+                        <div class="icon-box mb-3 mx-auto bg-soft-primary text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 70px; height: 70px; font-size: 28px; background-color: #e8f0fe;">
+                            <i class="fa fa-file-medical"></i>
+                        </div>
+                        <h5 class="font-weight-bold">Pledge Organs</h5>
+                        <p class="text-muted">Securely sign legal consent forms and leave a lasting legacy.</p>
+                        <a href="#" class="btn btn-outline-primary btn-sm rounded-pill px-4">Pledge Now</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 3: Funds -->
+            <div class="col-md-4">
+                <div class="card card-hover border-0 shadow-sm mb-4">
+                    <div class="card-body text-center p-4">
+                        <div class="icon-box mb-3 mx-auto bg-soft-success text-success rounded-circle d-flex align-items-center justify-content-center" style="width: 70px; height: 70px; font-size: 28px; background-color: #e0f2f1;">
+                            <i class="fa fa-hand-holding-heart"></i>
+                        </div>
+                        <h5 class="font-weight-bold">Medical Funds</h5>
+                        <p class="text-muted">Support verified patients who cannot afford critical surgeries.</p>
+                        <a href="#" class="btn btn-outline-success btn-sm rounded-pill px-4">Donate Money</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ========================= 4. URGENT REQUESTS GRID ========================= -->
+<section class="section-requests padding-y">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="font-weight-bold" style="color: #0A2558;">Active Emergencies</h3>
+            <a href="#" class="text-danger font-weight-bold">View All <i class="fa fa-arrow-right"></i></a>
+        </div>
+
+        <div class="row">
+            <!-- Sample Request Item (Repeat this in a For Loop) -->
+            <div class="col-md-6 col-lg-3">
+                <div class="card mb-3 border border-light shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="badge badge-danger">Urgent</span>
+                            <small class="text-muted"><i class="fa fa-clock"></i> 20m ago</small>
+                        </div>
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="display-4 font-weight-bold text-danger mr-3">B+</div>
+                            <div style="line-height: 1.2;">
+                                <strong>Ram Kumar</strong><br>
+                                <small class="text-muted">Bir Hospital</small>
+                            </div>
+                        </div>
+                        <a href="#" class="btn btn-block btn-primary btn-sm">Contact Now</a>
+                    </div>
+                </div>
+            </div>
+            <!-- End Sample Item -->
+            
+            <!-- Copy Paste the above div 3 more times for dummy data -->
+             <div class="col-md-6 col-lg-3">
+                <div class="card mb-3 border border-light shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="badge badge-warning">Moderate</span>
+                            <small class="text-muted"><i class="fa fa-clock"></i> 1h ago</small>
+                        </div>
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="display-4 font-weight-bold text-danger mr-3">O-</div>
+                            <div style="line-height: 1.2;">
+                                <strong>Sita Devi</strong><br>
+                                <small class="text-muted">Grande City</small>
+                            </div>
+                        </div>
+                        <a href="#" class="btn btn-block btn-primary btn-sm">Contact Now</a>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</section>
+
+<!-- ========================= 5. CROWDFUNDING HIGHLIGHT ========================= -->
+<section class="section-fund padding-y bg-white border-top">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <img src="https://via.placeholder.com/600x400" class="img-fluid rounded shadow" alt="Campaign">
+            </div>
+            <div class="col-md-6 pl-md-5">
+                <h5 class="text-danger font-weight-bold mb-2">CAMPAIGN OF THE MONTH</h5>
+                <h3>Help Baby Aarav Fight Leukemia</h3>
+                <p class="text-muted">Aarav is 5 years old and needs urgent chemotherapy. The family has exhausted their savings.</p>
+                
+                <div class="progress mb-2" style="height: 10px;">
+                    <div class="progress-bar bg-success" role="progressbar" style="width: 75%;" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+                <div class="d-flex justify-content-between mb-4">
+                    <small><strong>Rs. 75,000</strong> raised</small>
+                    <small>Goal: Rs. 100,000</small>
+                </div>
+                
+                <button class="btn btn-danger btn-lg rounded-pill shadow">Donate Now <i class="fa fa-heart ml-1"></i></button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+/* Add hover effect to cards */
+.card-hover {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.card-hover:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+}
+
+/* Custom Select Styling */
+.custom-select-lg {
+    font-size: 16px;
+    color: #495057;
+}
+</style>
+
 {% endblock %}
