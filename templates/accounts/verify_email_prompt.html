@@ -1,0 +1,17 @@
+{% extends "master/base.html" %}
+{% block content %}
+<section class="section-content padding-y" style="min-height: 84vh">
+  <div class="card mx-auto" style="max-width: 520px; margin-top: 100px">
+    <div class="card-body text-center">
+      {% if email_verified %}
+        <div class="alert alert-success">Your email is verified.</div>
+      {% else %}
+        <div class="alert alert-warning">Your email is not verified yet.</div>
+        <a class="btn btn-primary btn-lg" href="{% url 'send_verification_email' %}">
+          <i class="fa fa-envelope"></i> Send Verification Email
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

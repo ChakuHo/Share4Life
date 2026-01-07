@@ -13,7 +13,7 @@ class CustomUser(AbstractUser):
     is_recipient = models.BooleanField(default=False)
     is_hospital_admin = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
-    
+    email_verified = models.BooleanField(default=False)
     phone_number = models.CharField(max_length=15, blank=True)
     profile_image = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
 
