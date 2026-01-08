@@ -1,0 +1,171 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height: 84vh">
+  <div class="container" style="max-width: 900px;">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Edit Profile</h3>
+        <div class="text-muted">Update your details for better matching and emergency support.</div>
+      </div>
+      <div class="mt-2 mt-md-0">
+        <a href="{% url 'profile' %}" class="btn btn-outline-secondary">
+          <i class="fa fa-arrow-left"></i> Back
+        </a>
+      </div>
+    </div>
+
+    {% if messages %}
+      <div class="mb-3">
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }} mb-2">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="mb-3"><i class="fa fa-user text-primary"></i> Basic Account</h5>
+
+          {% if basics_form.non_field_errors %}
+            <div class="alert alert-danger">{{ basics_form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label class="font-weight-bold">First name</label>
+              {{ basics_form.first_name }}
+              {% for e in basics_form.first_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="form-group col-md-6">
+              <label class="font-weight-bold">Last name</label>
+              {{ basics_form.last_name }}
+              {% for e in basics_form.last_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label class="font-weight-bold">Phone</label>
+              {{ basics_form.phone_number }}
+              {% for e in basics_form.phone_number.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="form-group col-md-6">
+              <label class="font-weight-bold">Profile photo</label>
+              {{ basics_form.profile_image }}
+              {% for e in basics_form.profile_image.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              <div class="text-muted small mt-1">Optional. PNG/JPG recommended.</div>
+            </div>
+          </div>
+
+          <div class="text-muted small">
+            Email cannot be edited here: <strong>{{ request.user.email }}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="mb-3"><i class="fa fa-notes-medical text-primary"></i> Medical & Location</h5>
+
+          {% if profile_form.non_field_errors %}
+            <div class="alert alert-danger">{{ profile_form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="form-row">
+            <div class="form-group col-md-4">
+              <label class="font-weight-bold">Blood group</label>
+              {{ profile_form.blood_group }}
+            </div>
+            <div class="form-group col-md-4">
+              <label class="font-weight-bold">City</label>
+              {{ profile_form.city }}
+            </div>
+            <div class="form-group col-md-4">
+              <label class="font-weight-bold">Date of birth</label>
+              {{ profile_form.date_of_birth }}
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="font-weight-bold">Medical history</label>
+            {{ profile_form.medical_history }}
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label class="font-weight-bold">Latitude</label>
+              {{ profile_form.latitude }}
+            </div>
+            <div class="form-group col-md-6">
+              <label class="font-weight-bold">Longitude</label>
+              {{ profile_form.longitude }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="mb-3"><i class="fa fa-ambulance text-danger"></i> Emergency Contact</h5>
+
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label class="font-weight-bold">Contact name</label>
+              {{ profile_form.emergency_contact_name }}
+            </div>
+            <div class="form-group col-md-6">
+              <label class="font-weight-bold">Contact phone</label>
+              {{ profile_form.emergency_contact_phone }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="mb-3"><i class="fa fa-map-marker-alt text-primary"></i> Address</h5>
+
+          <div class="form-group">
+            <label class="font-weight-bold">Address line</label>
+            {{ profile_form.address_line }}
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-md-4">
+              <label class="font-weight-bold">State/Province</label>
+              {{ profile_form.state }}
+            </div>
+            <div class="form-group col-md-4">
+              <label class="font-weight-bold">Postal code</label>
+              {{ profile_form.postal_code }}
+            </div>
+            <div class="form-group col-md-4">
+              <label class="font-weight-bold">Country</label>
+              {{ profile_form.country }}
+            </div>
+          </div>
+
+          <button class="btn btn-primary btn-lg btn-block" type="submit">
+            <i class="fa fa-save"></i> Save Changes
+          </button>
+        </div>
+      </div>
+
+    </form>
+
+  </div>
+</section>
+
+<style>
+  .text-primary { color: #0a2558 !important; }
+  .btn-primary { background: linear-gradient(135deg, #0a2558 0%, #061838 100%); border: none; }
+</style>
+
+{% endblock %}

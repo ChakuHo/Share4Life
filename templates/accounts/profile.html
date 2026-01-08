@@ -1,0 +1,260 @@
+{% extends "master/base.html" %}
+{% load static %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height: 84vh">
+  <div class="container">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Profile Dashboard</h3>
+        <div class="text-muted">Your account, progress, and verification status.</div>
+      </div>
+
+      <div class="mt-2 mt-md-0">
+        <a href="{% url 'profile_edit' %}" class="btn btn-outline-secondary mr-2">
+          <i class="fa fa-edit"></i> Edit Profile
+        </a>
+        <a href="{% url 'kyc_submit' %}" class="btn btn-primary">
+          <i class="fa fa-id-card"></i> KYC Verification
+        </a>
+      </div>
+    </div>
+
+    {% if messages %}
+      <div class="mb-3">
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }} mb-2">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="row">
+
+      <!-- Left: Identity card -->
+      <div class="col-lg-4 mb-4">
+        <div class="card shadow-sm h-100">
+          <div class="card-body text-center">
+            {% if request.user.profile_image %}
+              <img src="{{ request.user.profile_image.url }}" class="rounded-circle mb-3"
+                   style="width: 96px; height: 96px; object-fit: cover;">
+            {% else %}
+              <div class="rounded-circle mb-3 d-inline-flex align-items-center justify-content-center"
+                   style="width:96px;height:96px;background:#eef2ff;color:#0a2558;font-weight:800;font-size:28px;">
+                {{ request.user.username|slice:":1"|upper }}
+              </div>
+            {% endif %}
+
+            <h5 class="mb-1">{{ request.user.get_full_name|default:request.user.username }}</h5>
+            <div class="text-muted small">{{ request.user.email }}</div>
+
+            <div class="mt-3">
+              {% for r in roles %}
+                <span class="badge badge-light p-2 mr-1">{{ r }}</span>
+              {% endfor %}
+            </div>
+
+            <hr>
+
+            <div class="d-flex flex-wrap justify-content-center">
+              {% if request.user.email_verified %}
+                <span class="badge badge-success p-2 mr-2 mb-2"><i class="fa fa-check-circle"></i> Email Verified</span>
+              {% else %}
+                <span class="badge badge-warning p-2 mr-2 mb-2"><i class="fa fa-exclamation-circle"></i> Email Not Verified</span>
+              {% endif %}
+
+              {% if request.user.is_verified %}
+                <span class="badge badge-primary p-2 mb-2"><i class="fa fa-shield-alt"></i> KYC Verified</span>
+              {% else %}
+                <span class="badge badge-secondary p-2 mb-2"><i class="fa fa-user-shield"></i> KYC Not Verified</span>
+              {% endif %}
+            </div>
+
+            <div class="mt-3 text-left">
+              <div class="text-muted small">Blood Group</div>
+              <div class="font-weight-bold">{{ profile.blood_group|default:"—" }}</div>
+
+              <div class="text-muted small mt-2">City</div>
+              <div class="font-weight-bold">{{ profile.city|default:"—" }}</div>
+
+              <div class="text-muted small mt-2">Phone</div>
+              <div class="font-weight-bold">{{ request.user.phone_number|default:"—" }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Progress + details -->
+      <div class="col-lg-8">
+
+        <!-- Progress row -->
+        <div class="row">
+          <div class="col-md-6 mb-4">
+            <div class="card shadow-sm h-100">
+              <div class="card-body">
+                <h6 class="mb-2"><i class="fa fa-chart-line text-primary"></i> Profile Completion</h6>
+                <div class="text-muted small mb-2">Complete your profile for faster matching.</div>
+
+                <div class="progress mb-2" style="height: 10px;">
+                  <div class="progress-bar bg-success" role="progressbar" style="width: {{ completion_percent }}%;"></div>
+                </div>
+                <div class="d-flex justify-content-between">
+                  <small><strong>{{ completion_percent }}%</strong></small>
+                  <small class="text-muted">Goal: 100%</small>
+                </div>
+
+                {% if completion_percent < 100 and missing_fields %}
+                  <div class="mt-3">
+                    <div class="text-muted small">Missing:</div>
+                    <div class="small">
+                      {% for f in missing_fields|slice:":4" %}
+                        <span class="badge badge-light mr-1 mb-1">{{ f }}</span>
+                      {% endfor %}
+                    </div>
+                  </div>
+                {% endif %}
+
+                <a href="{% url 'profile_edit' %}" class="btn btn-outline-secondary btn-sm mt-3">
+                  Update profile
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-6 mb-4">
+            <div class="card shadow-sm h-100">
+              <div class="card-body">
+                <h6 class="mb-2"><i class="fa fa-medal text-primary"></i> Level & Badges</h6>
+
+                <div class="d-flex align-items-center justify-content-between">
+                  <div>
+                    <div class="text-muted small">Current Level</div>
+                    <div class="badge {{ cur_level_css }} p-2">{{ cur_level }}</div>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-muted small">Points</div>
+                    <div class="font-weight-bold">{{ points }}</div>
+                  </div>
+                </div>
+
+                <div class="mt-3">
+                  <div class="progress" style="height: 10px;">
+                    <div class="progress-bar" role="progressbar" style="width: {{ level_progress }}%; background:#0a2558;"></div>
+                  </div>
+                  <div class="d-flex justify-content-between mt-1">
+                    {% if next_level_name %}
+                      <small class="text-muted">{{ points_to_next }} pts to {{ next_level_name }}</small>
+                    {% else %}
+                      <small class="text-muted">Max level reached</small>
+                    {% endif %}
+                    <small class="text-muted">{{ level_progress }}%</small>
+                  </div>
+                </div>
+
+                <div class="mt-3">
+                  <span class="badge badge-light p-2 mr-1 mb-1">Starter</span>
+                  {% if request.user.email_verified %}
+                    <span class="badge badge-success p-2 mr-1 mb-1">Email Verified</span>
+                  {% endif %}
+                  {% if request.user.is_verified %}
+                    <span class="badge badge-primary p-2 mr-1 mb-1">KYC Verified</span>
+                  {% endif %}
+                  {% if profile.blood_group %}
+                    <span class="badge badge-info p-2 mr-1 mb-1">Blood Group Added</span>
+                  {% endif %}
+                  {% if emergency_family_count > 0 %}
+                    <span class="badge badge-danger p-2 mr-1 mb-1">Emergency Family Ready</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Details -->
+        <div class="card shadow-sm mb-4">
+          <div class="card-body">
+            <h6 class="mb-3"><i class="fa fa-notes-medical text-primary"></i> Medical & Emergency</h6>
+
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <div class="text-muted small">Emergency contact</div>
+                <div class="font-weight-bold">{{ profile.emergency_contact_name|default:"—" }}</div>
+                <div class="text-muted small mt-2">Emergency phone</div>
+                <div class="font-weight-bold">{{ profile.emergency_contact_phone|default:"—" }}</div>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <div class="text-muted small">Medical history</div>
+                <div class="profile-box">
+                  {{ profile.medical_history|default:"No medical history added yet."|linebreaksbr }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Family summary -->
+        <div class="card shadow-sm">
+          <div class="card-body d-flex flex-wrap justify-content-between align-items-center">
+            <div>
+              <h6 class="mb-1"><i class="fa fa-users text-primary"></i> Family & Emergency Profiles</h6>
+              <div class="text-muted small">
+                Emergency profiles enabled: <strong>{{ emergency_family_count }}</strong>
+              </div>
+            </div>
+            <div class="mt-2 mt-md-0">
+              <a href="{% url 'family_add' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fa fa-user-plus"></i> Add Family
+              </a>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table mb-0">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Relation</th>
+                  <th>Blood</th>
+                  <th>City</th>
+                  <th>Emergency</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for fm in family_members|slice:":6" %}
+                  <tr>
+                    <td class="font-weight-bold">{{ fm.name }}</td>
+                    <td>{{ fm.relationship|default:"—" }}</td>
+                    <td>{{ fm.blood_group|default:"—" }}</td>
+                    <td>{{ fm.city|default:"—" }}</td>
+                    <td>
+                      {% if fm.is_emergency_profile %}
+                        <span class="badge badge-danger p-2">Yes</span>
+                      {% else %}
+                        <span class="badge badge-light p-2">No</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="5" class="text-muted">No family members added yet.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<style>
+  .text-primary { color: #0a2558 !important; }
+  .btn-primary { background: linear-gradient(135deg, #0a2558 0%, #061838 100%); border: none; }
+  .profile-box { border: 1px solid #e9ecef; background: #fafbfc; padding: 12px; border-radius: 10px; }
+</style>
+
+{% endblock %}

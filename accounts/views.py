@@ -19,6 +19,16 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.contrib.auth import get_user_model
 User = get_user_model()
 
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.utils import timezone
+from django.db import transaction
+
+from .models import UserProfile, FamilyMember, KYCProfile, KYCDocument
+from .forms import FamilyMemberForm
+from .kyc_forms import KYCProfileForm, KYCUploadForm
+
 def home(request):
     """
     The Dynamic Landing Page.
@@ -264,3 +274,189 @@ def logout_view(request):
     logout(request)
     messages.info(request, "You have been logged out.")
     return redirect('login')
+
+@login_required
+def profile_view(request):
+    profile = request.user.profile
+    kyc = getattr(request.user, "kyc", None)
+    family_members = request.user.family_members.order_by("-id")
+
+    return render(request, "accounts/profile.html", {
+        "profile": profile,
+        "kyc": kyc,
+        "family_members": family_members,
+    })
+
+
+@login_required
+def family_add(request):
+    if request.method == "POST":
+        form = FamilyMemberForm(request.POST)
+        if form.is_valid():
+            fm = form.save(commit=False)
+            fm.primary_user = request.user
+            fm.save()
+            messages.success(request, "Family member added successfully.")
+            return redirect("profile")
+        messages.error(request, "Please fix the errors and try again.")
+    else:
+        form = FamilyMemberForm()
+
+    return render(request, "accounts/family_add.html", {"form": form})
+
+
+@login_required
+@transaction.atomic
+def kyc_submit(request):
+    kyc = request.user.kyc  # auto created by signal (recommended)
+
+    if request.method == "POST":
+        profile_form = KYCProfileForm(request.POST, instance=kyc)
+        upload_form = KYCUploadForm(request.POST, request.FILES)
+
+        if profile_form.is_valid() and upload_form.is_valid():
+            profile_form.save()
+
+            def save_doc(doc_type, f):
+                if not f:
+                    return
+                KYCDocument.objects.update_or_create(
+                    kyc=kyc,
+                    doc_type=doc_type,
+                    defaults={"file": f}
+                )
+
+            save_doc("ID_FRONT", upload_form.cleaned_data["id_front"])
+            save_doc("ID_BACK", upload_form.cleaned_data.get("id_back"))
+            save_doc("SELFIE", upload_form.cleaned_data["selfie"])
+            save_doc("ADDRESS_PROOF", upload_form.cleaned_data.get("address_proof"))
+
+            kyc.mark_submitted()
+            messages.success(request, "KYC submitted successfully. Pending admin review.")
+            return redirect("profile")
+
+        messages.error(request, "Please fix the errors and try again.")
+    else:
+        profile_form = KYCProfileForm(instance=kyc)
+        upload_form = KYCUploadForm()
+
+    return render(request, "accounts/kyc_submit.html", {
+        "kyc": kyc,
+        "profile_form": profile_form,
+        "upload_form": upload_form,
+    })
+
+from .forms import UserBasicsForm, UserProfileForm
+
+def _points_level(points: int):
+    # You can tune these thresholds later without breaking anything.
+    levels = [
+        (0, "New", "badge-secondary"),
+        (100, "Bronze", "badge-warning"),
+        (300, "Silver", "badge-info"),
+        (700, "Gold", "badge-warning"),
+        (1500, "Platinum", "badge-primary"),
+    ]
+    current = levels[0]
+    next_level = None
+
+    for i, (threshold, name, css) in enumerate(levels):
+        if points >= threshold:
+            current = (threshold, name, css)
+            next_level = levels[i + 1] if i + 1 < len(levels) else None
+
+    return current, next_level
+
+def _profile_completion(profile):
+    # Count key fields as "completed" when filled.
+    checks = {
+        "blood_group": bool(profile.blood_group),
+        "city": bool(profile.city),
+        "date_of_birth": bool(profile.date_of_birth),
+        "emergency_contact_name": bool(profile.emergency_contact_name),
+        "emergency_contact_phone": bool(profile.emergency_contact_phone),
+        "address_line": bool(profile.address_line),
+        "country": bool(profile.country),
+    }
+    total = len(checks)
+    done = sum(1 for v in checks.values() if v)
+    percent = int((done / total) * 100) if total else 0
+    missing = [k for k, v in checks.items() if not v]
+    return percent, missing
+
+@login_required
+def profile_view(request):
+    profile = request.user.profile
+    kyc = getattr(request.user, "kyc", None)
+
+    family_members = request.user.family_members.order_by("-id")
+    emergency_family_count = family_members.filter(is_emergency_profile=True).count()
+
+    points = int(getattr(profile, "points", 0) or 0)
+    (cur_threshold, cur_level, cur_css), next_level = _points_level(points)
+
+    if next_level:
+        next_threshold, next_name, _ = next_level
+        span = max(next_threshold - cur_threshold, 1)
+        within = min(max(points - cur_threshold, 0), span)
+        level_progress = int((within / span) * 100)
+        points_to_next = max(next_threshold - points, 0)
+    else:
+        next_name = None
+        level_progress = 100
+        points_to_next = 0
+
+    completion_percent, missing_fields = _profile_completion(profile)
+
+    # Human-friendly roles
+    roles = []
+    if getattr(request.user, "is_donor", False):
+        roles.append("Donor")
+    if getattr(request.user, "is_recipient", False):
+        roles.append("Recipient")
+    if getattr(request.user, "is_hospital_admin", False):
+        roles.append("Hospital Admin")
+    if not roles:
+        roles = ["User"]
+
+    return render(request, "accounts/profile.html", {
+        "profile": profile,
+        "kyc": kyc,
+        "family_members": family_members,
+        "emergency_family_count": emergency_family_count,
+
+        "roles": roles,
+        "points": points,
+        "cur_level": cur_level,
+        "cur_level_css": cur_css,
+        "next_level_name": next_name,
+        "level_progress": level_progress,
+        "points_to_next": points_to_next,
+
+        "completion_percent": completion_percent,
+        "missing_fields": missing_fields,
+    })
+
+@login_required
+def profile_edit(request):
+    profile = request.user.profile
+
+    if request.method == "POST":
+        basics_form = UserBasicsForm(request.POST, request.FILES, instance=request.user)
+        profile_form = UserProfileForm(request.POST, instance=profile)
+
+        if basics_form.is_valid() and profile_form.is_valid():
+            basics_form.save()
+            profile_form.save()
+            messages.success(request, "Profile updated successfully.")
+            return redirect("profile")
+
+        messages.error(request, "Please fix the errors and try again.")
+    else:
+        basics_form = UserBasicsForm(instance=request.user)
+        profile_form = UserProfileForm(instance=profile)
+
+    return render(request, "accounts/profile_edit.html", {
+        "basics_form": basics_form,
+        "profile_form": profile_form,
+    })

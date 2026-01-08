@@ -53,4 +53,11 @@ urlpatterns = [
     path("verify-email/send/", views.send_verification_email, name="send_verification_email"),
     path("verify-email/<str:token>/", views.verify_email, name="verify_email"),
     path("verify-email/resend/", views.resend_verification_email_public, name="resend_verification_email_public"),
+
+    # Additional URLs for profile, KYC, and family members
+    path("profile/", views.profile_view, name="profile"),
+    path("kyc/submit/", views.kyc_submit, name="kyc_submit"),
+    path("family/add/", views.family_add, name="family_add"),
+    path("profile/edit/", views.profile_edit, name="profile_edit"),
 ]
+

@@ -1,97 +1,145 @@
-{% load static %}
-
 {% if messages %}
 <div id="messages-container" class="messages-container">
-  <!-- Clear All Button -->
+
   {% if messages|length > 2 %}
-  <div class="text-right mb-2">
-    <button type="button" class="btn btn-sm btn-outline-danger clear-all-messages" onclick="clearAllMessages()">
-      <i class="fa fa-trash mr-1"></i>Clear All ({{ messages|length }})
-    </button>
-  </div>
+    <div class="text-right mb-2">
+      <button type="button" class="btn btn-sm btn-outline-danger clear-all-messages" onclick="clearAllMessages()">
+        <i class="fa fa-trash mr-1"></i>Clear All ({{ messages|length }})
+      </button>
+    </div>
   {% endif %}
 
-  <!-- Messages List -->
   {% for message in messages %}
-  <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show message-item" 
-       role="alert">
-    
-    <i class="fa fa-{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' or message.tags == 'danger' %}exclamation-triangle{% else %}info-circle{% endif %} mr-2"></i>
-    
-    <span class="message-text">{{ message }}</span>
-    
-    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-      <span aria-hidden="true">&times;</span>
-    </button>
-    
-    <!-- Timer -->
-    <div class="message-timer" style="display: none;">
-      <div class="timer-bar"></div>
-    </div>
-  </div>
+
+    {# Decide Bootstrap tag without using {% with %} #}
+    {% if "error" in message.tags or "danger" in message.tags %}
+      {% comment %} danger {% endcomment %}
+      <div class="alert alert-danger alert-dismissible fade show message-item"
+           role="alert" data-autodismiss="0">
+        <i class="fa fa-exclamation-triangle mr-2"></i>
+        <span class="message-text">{{ message }}</span>
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+        <div class="message-timer" style="display:none;"><div class="timer-bar"></div></div>
+      </div>
+
+    {% elif "success" in message.tags %}
+      <div class="alert alert-success alert-dismissible fade show message-item"
+           role="alert" data-autodismiss="1">
+        <i class="fa fa-check-circle mr-2"></i>
+        <span class="message-text">{{ message }}</span>
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+        <div class="message-timer" style="display:none;"><div class="timer-bar"></div></div>
+      </div>
+
+    {% elif "warning" in message.tags %}
+      <div class="alert alert-warning alert-dismissible fade show message-item"
+           role="alert" data-autodismiss="1">
+        <i class="fa fa-exclamation-circle mr-2"></i>
+        <span class="message-text">{{ message }}</span>
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+        <div class="message-timer" style="display:none;"><div class="timer-bar"></div></div>
+      </div>
+
+    {% else %}
+      <div class="alert alert-info alert-dismissible fade show message-item"
+           role="alert" data-autodismiss="1">
+        <i class="fa fa-info-circle mr-2"></i>
+        <span class="message-text">{{ message }}</span>
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+        <div class="message-timer" style="display:none;"><div class="timer-bar"></div></div>
+      </div>
+    {% endif %}
+
   {% endfor %}
 </div>
 
 <style>
-/* Keeping your exact CSS for the Toasts */
 .messages-container {
   position: fixed;
-  top: 100px; /* Adjusted for sticky header */
   right: 20px;
+  top: var(--s4l-toast-top, 100px);
   width: 350px;
   z-index: 9999;
 }
+
 .message-item {
+  position: relative;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   border: none;
   animation: slideIn 0.3s ease-out;
+  overflow: hidden;
 }
+
 .message-timer {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: 0; left: 0; right: 0;
   height: 3px;
-  background: rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.28);
 }
 .timer-bar {
   height: 100%;
-  background: rgba(255,255,255,0.8);
+  background: rgba(255,255,255,0.85);
   width: 0%;
 }
+
 @keyframes slideIn {
   from { transform: translateX(100%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
+
 .alert-success { background: linear-gradient(45deg, #28a745, #218838); color: white; }
-.alert-danger { background: linear-gradient(45deg, #dc3545, #c82333); color: white; }
+.alert-danger  { background: linear-gradient(45deg, #dc3545, #c82333); color: white; }
+.alert-warning { background: linear-gradient(45deg, #ffc107, #e0a800); color: #1f2d3d; }
+.alert-info    { background: linear-gradient(45deg, #0a2558, #061838); color: white; }
+
+.alert-warning .close { color: #1f2d3d; opacity: 0.9; }
+.alert-warning .close:hover { opacity: 1; }
 </style>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const messages = document.querySelectorAll('.message-item');
-    
-    messages.forEach((message) => {
-        const isError = message.classList.contains('alert-danger');
-        
-        if (!isError) {
-            const timer = message.querySelector('.message-timer');
-            const timerBar = message.querySelector('.timer-bar');
-            
-            if (timer && timerBar) {
-                timer.style.display = 'block';
-                timerBar.style.transition = 'width 5s linear';
-                setTimeout(() => { timerBar.style.width = '100%'; }, 100);
-                setTimeout(() => { message.remove(); }, 5000);
-            }
-        }
-    });
-});
+(function () {
+  function computeToastTop() {
+    // Works with your navbar: .s4l-topbar and .s4l-navbar
+    const topbar = document.querySelector('.s4l-topbar');
+    const navbar = document.querySelector('.s4l-navbar');
 
-function clearAllMessages() {
+    const topbarH = topbar ? topbar.getBoundingClientRect().height : 0;
+    const navbarH = navbar ? navbar.getBoundingClientRect().height : 0;
+
+    const top = Math.round(topbarH + navbarH + 12);
+    document.documentElement.style.setProperty('--s4l-toast-top', top + 'px');
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    computeToastTop();
+    window.addEventListener('resize', computeToastTop);
+
+    document.querySelectorAll('.message-item').forEach((message) => {
+      const auto = message.getAttribute('data-autodismiss') === '1';
+      if (!auto) return;
+
+      const timer = message.querySelector('.message-timer');
+      const timerBar = message.querySelector('.timer-bar');
+      if (!timer || !timerBar) return;
+
+      timer.style.display = 'block';
+      timerBar.style.transition = 'width 5s linear';
+      setTimeout(() => { timerBar.style.width = '100%'; }, 100);
+      setTimeout(() => { message.remove(); }, 5000);
+    });
+  });
+
+  window.clearAllMessages = function () {
     document.querySelectorAll('.message-item').forEach(el => el.remove());
-    // NOTE: AJAX call removed temporarily until backend view is created
-    // fetch('/clear-messages/')... 
-}
+  };
+})();
 </script>
 {% endif %}

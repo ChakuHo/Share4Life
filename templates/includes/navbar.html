@@ -1,161 +1,238 @@
 {% load static %}
 
-<!-- 1. TOP BAR (Dark Navy for Trust) -->
-<div class="header-top py-2 text-white" style="background-color: var(--primary-color);">
-    <div class="container d-flex justify-content-between align-items-center">
-        <!-- Left: Global & Location -->
-        <div class="d-none d-md-block">
-            <small class="mr-3"><i class="fa fa-globe mr-1"></i> Share4Life Global</small>
-            <small><i class="fa fa-map-marker-alt mr-1"></i> Connecting Donors Nearby</small>
-        </div>
+{% url 'home' as home_url %}
+{% url 'login' as login_url %}
+{% url 'register' as register_url %}
+{% url 'logout' as logout_url %}
+{% url 'dashboard' as dashboard_url %}
+{% url 'profile' as profile_url %}
+{% url 'profile_edit' as profile_edit_url %}
+{% url 'kyc_submit' as kyc_submit_url %}
+{% url 'family_add' as family_add_url %}
 
-        <!-- Right: Helpline -->
-        <div class="ml-auto">
-            <a href="tel:102" class="text-white font-weight-bold" style="text-decoration: none; font-size: 14px;">
-                <i class="fa fa-phone-alt mr-1"></i> Emergency Helpline: 102
-            </a>
-        </div>
+<!-- TOP BAR (NAVY) -->
+<div class="s4l-topbar">
+  <div class="container d-flex justify-content-between align-items-center">
+    <div class="d-none d-md-flex align-items-center">
+      <small class="mr-3"><i class="fa fa-globe mr-2"></i>{{ site_settings.site_name|default:"Share4Life" }} Global</small>
+      <small><i class="fa fa-map-marker-alt mr-2"></i>Connecting Donors Nearby</small>
     </div>
+
+    <div class="d-flex align-items-center">
+      {% if site_settings and site_settings.contact_phone %}
+        <a href="tel:{{ site_settings.contact_phone }}" class="s4l-toplink mr-3">
+          <i class="fa fa-phone-alt mr-2"></i>{{ site_settings.contact_phone }}
+        </a>
+      {% endif %}
+      <a href="tel:102" class="s4l-toplink">
+        <i class="fa fa-ambulance mr-2"></i>Emergency Helpline: 102
+      </a>
+    </div>
+  </div>
 </div>
 
-<!-- 2. MAIN NAVBAR (Sticky & White) -->
-<header class="section-header sticky-header shadow-sm bg-white">
+<!-- MAIN NAV (WHITE) -->
+<header class="s4l-navbar shadow-sm bg-white">
   <div class="container">
     <div class="row align-items-center py-3">
-        
-        <!-- A. LOGO -->
-        <div class="col-lg-3 col-md-3 col-6">
-          <a href="{% url 'home' %}" class="brand-wrap text-decoration-none">
-            <h3 style="font-weight: 800; color: var(--primary-color); margin:0; letter-spacing: -1px;">
-                <i class="fa fa-heartbeat text-danger"></i> Share<span class="text-danger">4</span>Life
+
+      <!-- BRAND -->
+      <div class="col-lg-3 col-md-3 col-6">
+        <a href="{{ home_url|default:'/' }}" class="d-flex align-items-center text-decoration-none">
+          {% if site_settings and site_settings.site_logo %}
+            {# Logo already contains the wordmark -> do NOT print site_name again #}
+            <img src="{{ site_settings.site_logo.url }}"
+                 alt="{{ site_settings.site_name|default:'Share4Life' }}"
+                 class="s4l-logo">
+          {% else %}
+            <h3 class="m-0 s4l-brand-text">
+              <i class="fa fa-heartbeat text-danger mr-2"></i> Share<span class="text-danger">4</span>Life
             </h3>
-          </a>
-        </div>
+          {% endif %}
+        </a>
+      </div>
 
-        <!-- B. CENTER NAVIGATION (Clean Links instead of Dropdown) -->
-        <div class="col-lg-5 col-md-12 d-none d-lg-block text-center">
-            <nav class="nav justify-content-center main-menu">
-                <a class="nav-link active" href="#">Find Blood</a>
-                <a class="nav-link" href="#">Crowdfunding</a>
-                <a class="nav-link" href="#">Hospitals</a>
-                <a class="nav-link" href="#">About</a>
-            </nav>
-        </div>
+      <!-- CENTER NAV -->
+      <div class="col-lg-5 d-none d-lg-block text-center">
+        <nav class="nav justify-content-center s4l-menu">
+          <a class="nav-link" href="#">Find Blood</a>
+          <a class="nav-link" href="#">Crowdfunding</a>
+          <a class="nav-link" href="#">Hospitals</a>
+          <a class="nav-link" href="#">About</a>
+        </nav>
+      </div>
 
-        <!-- C. RIGHT SIDE (Actions & User) -->
-        <div class="col-lg-4 col-sm-6 col-6 order-2 order-lg-3 d-flex justify-content-end align-items-center">
-            
-            <!-- Emergency Request Button (PULSING) -->
-            <a href="#" class="btn btn-danger btn-pulse mr-3 rounded-pill px-3 font-weight-bold d-none d-sm-block">
-                <i class="fa fa-tint"></i> Request Blood
+      <!-- RIGHT -->
+      <div class="col-lg-4 col-md-9 col-6 d-flex justify-content-end align-items-center">
+
+        <!-- Request Blood (PULSE, SAME FEATURE) -->
+        <a href="#" class="btn btn-danger rounded-pill px-3 font-weight-bold d-none d-sm-inline-flex align-items-center s4l-btn-pulse mr-3">
+          <i class="fa fa-tint mr-2"></i> Request Blood
+        </a>
+
+        {% if user.is_authenticated %}
+
+          <!-- USER DROPDOWN -->
+          <div class="dropdown">
+            <a href="#" data-toggle="dropdown"
+               class="d-flex align-items-center text-dark text-decoration-none dropdown-toggle">
+
+              {% if user.profile_image %}
+                <img src="{{ user.profile_image.url }}" class="s4l-avatar mr-2" alt="Profile">
+              {% else %}
+                <div class="s4l-avatar-fallback mr-2"><i class="fa fa-user"></i></div>
+              {% endif %}
+
+              <div class="d-none d-md-block text-left" style="line-height: 1.1;">
+                <small class="text-muted d-block" style="font-size: 10px;">Welcome</small>
+                <span class="font-weight-bold" style="font-size: 13px;">{{ user.first_name|default:user.username }}</span>
+              </div>
             </a>
 
-            <!-- User Widget -->
-            <div class="widget-header user-widget">
-              {% if user.is_authenticated %}
-                <!-- LOGGED IN STATE -->
-                <div class="d-flex align-items-center">
-                    <!-- Notification Bell -->
-                    <a href="#" class="mr-3 position-relative text-muted">
-                        <i class="fa fa-bell fa-lg"></i>
-                        <span class="badge badge-danger badge-pill position-absolute" style="top:-8px; right:-5px; font-size:10px;">2</span>
-                    </a>
-                    
-                    <!-- User Dropdown -->
-                    <div class="dropdown">
-                        <a href="#" data-toggle="dropdown" class="d-flex align-items-center text-dark text-decoration-none dropdown-toggle">
-                            <div class="icon icon-sm rounded-circle bg-light border mr-2 text-primary d-flex align-items-center justify-content-center" style="width:35px; height:35px;">
-                                <i class="fa fa-user"></i>
-                            </div>
-                            <div class="d-none d-md-block text-left" style="line-height: 1.2;">
-                                <small class="text-muted d-block" style="font-size: 10px;">Welcome</small>
-                                <span class="font-weight-bold" style="font-size: 13px;">{{ user.first_name }}</span>
-                            </div>
-                        </a>
-                        <div class="dropdown-menu dropdown-menu-right shadow border-0 mt-2">
-                            <a class="dropdown-item" href="{% url 'dashboard' %}"><i class="fa fa-tachometer-alt mr-2 text-primary"></i> Dashboard</a>
-                            <a class="dropdown-item" href="#"><i class="fa fa-history mr-2 text-primary"></i> My Donations</a>
-                            <div class="dropdown-divider"></div>
-                            <a class="dropdown-item text-danger" href="{% url 'logout' %}"><i class="fa fa-sign-out-alt mr-2"></i> Logout</a>
-                        </div>
-                    </div>
-                </div>
+            <div class="dropdown-menu dropdown-menu-right shadow border-0 mt-2">
 
-              {% else %}
-                <!-- GUEST STATE -->
-                <div class="d-flex align-items-center">
-                    <a href="{% url 'login' %}" class="text-dark font-weight-bold mr-3 text-decoration-none">Log In</a>
-                    <a href="{% url 'register' %}" class="btn btn-outline-primary rounded-pill px-3">Join Now</a>
-                </div>
+              {% if profile_url %}
+                <a class="dropdown-item" href="{{ profile_url }}">
+                  <i class="fa fa-user mr-2 text-primary"></i> Profile
+                </a>
+              {% endif %}
+
+              {% if profile_edit_url %}
+                <a class="dropdown-item" href="{{ profile_edit_url }}">
+                  <i class="fa fa-edit mr-2 text-primary"></i> Edit Profile
+                </a>
+              {% endif %}
+
+              {% if dashboard_url %}
+                <a class="dropdown-item" href="{{ dashboard_url }}">
+                  <i class="fa fa-tachometer-alt mr-2 text-primary"></i> Dashboard
+                </a>
+              {% endif %}
+
+              {% if kyc_submit_url %}
+                <a class="dropdown-item" href="{{ kyc_submit_url }}">
+                  <i class="fa fa-id-card mr-2 text-primary"></i> KYC Verification
+                  {% if not user.is_verified %}
+                    <span class="badge badge-light ml-2">Pending</span>
+                  {% else %}
+                    <span class="badge badge-primary ml-2">Verified</span>
+                  {% endif %}
+                </a>
+              {% endif %}
+
+              {% if family_add_url %}
+                <a class="dropdown-item" href="{{ family_add_url }}">
+                  <i class="fa fa-users mr-2 text-primary"></i> Add Family
+                </a>
+              {% endif %}
+
+              <div class="dropdown-divider"></div>
+
+              {% if logout_url %}
+                <a class="dropdown-item text-danger" href="{{ logout_url }}">
+                  <i class="fa fa-sign-out-alt mr-2"></i> Logout
+                </a>
               {% endif %}
             </div>
-            
-            <!-- Mobile Menu Toggler -->
-            <button class="navbar-toggler ml-3 d-lg-none border-0" type="button" data-toggle="collapse" data-target="#mobileMenu">
-                <i class="fa fa-bars fa-lg text-dark"></i>
-            </button>
+          </div>
 
-        </div>
+        {% else %}
+
+          {% if login_url %}
+            <a href="{{ login_url }}" class="text-dark font-weight-bold mr-3 text-decoration-none">Log In</a>
+          {% endif %}
+          {% if register_url %}
+            <a href="{{ register_url }}" class="btn btn-outline-primary rounded-pill px-3 font-weight-bold">Join Now</a>
+          {% endif %}
+
+        {% endif %}
+
+        <!-- Mobile toggler -->
+        <button class="navbar-toggler ml-3 d-lg-none border-0" type="button"
+                data-toggle="collapse" data-target="#s4lMobileMenu" aria-controls="s4lMobileMenu">
+          <i class="fa fa-bars fa-lg text-dark"></i>
+        </button>
+
       </div>
     </div>
+  </div>
+
+  <!-- Mobile Menu -->
+  <div class="collapse d-lg-none bg-white border-top" id="s4lMobileMenu">
+    <div class="container py-3">
+      <a href="#" class="btn btn-danger btn-block mb-3"><i class="fa fa-tint mr-2"></i>Request Blood</a>
+      <a href="#" class="d-block py-2 text-dark border-bottom">Find Blood</a>
+      <a href="#" class="d-block py-2 text-dark border-bottom">Crowdfunding</a>
+      <a href="#" class="d-block py-2 text-dark border-bottom">Hospitals</a>
+      <a href="#" class="d-block py-2 text-dark border-bottom">About</a>
+
+      {% if user.is_authenticated %}
+        {% if profile_url %}<a href="{{ profile_url }}" class="d-block py-2 text-dark border-bottom">Profile</a>{% endif %}
+        {% if kyc_submit_url %}<a href="{{ kyc_submit_url }}" class="d-block py-2 text-dark border-bottom">KYC</a>{% endif %}
+        {% if logout_url %}<a href="{{ logout_url }}" class="d-block py-2 text-danger font-weight-bold">Logout</a>{% endif %}
+      {% else %}
+        {% if login_url %}<a href="{{ login_url }}" class="btn btn-outline-primary btn-block mt-3">Log In</a>{% endif %}
+        {% if register_url %}<a href="{{ register_url }}" class="btn btn-primary btn-block mt-2">Join Now</a>{% endif %}
+      {% endif %}
+    </div>
+  </div>
 </header>
 
-<!-- Mobile Menu Collapse -->
-<div class="collapse d-lg-none bg-white border-top p-3" id="mobileMenu">
-    <a href="#" class="btn btn-danger btn-block mb-3">Request Blood</a>
-    <a href="#" class="d-block py-2 text-dark border-bottom">Find Blood</a>
-    <a href="#" class="d-block py-2 text-dark border-bottom">Crowdfunding</a>
-    <a href="#" class="d-block py-2 text-dark border-bottom">Hospitals</a>
-</div>
-
 <style>
+  /* IMPORTANT: remove the blank gap created by base.html padding-top */
+  body { padding-top: 0 !important; }
 
-/* 1. Navbar Layout */
-.sticky-header {
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  transition: all 0.3s ease-in-out;
-}
+  .s4l-topbar {
+    background: var(--primary-color);
+    color: #fff;
+    font-size: 14px;
+  }
+  .s4l-topbar .container { padding-top: 6px; padding-bottom: 6px; }
+  .s4l-toplink { color:#fff; text-decoration:none; font-weight:700; font-size:14px; }
+  .s4l-toplink:hover { text-decoration: underline; color:#fff; }
 
-/* 2. Center Menu Links */
-.main-menu .nav-link {
+  .s4l-navbar { position: sticky; top: 0; z-index: 1000; }
+  .s4l-logo { height: 56px; width: auto; } /* bigger logo */
+
+  .s4l-brand-text { font-weight: 900; color: var(--primary-color); letter-spacing: -1px; }
+
+  .s4l-menu .nav-link {
     color: #444;
-    font-weight: 600;
+    font-weight: 700;
     font-size: 15px;
-    padding: 0.5rem 1rem;
-    transition: color 0.2s;
-}
-.main-menu .nav-link:hover {
+    padding: 0.35rem 0.9rem;
+    transition: 0.2s;
+  }
+  .s4l-menu .nav-link:hover { color: var(--primary-color); }
+
+  .s4l-avatar {
+    width: 36px; height: 36px;
+    border-radius: 999px;
+    object-fit: cover;
+    border: 2px solid #e9ecef;
+  }
+  .s4l-avatar-fallback {
+    width: 36px; height: 36px;
+    border-radius: 999px;
+    background: #f1f3f5;
     color: var(--primary-color);
-}
-.main-menu .nav-link.active {
-    color: var(--primary-color);
-}
+    display:flex; align-items:center; justify-content:center;
+    border: 2px solid #e9ecef;
+  }
 
-/* 3. Pulsing Emergency Button */
-.btn-pulse {
-    animation: pulse-red 2s infinite;
-    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
-}
-
-@keyframes pulse-red {
-    0% {
-        transform: scale(0.95);
-        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
-    }
-    70% {
-        transform: scale(1);
-        box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
-    }
-    100% {
-        transform: scale(0.95);
-        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
-    }
-}
-
-/* 4. Body Padding adjustments */
-body {
-    padding-top: 0 !important; 
-}
+  /* Pulse animation kept (same feature, just scaled nicely) */
+  .s4l-btn-pulse { position: relative; }
+  .s4l-btn-pulse::after{
+    content:"";
+    position:absolute;
+    inset:-6px;
+    border-radius:999px;
+    border:2px solid rgba(230,57,70,0.35);
+    animation: s4lPulse 1.8s infinite;
+  }
+  @keyframes s4lPulse {
+    0% { transform: scale(0.92); opacity: 1; }
+    70% { transform: scale(1.12); opacity: 0; }
+    100% { transform: scale(1.12); opacity: 0; }
+  }
 </style>
