@@ -1,0 +1,71 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 720px;">
+
+    {% url 'public_dashboard' as feed_url %}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Donate as Guest</h3>
+        <div class="text-muted">Quick help without registration.</div>
+      </div>
+      <a href="{{ feed_url|default:'#' }}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Back
+      </a>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="mb-1">{{ req.patient_name }}</h5>
+        <div class="text-muted small">
+          Blood: <strong>{{ req.blood_group }}</strong> • Units: <strong>{{ req.units_needed }}</strong><br>
+          Hospital: <strong>{{ req.hospital_name }}</strong> • City: <strong>{{ req.location_city }}</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="form-group">
+            <label class="font-weight-bold">Your name</label>
+            {{ form.donor_name }}
+            {% for e in form.donor_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="form-group">
+            <label class="font-weight-bold">Phone number</label>
+            {{ form.donor_phone }}
+            {% for e in form.donor_phone.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+
+          <button class="btn btn-danger btn-lg btn-block" type="submit" id="guest-btn">
+            <i class="fa fa-hand-holding-heart"></i> Notify Patient I’m Coming
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const btn = document.getElementById('guest-btn');
+  const form = btn ? btn.closest('form') : null;
+  if (!btn || !form) return;
+  form.addEventListener('submit', function(){
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Submitting...';
+  });
+});
+</script>
+
+{% endblock %}

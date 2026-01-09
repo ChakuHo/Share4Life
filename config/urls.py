@@ -19,7 +19,11 @@ urlpatterns = [
     path("core-home/", core_home, name="core_home"),
 
     path("accounts/", include("accounts.urls")),
+    
     path("blood/", include("blood.urls")),
+
+    path("communication/", include("communication.urls")),
+
 ]
 
 if settings.DEBUG:

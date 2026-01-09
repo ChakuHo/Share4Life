@@ -10,6 +10,16 @@
 {% url 'kyc_submit' as kyc_submit_url %}
 {% url 'family_add' as family_add_url %}
 
+{# Blood links #}
+{% url 'public_dashboard' as blood_feed_url %}
+{% url 'emergency_request' as emergency_request_url %}
+{% url 'recipient_request' as recipient_request_url %}
+{% url 'donor_history' as donor_history_url %}
+{% url 'my_blood_requests' as my_requests_url %}
+
+{# Communication inbox (safe) #}
+{% url 'inbox' as inbox_url %}
+
 <!-- TOP BAR (NAVY) -->
 <div class="s4l-topbar">
   <div class="container d-flex justify-content-between align-items-center">
@@ -40,7 +50,6 @@
       <div class="col-lg-3 col-md-3 col-6">
         <a href="{{ home_url|default:'/' }}" class="d-flex align-items-center text-decoration-none">
           {% if site_settings and site_settings.site_logo %}
-            {# Logo already contains the wordmark -> do NOT print site_name again #}
             <img src="{{ site_settings.site_logo.url }}"
                  alt="{{ site_settings.site_name|default:'Share4Life' }}"
                  class="s4l-logo">
@@ -55,7 +64,7 @@
       <!-- CENTER NAV -->
       <div class="col-lg-5 d-none d-lg-block text-center">
         <nav class="nav justify-content-center s4l-menu">
-          <a class="nav-link" href="#">Find Blood</a>
+          <a class="nav-link" href="{{ blood_feed_url }}">Find Blood</a>
           <a class="nav-link" href="#">Crowdfunding</a>
           <a class="nav-link" href="#">Hospitals</a>
           <a class="nav-link" href="#">About</a>
@@ -65,14 +74,20 @@
       <!-- RIGHT -->
       <div class="col-lg-4 col-md-9 col-6 d-flex justify-content-end align-items-center">
 
-        <!-- Request Blood (PULSE, SAME FEATURE) -->
-        <a href="#" class="btn btn-danger rounded-pill px-3 font-weight-bold d-none d-sm-inline-flex align-items-center s4l-btn-pulse mr-3">
-          <i class="fa fa-tint mr-2"></i> Request Blood
-        </a>
+        <!-- Request Blood (pulse) -->
+        {% if user.is_authenticated and user.is_recipient %}
+          <a href="{{ recipient_request_url }}"
+             class="btn btn-danger rounded-pill px-3 font-weight-bold d-none d-sm-inline-flex align-items-center s4l-btn-pulse mr-3">
+            <i class="fa fa-tint mr-2"></i> Request Blood
+          </a>
+        {% else %}
+          <a href="{{ emergency_request_url }}"
+             class="btn btn-danger rounded-pill px-3 font-weight-bold d-none d-sm-inline-flex align-items-center s4l-btn-pulse mr-3">
+            <i class="fa fa-tint mr-2"></i> Request Blood
+          </a>
+        {% endif %}
 
         {% if user.is_authenticated %}
-
-          <!-- USER DROPDOWN -->
           <div class="dropdown">
             <a href="#" data-toggle="dropdown"
                class="d-flex align-items-center text-dark text-decoration-none dropdown-toggle">
@@ -91,22 +106,38 @@
 
             <div class="dropdown-menu dropdown-menu-right shadow border-0 mt-2">
 
+              <a class="dropdown-item" href="{{ blood_feed_url }}">
+                <i class="fa fa-tint mr-2 text-primary"></i> Blood Feed
+              </a>
+
+              {% if user.is_recipient %}
+                <a class="dropdown-item" href="{{ my_requests_url }}">
+                  <i class="fa fa-clipboard-list mr-2 text-primary"></i> My Requests
+                </a>
+              {% endif %}
+
+              {% if user.is_donor %}
+                <a class="dropdown-item" href="{{ donor_history_url }}">
+                  <i class="fa fa-history mr-2 text-primary"></i> Donation History
+                </a>
+              {% endif %}
+
+              {% if inbox_url %}
+                <a class="dropdown-item" href="{{ inbox_url }}">
+                  <i class="fa fa-bell mr-2 text-primary"></i> Notifications
+                </a>
+              {% endif %}
+
+              <div class="dropdown-divider"></div>
+
               {% if profile_url %}
-                <a class="dropdown-item" href="{{ profile_url }}">
-                  <i class="fa fa-user mr-2 text-primary"></i> Profile
-                </a>
+                <a class="dropdown-item" href="{{ profile_url }}"><i class="fa fa-user mr-2 text-primary"></i> Profile</a>
               {% endif %}
-
               {% if profile_edit_url %}
-                <a class="dropdown-item" href="{{ profile_edit_url }}">
-                  <i class="fa fa-edit mr-2 text-primary"></i> Edit Profile
-                </a>
+                <a class="dropdown-item" href="{{ profile_edit_url }}"><i class="fa fa-user-tag mr-2 text-primary"></i> Roles & Profile</a>
               {% endif %}
-
               {% if dashboard_url %}
-                <a class="dropdown-item" href="{{ dashboard_url }}">
-                  <i class="fa fa-tachometer-alt mr-2 text-primary"></i> Dashboard
-                </a>
+                <a class="dropdown-item" href="{{ dashboard_url }}"><i class="fa fa-tachometer-alt mr-2 text-primary"></i> Dashboard</a>
               {% endif %}
 
               {% if kyc_submit_url %}
@@ -121,33 +152,25 @@
               {% endif %}
 
               {% if family_add_url %}
-                <a class="dropdown-item" href="{{ family_add_url }}">
-                  <i class="fa fa-users mr-2 text-primary"></i> Add Family
-                </a>
+                <a class="dropdown-item" href="{{ family_add_url }}"><i class="fa fa-users mr-2 text-primary"></i> Add Family</a>
               {% endif %}
 
               <div class="dropdown-divider"></div>
 
               {% if logout_url %}
-                <a class="dropdown-item text-danger" href="{{ logout_url }}">
-                  <i class="fa fa-sign-out-alt mr-2"></i> Logout
-                </a>
+                <a class="dropdown-item text-danger" href="{{ logout_url }}"><i class="fa fa-sign-out-alt mr-2"></i> Logout</a>
               {% endif %}
             </div>
           </div>
-
         {% else %}
-
           {% if login_url %}
             <a href="{{ login_url }}" class="text-dark font-weight-bold mr-3 text-decoration-none">Log In</a>
           {% endif %}
           {% if register_url %}
             <a href="{{ register_url }}" class="btn btn-outline-primary rounded-pill px-3 font-weight-bold">Join Now</a>
           {% endif %}
-
         {% endif %}
 
-        <!-- Mobile toggler -->
         <button class="navbar-toggler ml-3 d-lg-none border-0" type="button"
                 data-toggle="collapse" data-target="#s4lMobileMenu" aria-controls="s4lMobileMenu">
           <i class="fa fa-bars fa-lg text-dark"></i>
@@ -157,17 +180,30 @@
     </div>
   </div>
 
-  <!-- Mobile Menu -->
+  <!-- MOBILE MENU -->
   <div class="collapse d-lg-none bg-white border-top" id="s4lMobileMenu">
     <div class="container py-3">
-      <a href="#" class="btn btn-danger btn-block mb-3"><i class="fa fa-tint mr-2"></i>Request Blood</a>
-      <a href="#" class="d-block py-2 text-dark border-bottom">Find Blood</a>
+
+      {% if user.is_authenticated and user.is_recipient %}
+        <a href="{{ recipient_request_url }}" class="btn btn-danger btn-block mb-3">
+          <i class="fa fa-tint mr-2"></i>Request Blood
+        </a>
+      {% else %}
+        <a href="{{ emergency_request_url }}" class="btn btn-danger btn-block mb-3">
+          <i class="fa fa-tint mr-2"></i>Request Blood
+        </a>
+      {% endif %}
+
+      <a href="{{ blood_feed_url }}" class="d-block py-2 text-dark border-bottom">Find Blood</a>
       <a href="#" class="d-block py-2 text-dark border-bottom">Crowdfunding</a>
       <a href="#" class="d-block py-2 text-dark border-bottom">Hospitals</a>
       <a href="#" class="d-block py-2 text-dark border-bottom">About</a>
 
       {% if user.is_authenticated %}
         {% if profile_url %}<a href="{{ profile_url }}" class="d-block py-2 text-dark border-bottom">Profile</a>{% endif %}
+        {% if user.is_recipient %}<a href="{{ my_requests_url }}" class="d-block py-2 text-dark border-bottom">My Requests</a>{% endif %}
+        {% if user.is_donor %}<a href="{{ donor_history_url }}" class="d-block py-2 text-dark border-bottom">Donation History</a>{% endif %}
+        {% if inbox_url %}<a href="{{ inbox_url }}" class="d-block py-2 text-dark border-bottom">Notifications</a>{% endif %}
         {% if kyc_submit_url %}<a href="{{ kyc_submit_url }}" class="d-block py-2 text-dark border-bottom">KYC</a>{% endif %}
         {% if logout_url %}<a href="{{ logout_url }}" class="d-block py-2 text-danger font-weight-bold">Logout</a>{% endif %}
       {% else %}
@@ -179,48 +215,19 @@
 </header>
 
 <style>
-  /* IMPORTANT: remove the blank gap created by base.html padding-top */
   body { padding-top: 0 !important; }
-
-  .s4l-topbar {
-    background: var(--primary-color);
-    color: #fff;
-    font-size: 14px;
-  }
+  .s4l-topbar { background: var(--primary-color); color: #fff; font-size: 14px; }
   .s4l-topbar .container { padding-top: 6px; padding-bottom: 6px; }
   .s4l-toplink { color:#fff; text-decoration:none; font-weight:700; font-size:14px; }
   .s4l-toplink:hover { text-decoration: underline; color:#fff; }
-
   .s4l-navbar { position: sticky; top: 0; z-index: 1000; }
-  .s4l-logo { height: 56px; width: auto; } /* bigger logo */
-
+  .s4l-logo { height: 56px; width: auto; }
   .s4l-brand-text { font-weight: 900; color: var(--primary-color); letter-spacing: -1px; }
-
-  .s4l-menu .nav-link {
-    color: #444;
-    font-weight: 700;
-    font-size: 15px;
-    padding: 0.35rem 0.9rem;
-    transition: 0.2s;
-  }
+  .s4l-menu .nav-link { color:#444; font-weight:700; font-size:15px; padding:0.35rem 0.9rem; }
   .s4l-menu .nav-link:hover { color: var(--primary-color); }
+  .s4l-avatar { width:36px; height:36px; border-radius:999px; object-fit:cover; border:2px solid #e9ecef; }
+  .s4l-avatar-fallback { width:36px; height:36px; border-radius:999px; background:#f1f3f5; color:var(--primary-color); display:flex; align-items:center; justify-content:center; border:2px solid #e9ecef; }
 
-  .s4l-avatar {
-    width: 36px; height: 36px;
-    border-radius: 999px;
-    object-fit: cover;
-    border: 2px solid #e9ecef;
-  }
-  .s4l-avatar-fallback {
-    width: 36px; height: 36px;
-    border-radius: 999px;
-    background: #f1f3f5;
-    color: var(--primary-color);
-    display:flex; align-items:center; justify-content:center;
-    border: 2px solid #e9ecef;
-  }
-
-  /* Pulse animation kept (same feature, just scaled nicely) */
   .s4l-btn-pulse { position: relative; }
   .s4l-btn-pulse::after{
     content:"";

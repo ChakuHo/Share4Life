@@ -1,0 +1,29 @@
+{% extends "master/base.html" %}
+{% block content %}
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 900px;">
+    <h3 class="mb-3">Notifications</h3>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        {% for n in items %}
+          <div class="border rounded p-3 mb-2 {% if not n.read_at %}bg-light{% endif %}">
+            <div class="d-flex justify-content-between">
+              <strong>{{ n.title }}</strong>
+              <small class="text-muted">{{ n.created_at|date:"Y-m-d H:i" }}</small>
+            </div>
+            {% if n.body %}<div class="text-muted mt-1">{{ n.body }}</div>{% endif %}
+            <div class="mt-2 d-flex">
+              {% if n.url %}<a class="btn btn-sm btn-primary mr-2" href="{{ n.url }}">Open</a>{% endif %}
+              <a class="btn btn-sm btn-outline-secondary" href="{% url 'notification_read' n.id %}">Mark read</a>
+            </div>
+          </div>
+        {% empty %}
+          <div class="text-muted">No notifications.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+</section>
+{% endblock %}

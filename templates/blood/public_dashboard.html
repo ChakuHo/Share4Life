@@ -1,0 +1,60 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Public Emergency Feed</h3>
+        <div class="text-muted">Active requests visible to everyone.</div>
+      </div>
+      {% url 'emergency_request' as emergency_url %}
+      <a href="{{ emergency_url|default:'#' }}" class="btn btn-danger">
+        <i class="fa fa-tint"></i> Create Request
+      </a>
+    </div>
+
+    <div class="row">
+      {% for r in requests %}
+        {% url 'blood_request_detail' r.id as detail_url %}
+        {% url 'guest_donate' r.id as guest_url %}
+
+        <div class="col-md-6 col-lg-4">
+          <div class="card mb-3 shadow-sm h-100">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="badge badge-danger p-2">{{ r.blood_group }}</span>
+                <small class="text-muted"><i class="fa fa-clock"></i> {{ r.created_at|timesince }} ago</small>
+              </div>
+
+              <h5 class="mb-1">{{ r.patient_name }}</h5>
+              <div class="text-muted small mb-2">
+                <i class="fa fa-hospital mr-1"></i> {{ r.hospital_name }}<br>
+                <i class="fa fa-map-marker-alt mr-1"></i> {{ r.location_city }}<br>
+                <i class="fa fa-box mr-1"></i> Units: {{ r.units_needed }}<br>
+                <span>Status: <strong>{{ r.get_status_display }}</strong></span>
+              </div>
+
+              <div class="d-flex flex-wrap">
+                <a href="{{ detail_url|default:'#' }}" class="btn btn-primary btn-sm mr-2 mb-2">
+                  View Details
+                </a>
+                <a href="{{ guest_url|default:'#' }}" class="btn btn-outline-danger btn-sm mb-2">
+                  I can Help (Guest)
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <div class="col-12">
+          <div class="alert alert-secondary">No active requests right now.</div>
+        </div>
+      {% endfor %}
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,106 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container">
+
+    {% url 'profile' as profile_url %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Donation History</h3>
+        <div class="text-muted">Your recorded donations and verification status.</div>
+      </div>
+      <a href="{{ profile_url|default:'#' }}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Back to Profile
+      </a>
+    </div>
+
+    {% if eligible %}
+      <div class="alert alert-success">
+        <strong>You are eligible to donate.</strong>
+      </div>
+    {% else %}
+      {% if next_eligible %}
+        <div class="alert alert-warning">
+          <strong>Not eligible yet.</strong>
+          Eligible again on <strong>{{ next_eligible|date:"Y-m-d" }}</strong>.
+        </div>
+      {% endif %}
+    {% endif %}
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table mb-0 align-middle">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Hospital</th>
+                <th>Units</th>
+                <th>Status</th>
+                <th style="min-width: 260px;">Reports</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for d in donations %}
+                {% url 'donation_report_upload' d.id as upload_url %}
+                <tr>
+                  <td>{{ d.donated_at|date:"Y-m-d H:i" }}</td>
+                  <td>{{ d.hospital_name|default:"—" }}</td>
+                  <td>{{ d.units }}</td>
+                  <td>
+                    {% if d.status == "VERIFIED" %}
+                      <span class="badge badge-primary p-2">VERIFIED</span>
+                    {% elif d.status == "COMPLETED" %}
+                      <span class="badge badge-secondary p-2">COMPLETED</span>
+                    {% else %}
+                      <span class="badge badge-danger p-2">{{ d.status }}</span>
+                    {% endif %}
+                  </td>
+
+                  <td>
+                    <div class="d-flex flex-wrap align-items-center">
+                      <a class="btn btn-sm btn-outline-primary mr-2 mb-2"
+                         href="{{ upload_url|default:'#' }}">
+                        Upload
+                      </a>
+
+                      {% if d.reports.all %}
+                        {% for rep in d.reports.all %}
+                          {# If you add /report/<id>/view/, this will work. If not, it will fall back to download. #}
+                          {% url 'donation_report_view' rep.id as view_url %}
+                          {% url 'donation_report_download' rep.id as dl_url %}
+
+                          <div class="btn-group btn-group-sm mr-2 mb-2" role="group">
+                            <a class="btn btn-outline-secondary"
+                               href="{{ view_url|default:dl_url }}"
+                               target="_blank">
+                              View
+                            </a>
+                            <a class="btn btn-outline-secondary"
+                               href="{{ dl_url|default:'#' }}">
+                              Download
+                            </a>
+                          </div>
+                        {% endfor %}
+                      {% else %}
+                        <span class="text-muted small mb-2">No reports</span>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="5" class="text-muted">No donation history yet.</td></tr>
+              {% endfor %}
+            </tbody>
+
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,139 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container">
+
+    {% url 'public_dashboard' as feed_url %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Request Details</h3>
+        <div class="text-muted">Responses, progress, and donation records.</div>
+      </div>
+      <a href="{{ feed_url|default:'#' }}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Back to Feed
+      </a>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between">
+          <div>
+            <h5 class="mb-1">{{ req.patient_name }}</h5>
+            <div class="text-muted small">
+              Blood: <strong>{{ req.blood_group }}</strong> • Units: <strong>{{ req.units_needed }}</strong><br>
+              Hospital: <strong>{{ req.hospital_name }}</strong> • City: <strong>{{ req.location_city }}</strong><br>
+              Contact: <strong>{{ req.contact_phone }}</strong>
+            </div>
+          </div>
+
+          <div class="mt-3 mt-md-0 text-md-right">
+            <span class="badge badge-primary p-2">Status: {{ req.get_status_display }}</span>
+            <div class="text-muted small mt-2">
+              Active: <strong>{% if req.is_active %}Yes{% else %}No{% endif %}</strong>
+            </div>
+          </div>
+        </div>
+
+        <hr>
+
+        {% url 'guest_donate' req.id as guest_url %}
+        {% url 'donor_respond' req.id as donor_resp_url %}
+        {% url 'donation_create' req.id as donation_create_url %}
+
+        <div class="d-flex flex-wrap">
+          <a href="{{ guest_url|default:'#' }}" class="btn btn-outline-danger mr-2 mb-2">
+            I can Help (Guest)
+          </a>
+
+          {% if request.user.is_authenticated and request.user.is_donor %}
+            {% if eligible_info and not eligible_info.eligible %}
+              <button class="btn btn-secondary mr-2 mb-2" disabled>
+                Not eligible until {{ eligible_info.next_date|date:"Y-m-d" }}
+              </button>
+            {% else %}
+              <a href="{{ donor_resp_url|default:'#' }}" class="btn btn-primary mr-2 mb-2">
+                Respond as Donor
+              </a>
+              <a href="{{ donation_create_url|default:'#' }}" class="btn btn-danger mb-2">
+                Mark Donation Completed
+              </a>
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+
+      <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="mb-3"><i class="fa fa-user-friends text-primary"></i> Guest Responses</h5>
+
+            {% for gr in guest_responses %}
+              <div class="border rounded p-3 mb-2">
+                <div class="d-flex justify-content-between">
+                  <strong>{{ gr.donor_name }}</strong>
+                  <small class="text-muted">{{ gr.responded_at|date:"Y-m-d H:i" }}</small>
+                </div>
+                <div class="text-muted small">
+                  Phone: {{ gr.donor_phone }} • Status: {{ gr.status }}
+                </div>
+              </div>
+            {% empty %}
+              <div class="text-muted">No guest responses yet.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="mb-3"><i class="fa fa-user-shield text-primary"></i> Registered Donor Responses</h5>
+
+            {% for dr in donor_responses %}
+              <div class="border rounded p-3 mb-2">
+                <div class="d-flex justify-content-between">
+                  <strong>{{ dr.donor.username }}</strong>
+                  <small class="text-muted">{{ dr.created_at|date:"Y-m-d H:i" }}</small>
+                </div>
+                <div class="text-muted small">
+                  Status: <strong>{{ dr.get_status_display }}</strong>
+                  {% if dr.message %}<div class="mt-1">{{ dr.message }}</div>{% endif %}
+                </div>
+              </div>
+            {% empty %}
+              <div class="text-muted">No donor responses yet.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="mb-3"><i class="fa fa-history text-primary"></i> Donations Linked to This Request</h5>
+
+        {% for d in donations %}
+          <div class="border rounded p-3 mb-2">
+            <div class="d-flex justify-content-between">
+              <strong>Donor: {% if d.donor_user %}{{ d.donor_user.username }}{% else %}—{% endif %}</strong>
+              <small class="text-muted">{{ d.donated_at|date:"Y-m-d H:i" }}</small>
+            </div>
+            <div class="text-muted small">
+              Status: <strong>{{ d.status }}</strong> • Units: {{ d.units }} • Hospital: {{ d.hospital_name|default:req.hospital_name }}
+            </div>
+          </div>
+        {% empty %}
+          <div class="text-muted">No donation records yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

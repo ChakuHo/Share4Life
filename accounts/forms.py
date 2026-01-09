@@ -130,3 +130,12 @@ class UserProfileForm(forms.ModelForm):
             "emergency_contact_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Emergency contact name"}),
             "emergency_contact_phone": forms.TextInput(attrs={"class": "form-control", "placeholder": "Emergency contact phone"}),
         }
+
+class UserRoleForm(forms.ModelForm):
+    class Meta:
+        model = CustomUser
+        fields = ["is_donor", "is_recipient"]
+        widgets = {
+            "is_donor": forms.CheckboxInput(attrs={"class": "custom-control-input"}),
+            "is_recipient": forms.CheckboxInput(attrs={"class": "custom-control-input"}),
+        }

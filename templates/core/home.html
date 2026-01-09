@@ -110,7 +110,7 @@
         <span class="mr-5">
           <i class="fa fa-tint"></i> {{ r.blood_group }} Blood needed
           {% if r.hospital_name %} at {{ r.hospital_name }}{% endif %}
-          {% if r.city %} ({{ r.city }}){% endif %}
+          {% if r.location_city %} ({{ r.location_city }}){% endif %}
         </span>
       {% empty %}
         <span class="mr-5"><i class="fa fa-check-circle"></i> No urgent requests right now.</span>
@@ -195,7 +195,7 @@
                 <div class="display-4 font-weight-bold text-danger mr-3">{{ r.blood_group }}</div>
                 <div style="line-height: 1.2;">
                   <strong>{{ r.patient_name|default:"Patient" }}</strong><br>
-                  <small class="text-muted">{{ r.hospital_name|default:r.city|default:"Hospital" }}</small>
+                  <small class="text-muted">{{ r.hospital_name|default:r.location_city|default:"Hospital" }}</small>
                 </div>
               </div>
 

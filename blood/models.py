@@ -1,10 +1,22 @@
+from django.conf import settings
+from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.utils import timezone
+import os
+import uuid
+
 
 class PublicBloodRequest(models.Model):
     """
     Recipients asking for help without login.
     """
+    STATUS = [
+        ("OPEN", "Open"),
+        ("IN_PROGRESS", "In Progress"),
+        ("FULFILLED", "Fulfilled"),
+        ("CANCELLED", "Cancelled"),
+    ]
+
     patient_name = models.CharField(max_length=100)
     blood_group = models.CharField(max_length=5, choices=[
         ('A+', 'A+'), ('A-', 'A-'), ('B+', 'B+'), ('B-', 'B-'),
@@ -14,9 +26,44 @@ class PublicBloodRequest(models.Model):
     hospital_name = models.CharField(max_length=150)
     contact_phone = models.CharField(max_length=15)
     units_needed = models.IntegerField(default=1)
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(default=timezone.now)
+    is_emergency = models.BooleanField(default=False)
 
+    # workflow fields
+    status = models.CharField(max_length=12, choices=STATUS, default="OPEN")
+    fulfilled_at = models.DateTimeField(null=True, blank=True)
+
+    created_by = models.ForeignKey(
+    settings.AUTH_USER_MODEL,
+    null=True, blank=True,
+    on_delete=models.SET_NULL,
+    related_name="blood_requests_created"
+)
+
+    VERIFICATION = [
+        ("UNVERIFIED", "Unverified (Guest/No proof)"),
+        ("PENDING", "Pending Verification"),
+        ("VERIFIED", "Verified"),
+        ("REJECTED", "Rejected"),
+    ]
+    verification_status = models.CharField(max_length=12, choices=VERIFICATION, default="UNVERIFIED")
+    proof_document = models.FileField(
+        upload_to="blood_request_proofs/",
+        blank=True, null=True,
+        validators=[FileExtensionValidator(allowed_extensions=["pdf", "jpg", "jpeg", "png"])],
+        help_text="Hospital letter / report / proof document (PDF/JPG/PNG)."
+    )
+
+    verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="blood_requests_verified_by"
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
     def __str__(self):
         return f"Need {self.blood_group} at {self.location_city}"
 
@@ -34,3 +81,79 @@ class GuestResponse(models.Model):
 
     def __str__(self):
         return f"{self.donor_name} is helping {self.request.patient_name}"
+    
+class DonorResponse(models.Model):
+    STATUS = [
+        ("PENDING", "Pending"),
+        ("ACCEPTED", "Accepted"),
+        ("DECLINED", "Declined"),
+        ("DELAYED", "Delayed"),
+    ]
+
+    request = models.ForeignKey(PublicBloodRequest, on_delete=models.CASCADE, related_name="donor_responses")
+    donor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="blood_responses")
+
+    status = models.CharField(max_length=10, choices=STATUS, default="PENDING")
+    message = models.CharField(max_length=255, blank=True)
+    responded_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("request", "donor")
+
+class BloodDonation(models.Model):
+    STATUS = [
+        ("COMPLETED", "Completed"),
+        ("VERIFIED", "Verified"),
+        ("REJECTED", "Rejected"),
+    ]
+
+    request = models.ForeignKey(PublicBloodRequest, null=True, blank=True,
+                                on_delete=models.SET_NULL, related_name="donations")
+
+    donor_user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="blood_donations")
+
+    # Snapshot info (helps history even if profile changes)
+    blood_group = models.CharField(max_length=5, blank=True)
+    units = models.PositiveIntegerField(default=1)
+    hospital_name = models.CharField(max_length=150, blank=True)
+
+    donated_at = models.DateTimeField(default=timezone.now)
+
+    status = models.CharField(max_length=10, choices=STATUS, default="COMPLETED")
+    verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                    on_delete=models.SET_NULL, related_name="blood_donations_verified_by")
+    verified_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def mark_verified(self, verifier_user):
+        self.status = "VERIFIED"
+        self.verified_by = verifier_user
+        self.verified_at = timezone.now()
+        self.save(update_fields=["status", "verified_by", "verified_at"])
+
+        # close request safely
+        if self.request_id:
+            self.request.status = "FULFILLED"
+            self.request.is_active = False
+            self.request.fulfilled_at = timezone.now()
+            self.request.save(update_fields=["status", "is_active", "fulfilled_at"])
+
+def donation_report_path(instance, filename):
+    ext = os.path.splitext(filename)[1].lower()
+    return f"medical_reports/donation_{instance.donation_id}/{uuid.uuid4().hex}{ext}"
+
+class DonationMedicalReport(models.Model):
+    donation = models.ForeignKey(BloodDonation, on_delete=models.CASCADE, related_name="reports")
+    file = models.FileField(
+        upload_to=donation_report_path,
+        validators=[FileExtensionValidator(allowed_extensions=["pdf", "jpg", "jpeg", "png"])],
+    )
+    note = models.CharField(max_length=255, blank=True)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                    on_delete=models.SET_NULL, related_name="donation_reports_uploaded")
+    uploaded_at = models.DateTimeField(auto_now_add=True)

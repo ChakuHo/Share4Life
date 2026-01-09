@@ -1,0 +1,77 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 760px;">
+
+    {% url 'blood_request_detail' req.id as detail_url %}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Mark Donation Completed</h3>
+        <div class="text-muted">Creates a donation history entry. Admin/hospital will verify it.</div>
+      </div>
+      <a href="{{ detail_url|default:'#' }}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Back
+      </a>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <strong>{{ req.patient_name }}</strong>
+        <div class="text-muted small">
+          Blood: {{ req.blood_group }} • Units needed: {{ req.units_needed }}<br>
+          Hospital: {{ req.hospital_name }} • City: {{ req.location_city }}
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label class="font-weight-bold">Hospital name</label>
+              {{ form.hospital_name }}
+              {% for e in form.hospital_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="form-group col-md-3">
+              <label class="font-weight-bold">Units</label>
+              {{ form.units }}
+              {% for e in form.units.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="form-group col-md-3">
+              <label class="font-weight-bold">Donated at</label>
+              {{ form.donated_at }}
+              {% for e in form.donated_at.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+          </div>
+
+          <button class="btn btn-danger btn-lg btn-block" type="submit" id="donate-btn">
+            <i class="fa fa-check"></i> Save Donation
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const btn = document.getElementById('donate-btn');
+  const form = btn ? btn.closest('form') : null;
+  if (!btn || !form) return;
+  form.addEventListener('submit', function(){
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
+  });
+});
+</script>
+
+{% endblock %}

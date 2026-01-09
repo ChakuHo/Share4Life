@@ -16,17 +16,58 @@
       </div>
     </div>
 
-    {% if messages %}
-      <div class="mb-3">
-        {% for message in messages %}
-          <div class="alert alert-{{ message.tags }} mb-2">{{ message }}</div>
-        {% endfor %}
-      </div>
-    {% endif %}
-
+    {# Use your global toast messages include; don't duplicate alerts here #}
     <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
 
+      <!-- Roles (Donor / Recipient) -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="mb-3"><i class="fa fa-user-tag text-primary"></i> Roles</h5>
+
+          {% if role_form %}
+            {% if role_form.non_field_errors %}
+              <div class="alert alert-danger">{{ role_form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="form-row">
+              <div class="form-group col-md-6 mb-2">
+                <div class="custom-control custom-checkbox">
+                  {{ role_form.is_donor }}
+                  <label class="custom-control-label" for="{{ role_form.is_donor.id_for_label }}">
+                    I want to donate (Donor)
+                  </label>
+                </div>
+                {% for e in role_form.is_donor.errors %}
+                  <div class="text-danger small">{{ e }}</div>
+                {% endfor %}
+              </div>
+
+              <div class="form-group col-md-6 mb-2">
+                <div class="custom-control custom-checkbox">
+                  {{ role_form.is_recipient }}
+                  <label class="custom-control-label" for="{{ role_form.is_recipient.id_for_label }}">
+                    I may need blood/organ (Recipient)
+                  </label>
+                </div>
+                {% for e in role_form.is_recipient.errors %}
+                  <div class="text-danger small">{{ e }}</div>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div class="text-muted small">
+              You can select both roles. Your login stays the same — this only changes what features you see.
+            </div>
+          {% else %}
+            <div class="alert alert-warning mb-0">
+              Role selection is not available yet. (Add <code>role_form</code> in <code>profile_edit</code> view.)
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Basic Account -->
       <div class="card shadow-sm mb-4">
         <div class="card-body">
           <h5 class="mb-3"><i class="fa fa-user text-primary"></i> Basic Account</h5>
@@ -70,6 +111,7 @@
         </div>
       </div>
 
+      <!-- Medical & Location -->
       <div class="card shadow-sm mb-4">
         <div class="card-body">
           <h5 class="mb-3"><i class="fa fa-notes-medical text-primary"></i> Medical & Location</h5>
@@ -82,35 +124,45 @@
             <div class="form-group col-md-4">
               <label class="font-weight-bold">Blood group</label>
               {{ profile_form.blood_group }}
+              {% for e in profile_form.blood_group.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
+
             <div class="form-group col-md-4">
               <label class="font-weight-bold">City</label>
               {{ profile_form.city }}
+              {% for e in profile_form.city.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
+
             <div class="form-group col-md-4">
               <label class="font-weight-bold">Date of birth</label>
               {{ profile_form.date_of_birth }}
+              {% for e in profile_form.date_of_birth.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
           </div>
 
           <div class="form-group">
             <label class="font-weight-bold">Medical history</label>
             {{ profile_form.medical_history }}
+            {% for e in profile_form.medical_history.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
           </div>
 
           <div class="form-row">
             <div class="form-group col-md-6">
               <label class="font-weight-bold">Latitude</label>
               {{ profile_form.latitude }}
+              {% for e in profile_form.latitude.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
+
             <div class="form-group col-md-6">
               <label class="font-weight-bold">Longitude</label>
               {{ profile_form.longitude }}
+              {% for e in profile_form.longitude.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
           </div>
         </div>
       </div>
 
+      <!-- Emergency Contact -->
       <div class="card shadow-sm mb-4">
         <div class="card-body">
           <h5 class="mb-3"><i class="fa fa-ambulance text-danger"></i> Emergency Contact</h5>
@@ -119,15 +171,19 @@
             <div class="form-group col-md-6">
               <label class="font-weight-bold">Contact name</label>
               {{ profile_form.emergency_contact_name }}
+              {% for e in profile_form.emergency_contact_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
+
             <div class="form-group col-md-6">
               <label class="font-weight-bold">Contact phone</label>
               {{ profile_form.emergency_contact_phone }}
+              {% for e in profile_form.emergency_contact_phone.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
           </div>
         </div>
       </div>
 
+      <!-- Address -->
       <div class="card shadow-sm">
         <div class="card-body">
           <h5 class="mb-3"><i class="fa fa-map-marker-alt text-primary"></i> Address</h5>
@@ -135,24 +191,30 @@
           <div class="form-group">
             <label class="font-weight-bold">Address line</label>
             {{ profile_form.address_line }}
+            {% for e in profile_form.address_line.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
           </div>
 
           <div class="form-row">
             <div class="form-group col-md-4">
               <label class="font-weight-bold">State/Province</label>
               {{ profile_form.state }}
+              {% for e in profile_form.state.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
+
             <div class="form-group col-md-4">
               <label class="font-weight-bold">Postal code</label>
               {{ profile_form.postal_code }}
+              {% for e in profile_form.postal_code.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
+
             <div class="form-group col-md-4">
               <label class="font-weight-bold">Country</label>
               {{ profile_form.country }}
+              {% for e in profile_form.country.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
           </div>
 
-          <button class="btn btn-primary btn-lg btn-block" type="submit">
+          <button class="btn btn-primary btn-lg btn-block" type="submit" id="save-btn">
             <i class="fa fa-save"></i> Save Changes
           </button>
         </div>
@@ -167,5 +229,18 @@
   .text-primary { color: #0a2558 !important; }
   .btn-primary { background: linear-gradient(135deg, #0a2558 0%, #061838 100%); border: none; }
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const btn = document.getElementById('save-btn');
+  const form = btn ? btn.closest('form') : null;
+  if (!btn || !form) return;
+
+  form.addEventListener('submit', function () {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
+  });
+});
+</script>
 
 {% endblock %}

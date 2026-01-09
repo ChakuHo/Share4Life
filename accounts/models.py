@@ -4,9 +4,9 @@ from django.conf import settings
 from django.db.models.signals import post_save
 from django.utils import timezone
 from django.core.validators import FileExtensionValidator
-import os   
-import uuid
+import os, uuid
 from django.dispatch import receiver
+from django.core.exceptions import ObjectDoesNotExist
 
 class CustomUser(AbstractUser):
     """
@@ -23,6 +23,18 @@ class CustomUser(AbstractUser):
 
     def __str__(self):
         return self.username
+    
+    @property
+    def kyc_status(self) -> str:
+        try:
+            return self.kyc.status 
+        except ObjectDoesNotExist:
+            return "NOT_SUBMITTED"
+
+    @property
+    def kyc_verified(self) -> bool:
+        return self.kyc_status == "APPROVED"
+
 
 class UserProfile(models.Model):
     """
@@ -75,7 +87,7 @@ class FamilyMember(models.Model):
     relationship = models.CharField(max_length=50)
     phone_number = models.CharField(max_length=15, blank=True)
 
-    # NEW: emergency profile fields (additive)
+    # emergency profile fields
     blood_group = models.CharField(max_length=5, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
     medical_history = models.TextField(blank=True)
@@ -92,7 +104,8 @@ class FamilyMember(models.Model):
 
 def kyc_upload_path(instance, filename):
     ext = os.path.splitext(filename)[1].lower()
-    return f"kyc/user_{instance.user_id}/{uuid.uuid4().hex}{ext}"
+    user_id = instance.kyc.user_id if instance.kyc_id else "unknown"
+    return f"kyc/user_{user_id}/{uuid.uuid4().hex}{ext}"
 
 
 class KYCProfile(models.Model):
@@ -155,16 +168,13 @@ class KYCDocument(models.Model):
         return f"{self.kyc.user.username} - {self.doc_type}"
 
 # --- SIGNALS (AUTOMATICALLY CREATE PROFILE) ---
-@receiver(post_save, sender=CustomUser)
-def create_user_profile(sender, instance, created, **kwargs):
-    if created:
-        UserProfile.objects.create(user=instance)
 
-@receiver(post_save, sender=CustomUser)
-def save_user_profile(sender, instance, **kwargs):
-    instance.profile.save()
+@receiver(post_save, sender=CustomUser, dispatch_uid="accounts.ensure_profile")
+def ensure_profile(sender, instance, created, **kwargs):
+    # create if missing (safe even if signal fires twice)
+    UserProfile.objects.get_or_create(user=instance)
 
-@receiver(post_save, sender=CustomUser)
-def create_kyc_profile(sender, instance, created, **kwargs):
-    if created:
-        KYCProfile.objects.create(user=instance)
+@receiver(post_save, sender=CustomUser, dispatch_uid="accounts.ensure_kyc")
+def ensure_kyc(sender, instance, created, **kwargs):
+    # create if missing (safe even if signal fires twice)
+    KYCProfile.objects.get_or_create(user=instance)

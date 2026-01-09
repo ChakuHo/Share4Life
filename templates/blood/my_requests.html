@@ -1,0 +1,75 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">My Blood Requests</h3>
+        <div class="text-muted">Track verification and donor responses.</div>
+      </div>
+      <a href="{% url 'recipient_request' %}" class="btn btn-danger">
+        <i class="fa fa-tint"></i> New Verified Request
+      </a>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table mb-0">
+            <thead>
+              <tr>
+                <th>Created</th>
+                <th>Patient</th>
+                <th>Blood</th>
+                <th>Units</th>
+                <th>Hospital</th>
+                <th>Verification</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in items %}
+                <tr>
+                  <td>{{ r.created_at|date:"Y-m-d H:i" }}</td>
+                  <td class="font-weight-bold">{{ r.patient_name }}</td>
+                  <td><span class="badge badge-danger p-2">{{ r.blood_group }}</span></td>
+                  <td>{{ r.units_needed }}</td>
+                  <td>{{ r.hospital_name }}</td>
+                  <td>
+                    {% if r.verification_status == "VERIFIED" %}
+                      <span class="badge badge-success p-2">VERIFIED</span>
+                    {% elif r.verification_status == "PENDING" %}
+                      <span class="badge badge-warning p-2">PENDING</span>
+                    {% elif r.verification_status == "REJECTED" %}
+                      <span class="badge badge-danger p-2">REJECTED</span>
+                    {% else %}
+                      <span class="badge badge-secondary p-2">UNVERIFIED</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <span class="badge badge-primary p-2">{{ r.status }}</span>
+                  </td>
+                  <td class="text-right">
+                    <a href="{% url 'blood_request_detail' r.id %}" class="btn btn-sm btn-primary">
+                      View
+                    </a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="8" class="text-muted">No requests yet.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}
