@@ -20,15 +20,48 @@
         <div class="d-flex flex-wrap justify-content-between">
           <div>
             <h5 class="mb-1">{{ req.patient_name }}</h5>
+
             <div class="text-muted small">
               Blood: <strong>{{ req.blood_group }}</strong> • Units: <strong>{{ req.units_needed }}</strong><br>
               Hospital: <strong>{{ req.hospital_name }}</strong> • City: <strong>{{ req.location_city }}</strong><br>
               Contact: <strong>{{ req.contact_phone }}</strong>
             </div>
+
+            {% url 'blood_request_proof' req.id as proof_url %}
+            <div class="mt-2 d-flex flex-wrap">
+              <a class="btn btn-outline-primary btn-sm mr-2 mb-2" target="_blank"
+                 href="https://www.google.com/maps/search/?api=1&query={{ req.hospital_name|urlencode }}%20{{ req.location_city|urlencode }}">
+                <i class="fa fa-map-marker-alt"></i> Open in Maps
+              </a>
+
+              <a class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+                 href="tel:{{ req.contact_phone }}">
+                <i class="fa fa-phone"></i> Call
+              </a>
+
+              {% if req.proof_document %}
+                <a class="btn btn-outline-danger btn-sm mb-2" target="_blank" href="{{ proof_url }}">
+                  <i class="fa fa-file-medical"></i> View Proof
+                </a>
+              {% endif %}
+            </div>
           </div>
 
           <div class="mt-3 mt-md-0 text-md-right">
             <span class="badge badge-primary p-2">Status: {{ req.get_status_display }}</span>
+
+            <div class="mt-2">
+              {% if req.verification_status == "VERIFIED" %}
+                <span class="badge badge-success p-2">Request Verified</span>
+              {% elif req.verification_status == "PENDING" %}
+                <span class="badge badge-warning p-2">Verification Pending</span>
+              {% elif req.verification_status == "REJECTED" %}
+                <span class="badge badge-danger p-2">Rejected</span>
+              {% else %}
+                <span class="badge badge-secondary p-2">Unverified</span>
+              {% endif %}
+            </div>
+
             <div class="text-muted small mt-2">
               Active: <strong>{% if req.is_active %}Yes{% else %}No{% endif %}</strong>
             </div>

@@ -1,0 +1,125 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Institution Portal</h3>
+        <div class="text-muted">
+          {{ org.name }} • {{ org.get_org_type_display }} • {{ org.city|default:"" }}
+        </div>
+      </div>
+
+      <div class="mt-2 mt-md-0">
+        <a href="{% url 'org_members' %}" class="btn btn-outline-secondary">
+          <i class="fa fa-users"></i> Members
+        </a>
+      </div>
+    </div>
+
+    <div class="row">
+
+      <!-- Pending Requests -->
+      <div class="col-lg-7 mb-4">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="mb-3"><i class="fa fa-clipboard-check text-primary"></i> Pending Blood Requests</h5>
+
+            {% for r in pending_requests %}
+              <div class="border rounded p-3 mb-2">
+                <div class="d-flex flex-wrap justify-content-between">
+                  <div>
+                    <strong>{{ r.patient_name }}</strong>
+                    <div class="text-muted small">
+                      Blood: <strong>{{ r.blood_group }}</strong> • Units: <strong>{{ r.units_needed }}</strong><br>
+                      Hospital: {{ r.hospital_name }} • City: {{ r.location_city }}
+                    </div>
+                  </div>
+
+                  <div class="mt-2 mt-md-0 text-md-right">
+                    <a class="btn btn-sm btn-outline-primary"
+                       href="{% url 'blood_request_detail' r.id %}">
+                      View
+                    </a>
+                    {% if r.proof_document %}
+                      <a class="btn btn-sm btn-outline-secondary" target="_blank"
+                         href="{% url 'blood_request_proof' r.id %}">
+                        View Proof
+                      </a>
+                    {% endif %}
+                  </div>
+                </div>
+
+                <div class="mt-3 d-flex flex-wrap">
+                  <form method="post" action="{% url 'org_verify_request' r.id %}" class="mr-2 mb-2">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="approve">
+                    <button class="btn btn-success btn-sm" type="submit">
+                      <i class="fa fa-check"></i> Approve
+                    </button>
+                  </form>
+
+                  <form method="post" action="{% url 'org_verify_request' r.id %}" class="mb-2">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="reject">
+                    <input type="text" name="reason" class="form-control form-control-sm d-inline-block"
+                           style="width: 240px;" placeholder="Reason (optional)">
+                    <button class="btn btn-danger btn-sm ml-2" type="submit">
+                      <i class="fa fa-times"></i> Reject
+                    </button>
+                  </form>
+                </div>
+              </div>
+            {% empty %}
+              <div class="text-muted">No pending requests.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Pending Donations -->
+      <div class="col-lg-5 mb-4">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="mb-3"><i class="fa fa-history text-primary"></i> Pending Donation Verification</h5>
+
+            {% for d in pending_donations %}
+              <div class="border rounded p-3 mb-2">
+                <div class="d-flex justify-content-between">
+                  <strong>Donor: {{ d.donor_user.username }}</strong>
+                  <small class="text-muted">{{ d.donated_at|date:"Y-m-d H:i" }}</small>
+                </div>
+
+                <div class="text-muted small">
+                  Units: {{ d.units }} • Hospital: {{ d.hospital_name|default:d.request.hospital_name }}
+                </div>
+
+                <div class="mt-2 d-flex flex-wrap">
+                  <a class="btn btn-sm btn-outline-primary mr-2 mb-2"
+                     href="{% url 'blood_request_detail' d.request.id %}">
+                    View Request
+                  </a>
+
+                  <form method="post" action="{% url 'org_verify_donation' d.id %}" class="mb-2">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-success" type="submit">
+                      <i class="fa fa-check"></i> Verify Donation
+                    </button>
+                  </form>
+                </div>
+              </div>
+            {% empty %}
+              <div class="text-muted">No donations pending verification.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

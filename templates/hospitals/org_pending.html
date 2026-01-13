@@ -1,0 +1,61 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 980px;">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Organization Status</h3>
+        <div class="text-muted">Your organization registration status and next steps.</div>
+      </div>
+      <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Back
+      </a>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        {% for m in memberships %}
+          <div class="border rounded p-3 mb-3">
+            <div class="d-flex flex-wrap justify-content-between">
+              <div>
+                <strong>{{ m.organization.name }}</strong>
+                <div class="text-muted small">
+                  Type: {{ m.organization.get_org_type_display }} • City: {{ m.organization.city|default:"—" }}
+                </div>
+              </div>
+
+              <div class="text-md-right mt-2 mt-md-0">
+                {% if m.organization.status == "APPROVED" %}
+                  <span class="badge badge-success p-2">APPROVED</span>
+                  <a class="btn btn-primary btn-sm ml-2" href="{% url 'org_portal' %}">Open Portal</a>
+                {% elif m.organization.status == "PENDING" %}
+                  <span class="badge badge-warning p-2">PENDING</span>
+                {% elif m.organization.status == "REJECTED" %}
+                  <span class="badge badge-danger p-2">REJECTED</span>
+                {% else %}
+                  <span class="badge badge-secondary p-2">{{ m.organization.status }}</span>
+                {% endif %}
+              </div>
+            </div>
+
+            {% if m.organization.status == "REJECTED" and m.organization.rejection_reason %}
+              <div class="alert alert-danger mt-3 mb-0">
+                <strong>Reason:</strong> {{ m.organization.rejection_reason }}
+              </div>
+            {% endif %}
+          </div>
+        {% empty %}
+          <div class="alert alert-secondary mb-0">
+            No organization memberships found.
+            <a href="{% url 'org_register' %}">Register an organization</a>.
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

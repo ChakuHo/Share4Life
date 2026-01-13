@@ -1,0 +1,96 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 980px;">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Organization Members</h3>
+        <div class="text-muted">{{ org.name }} • Manage staff/verifiers.</div>
+      </div>
+      <a href="{% url 'org_portal' %}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Back to Portal
+      </a>
+    </div>
+
+    <div class="row">
+      <!-- Add member -->
+      <div class="col-lg-5 mb-4">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="mb-3"><i class="fa fa-user-plus text-primary"></i> Add / Update Member</h5>
+
+            <form method="post" novalidate>
+              {% csrf_token %}
+
+              <div class="form-group">
+                <label class="font-weight-bold">Username or Email</label>
+                {{ form.identifier }}
+                {% for e in form.identifier.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+
+              <div class="form-group">
+                <label class="font-weight-bold">Role</label>
+                {{ form.role }}
+                {% for e in form.role.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+
+              <button class="btn btn-primary btn-block" type="submit">
+                <i class="fa fa-save"></i> Save Member
+              </button>
+            </form>
+
+            <div class="text-muted small mt-2">
+              Members must already have a user account.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Members list -->
+      <div class="col-lg-7 mb-4">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="mb-3"><i class="fa fa-users text-primary"></i> Current Members</h5>
+
+            <div class="table-responsive">
+              <table class="table mb-0">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Active</th>
+                    <th>Added</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for m in members %}
+                    <tr>
+                      <td class="font-weight-bold">{{ m.user.username }}</td>
+                      <td>{{ m.get_role_display }}</td>
+                      <td>
+                        {% if m.is_active %}
+                          <span class="badge badge-success p-2">Yes</span>
+                        {% else %}
+                          <span class="badge badge-warning p-2">No</span>
+                        {% endif %}
+                      </td>
+                      <td class="text-muted small">{{ m.added_at|date:"Y-m-d H:i" }}</td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="4" class="text-muted">No members yet.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

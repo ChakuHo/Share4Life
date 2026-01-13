@@ -16,16 +16,27 @@
 {% url 'recipient_request' as recipient_request_url %}
 {% url 'donor_history' as donor_history_url %}
 {% url 'my_blood_requests' as my_requests_url %}
+{% url 'blood_campaigns' as blood_campaigns_url %}
 
 {# Communication inbox (safe) #}
 {% url 'inbox' as inbox_url %}
+
+{# Organization links #}
+{% url 'institutions_home' as institutions_home_url %}
+{% url 'org_register' as org_register_url %}
+{% url 'org_portal' as org_portal_url %}
+{% url 'org_pending' as org_pending_url %}
 
 <!-- TOP BAR (NAVY) -->
 <div class="s4l-topbar">
   <div class="container d-flex justify-content-between align-items-center">
     <div class="d-none d-md-flex align-items-center">
-      <small class="mr-3"><i class="fa fa-globe mr-2"></i>{{ site_settings.site_name|default:"Share4Life" }} Global</small>
-      <small><i class="fa fa-map-marker-alt mr-2"></i>Connecting Donors Nearby</small>
+      <small class="mr-3">
+        <i class="fa fa-globe mr-2"></i>{{ site_settings.site_name|default:"Share4Life" }} Global
+      </small>
+      <small>
+        <i class="fa fa-map-marker-alt mr-2"></i>Connecting Donors Nearby
+      </small>
     </div>
 
     <div class="d-flex align-items-center">
@@ -65,8 +76,20 @@
       <div class="col-lg-5 d-none d-lg-block text-center">
         <nav class="nav justify-content-center s4l-menu">
           <a class="nav-link" href="{{ blood_feed_url }}">Find Blood</a>
-          <a class="nav-link" href="#">Crowdfunding</a>
-          <a class="nav-link" href="#">Hospitals</a>
+          <a class="nav-link" href="{{ blood_campaigns_url }}">Donation Camps</a>
+
+          {% if user.is_authenticated %}
+            {% if org_membership %}
+              <a class="nav-link" href="{{ org_portal_url }}">Institutions</a>
+            {% elif org_application %}
+              <a class="nav-link" href="{{ org_pending_url }}">Institutions</a>
+            {% else %}
+              <a class="nav-link" href="{{ org_register_url }}">Institutions</a>
+            {% endif %}
+          {% else %}
+            <a class="nav-link" href="{{ institutions_home_url }}">Institutions</a>
+          {% endif %}
+
           <a class="nav-link" href="#">About</a>
         </nav>
       </div>
@@ -90,17 +113,25 @@
         {% if user.is_authenticated %}
           <div class="dropdown">
             <a href="#" data-toggle="dropdown"
-               class="d-flex align-items-center text-dark text-decoration-none dropdown-toggle">
+               class="d-flex align-items-center text-dark text-decoration-none dropdown-toggle s4l-user-toggle">
 
               {% if user.profile_image %}
                 <img src="{{ user.profile_image.url }}" class="s4l-avatar mr-2" alt="Profile">
               {% else %}
-                <div class="s4l-avatar-fallback mr-2"><i class="fa fa-user"></i></div>
+                <div class="s4l-avatar-fallback mr-2">
+                  <i class="fa fa-user"></i>
+                </div>
+              {% endif %}
+
+              {% if unread_notifications_count|default:0 %}
+                <span class="s4l-notif-dot" title="You have notifications"></span>
               {% endif %}
 
               <div class="d-none d-md-block text-left" style="line-height: 1.1;">
                 <small class="text-muted d-block" style="font-size: 10px;">Welcome</small>
-                <span class="font-weight-bold" style="font-size: 13px;">{{ user.first_name|default:user.username }}</span>
+                <span class="font-weight-bold" style="font-size: 13px;">
+                  {{ user.first_name|default:user.username }}
+                </span>
               </div>
             </a>
 
@@ -123,21 +154,47 @@
               {% endif %}
 
               {% if inbox_url %}
-                <a class="dropdown-item" href="{{ inbox_url }}">
-                  <i class="fa fa-bell mr-2 text-primary"></i> Notifications
+                <a class="dropdown-item d-flex justify-content-between align-items-center" href="{{ inbox_url }}">
+                  <span><i class="fa fa-bell mr-2 text-primary"></i> Notifications</span>
+                  {% if unread_notifications_count|default:0 %}
+                    <span class="badge badge-danger" style="border-radius:999px; min-width:22px;">
+                      {{ unread_notifications_count }}
+                    </span>
+                  {% endif %}
+                </a>
+              {% endif %}
+
+              <!-- Institution -->
+              {% if org_membership %}
+                <a class="dropdown-item" href="{{ org_portal_url }}">
+                  <i class="fa fa-hospital mr-2 text-primary"></i> Institution Portal
+                </a>
+              {% elif org_application %}
+                <a class="dropdown-item" href="{{ org_pending_url }}">
+                  <i class="fa fa-hospital mr-2 text-primary"></i> Organization Status
+                </a>
+              {% else %}
+                <a class="dropdown-item" href="{{ org_register_url }}">
+                  <i class="fa fa-hospital mr-2 text-primary"></i> Register Organization
                 </a>
               {% endif %}
 
               <div class="dropdown-divider"></div>
 
               {% if profile_url %}
-                <a class="dropdown-item" href="{{ profile_url }}"><i class="fa fa-user mr-2 text-primary"></i> Profile</a>
+                <a class="dropdown-item" href="{{ profile_url }}">
+                  <i class="fa fa-user mr-2 text-primary"></i> Profile
+                </a>
               {% endif %}
               {% if profile_edit_url %}
-                <a class="dropdown-item" href="{{ profile_edit_url }}"><i class="fa fa-user-tag mr-2 text-primary"></i> Roles & Profile</a>
+                <a class="dropdown-item" href="{{ profile_edit_url }}">
+                  <i class="fa fa-user-tag mr-2 text-primary"></i> Roles & Profile
+                </a>
               {% endif %}
               {% if dashboard_url %}
-                <a class="dropdown-item" href="{{ dashboard_url }}"><i class="fa fa-tachometer-alt mr-2 text-primary"></i> Dashboard</a>
+                <a class="dropdown-item" href="{{ dashboard_url }}">
+                  <i class="fa fa-tachometer-alt mr-2 text-primary"></i> Dashboard
+                </a>
               {% endif %}
 
               {% if kyc_submit_url %}
@@ -152,13 +209,17 @@
               {% endif %}
 
               {% if family_add_url %}
-                <a class="dropdown-item" href="{{ family_add_url }}"><i class="fa fa-users mr-2 text-primary"></i> Add Family</a>
+                <a class="dropdown-item" href="{{ family_add_url }}">
+                  <i class="fa fa-users mr-2 text-primary"></i> Add Family
+                </a>
               {% endif %}
 
               <div class="dropdown-divider"></div>
 
               {% if logout_url %}
-                <a class="dropdown-item text-danger" href="{{ logout_url }}"><i class="fa fa-sign-out-alt mr-2"></i> Logout</a>
+                <a class="dropdown-item text-danger" href="{{ logout_url }}">
+                  <i class="fa fa-sign-out-alt mr-2"></i> Logout
+                </a>
               {% endif %}
             </div>
           </div>
@@ -167,7 +228,9 @@
             <a href="{{ login_url }}" class="text-dark font-weight-bold mr-3 text-decoration-none">Log In</a>
           {% endif %}
           {% if register_url %}
-            <a href="{{ register_url }}" class="btn btn-outline-primary rounded-pill px-3 font-weight-bold">Join Now</a>
+            <a href="{{ register_url }}" class="btn btn-outline-primary rounded-pill px-3 font-weight-bold">
+              Join Now
+            </a>
           {% endif %}
         {% endif %}
 
@@ -196,14 +259,37 @@
 
       <a href="{{ blood_feed_url }}" class="d-block py-2 text-dark border-bottom">Find Blood</a>
       <a href="#" class="d-block py-2 text-dark border-bottom">Crowdfunding</a>
-      <a href="#" class="d-block py-2 text-dark border-bottom">Hospitals</a>
+
+      {% if user.is_authenticated %}
+        {% if org_membership %}
+          <a href="{{ org_portal_url }}" class="d-block py-2 text-dark border-bottom">Institutions</a>
+        {% elif org_application %}
+          <a href="{{ org_pending_url }}" class="d-block py-2 text-dark border-bottom">Institutions</a>
+        {% else %}
+          <a href="{{ org_register_url }}" class="d-block py-2 text-dark border-bottom">Institutions</a>
+        {% endif %}
+      {% else %}
+        <a href="{{ institutions_home_url }}" class="d-block py-2 text-dark border-bottom">Institutions</a>
+      {% endif %}
+
       <a href="#" class="d-block py-2 text-dark border-bottom">About</a>
 
       {% if user.is_authenticated %}
         {% if profile_url %}<a href="{{ profile_url }}" class="d-block py-2 text-dark border-bottom">Profile</a>{% endif %}
         {% if user.is_recipient %}<a href="{{ my_requests_url }}" class="d-block py-2 text-dark border-bottom">My Requests</a>{% endif %}
         {% if user.is_donor %}<a href="{{ donor_history_url }}" class="d-block py-2 text-dark border-bottom">Donation History</a>{% endif %}
-        {% if inbox_url %}<a href="{{ inbox_url }}" class="d-block py-2 text-dark border-bottom">Notifications</a>{% endif %}
+
+        {% if inbox_url %}
+          <a href="{{ inbox_url }}" class="d-flex justify-content-between align-items-center py-2 text-dark border-bottom">
+            <span>Notifications</span>
+            {% if unread_notifications_count|default:0 %}
+              <span class="badge badge-danger" style="border-radius:999px; min-width:22px;">
+                {{ unread_notifications_count }}
+              </span>
+            {% endif %}
+          </a>
+        {% endif %}
+
         {% if kyc_submit_url %}<a href="{{ kyc_submit_url }}" class="d-block py-2 text-dark border-bottom">KYC</a>{% endif %}
         {% if logout_url %}<a href="{{ logout_url }}" class="d-block py-2 text-danger font-weight-bold">Logout</a>{% endif %}
       {% else %}
@@ -220,13 +306,28 @@
   .s4l-topbar .container { padding-top: 6px; padding-bottom: 6px; }
   .s4l-toplink { color:#fff; text-decoration:none; font-weight:700; font-size:14px; }
   .s4l-toplink:hover { text-decoration: underline; color:#fff; }
+
   .s4l-navbar { position: sticky; top: 0; z-index: 1000; }
   .s4l-logo { height: 56px; width: auto; }
   .s4l-brand-text { font-weight: 900; color: var(--primary-color); letter-spacing: -1px; }
+
   .s4l-menu .nav-link { color:#444; font-weight:700; font-size:15px; padding:0.35rem 0.9rem; }
   .s4l-menu .nav-link:hover { color: var(--primary-color); }
+
   .s4l-avatar { width:36px; height:36px; border-radius:999px; object-fit:cover; border:2px solid #e9ecef; }
   .s4l-avatar-fallback { width:36px; height:36px; border-radius:999px; background:#f1f3f5; color:var(--primary-color); display:flex; align-items:center; justify-content:center; border:2px solid #e9ecef; }
+
+  .s4l-user-toggle { position: relative; }
+  .s4l-notif-dot {
+    position: absolute;
+    top: -2px;
+    left: 26px;
+    width: 10px;
+    height: 10px;
+    background: var(--secondary-color);
+    border-radius: 999px;
+    border: 2px solid #fff;
+  }
 
   .s4l-btn-pulse { position: relative; }
   .s4l-btn-pulse::after{

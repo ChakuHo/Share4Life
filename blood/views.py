@@ -15,6 +15,7 @@ from .forms import (
     DonationCreateForm, DonationReportForm
 )
 from .eligibility import is_eligible, next_eligible_datetime
+from hospitals.models import BloodCampaign
 
 
 def _notify_user(user, title, body="", url="", level="INFO"):
@@ -328,3 +329,13 @@ def request_proof_view(request, request_id):
     if not req.proof_document:
         raise Http404()
     return FileResponse(req.proof_document.open("rb"), as_attachment=False)
+
+def blood_campaigns_view(request):
+    today = timezone.now().date()
+    campaigns = (
+        BloodCampaign.objects
+        .filter(status__in=["UPCOMING", "ONGOING"], date__gte=today)
+        .select_related("organization")
+        .order_by("date", "start_time")
+    )
+    return render(request, "blood/campaign_list.html", {"campaigns": campaigns})

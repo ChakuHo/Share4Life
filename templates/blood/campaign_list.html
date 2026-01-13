@@ -1,0 +1,55 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Blood Donation Camps</h3>
+        <div class="text-muted">Upcoming and ongoing blood donation drives.</div>
+      </div>
+    </div>
+
+    <div class="row">
+      {% for c in campaigns %}
+        <div class="col-md-6 col-lg-4">
+          <div class="card mb-3 shadow-sm h-100">
+            <div class="card-body">
+              <div class="d-flex justify-content-between mb-2">
+                <span class="badge badge-danger p-2">{{ c.organization.get_org_type_display }}</span>
+                <small class="text-muted">{{ c.date|date:"Y-m-d" }}</small>
+              </div>
+
+              <h5 class="mb-1">{{ c.title }}</h5>
+              <div class="text-muted small mb-2">
+                By <strong>{{ c.organization.name }}</strong><br>
+                Venue: {{ c.venue_name }}{% if c.city %}, {{ c.city }}{% endif %}
+              </div>
+
+              {% if c.description %}
+                <p class="small mb-2">{{ c.description|truncatechars:120 }}</p>
+              {% endif %}
+
+              <div class="text-muted small">
+                Target units: <strong>{{ c.target_units }}</strong>
+                {% if c.blood_groups_needed %}
+                  <br>Needed: {{ c.blood_groups_needed }}
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <div class="col-12">
+          <div class="alert alert-secondary">
+            No upcoming campaigns right now.
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

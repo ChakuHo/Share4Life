@@ -1,29 +1,101 @@
 {% extends "master/base.html" %}
 {% block content %}
+
 <section class="section-content padding-y" style="min-height:84vh;">
-  <div class="container" style="max-width: 900px;">
-    <h3 class="mb-3">Notifications</h3>
+  <div class="container" style="max-width: 980px;">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Notifications</h3>
+        <div class="text-muted">Showing last {{ cutoff_days|default:"7" }} days.</div>
+      </div>
+
+      <div class="mt-2 mt-md-0 d-flex flex-wrap">
+        <form method="post" action="{% url 'notification_read_all' %}" class="mr-2 mb-2">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-primary">
+            <i class="fa fa-check"></i> Mark all as read
+          </button>
+        </form>
+
+        <form method="post" action="{% url 'notification_clear_all' %}" class="mb-2"
+              onsubmit="return confirm('Clear ALL notifications? This cannot be undone.');">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-danger">
+            <i class="fa fa-trash"></i> Clear all
+          </button>
+        </form>
+      </div>
+    </div>
 
     <div class="card shadow-sm">
-      <div class="card-body">
-        {% for n in items %}
-          <div class="border rounded p-3 mb-2 {% if not n.read_at %}bg-light{% endif %}">
-            <div class="d-flex justify-content-between">
-              <strong>{{ n.title }}</strong>
-              <small class="text-muted">{{ n.created_at|date:"Y-m-d H:i" }}</small>
-            </div>
-            {% if n.body %}<div class="text-muted mt-1">{{ n.body }}</div>{% endif %}
-            <div class="mt-2 d-flex">
-              {% if n.url %}<a class="btn btn-sm btn-primary mr-2" href="{{ n.url }}">Open</a>{% endif %}
-              <a class="btn btn-sm btn-outline-secondary" href="{% url 'notification_read' n.id %}">Mark read</a>
-            </div>
+      <div class="card-body p-0">
+
+        {% if items %}
+          <div class="list-group list-group-flush">
+            {% for n in items %}
+              <div class="list-group-item">
+                <div class="d-flex justify-content-between">
+                  <div>
+                    <div class="font-weight-bold mb-1">
+                      {% if not n.read_at %}
+                        <span class="badge badge-danger mr-2">New</span>
+                      {% endif %}
+
+                      {% if n.level == "SUCCESS" %}
+                        <span class="badge badge-success mr-2">Success</span>
+                      {% elif n.level == "WARNING" %}
+                        <span class="badge badge-warning mr-2">Warning</span>
+                      {% elif n.level == "DANGER" %}
+                        <span class="badge badge-danger mr-2">Danger</span>
+                      {% else %}
+                        <span class="badge badge-secondary mr-2">Info</span>
+                      {% endif %}
+
+                      {{ n.title }}
+                    </div>
+
+                    {% if n.body %}
+                      <div class="text-muted small">{{ n.body }}</div>
+                    {% endif %}
+
+                    <div class="text-muted small mt-2">
+                      <i class="fa fa-clock"></i> {{ n.created_at|timesince }} ago
+                      {% if n.read_at %}
+                        • Read
+                      {% else %}
+                        • Unread
+                      {% endif %}
+                    </div>
+                  </div>
+
+                  <div class="text-right ml-3">
+                    {% if n.url %}
+                      <a href="{% url 'notification_open' n.id %}" class="btn btn-sm btn-primary mb-2">
+                        Open
+                      </a>
+                    {% endif %}
+
+                    {% if not n.read_at %}
+                      <a href="{% url 'notification_read' n.id %}" class="btn btn-sm btn-outline-secondary">
+                        Mark read
+                      </a>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
           </div>
-        {% empty %}
-          <div class="text-muted">No notifications.</div>
-        {% endfor %}
+        {% else %}
+          <div class="p-4 text-center text-muted">
+            No notifications found.
+          </div>
+        {% endif %}
+
       </div>
     </div>
 
   </div>
 </section>
+
 {% endblock %}

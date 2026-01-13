@@ -1,0 +1,61 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Blood Donation Campaigns</h3>
+        <div class="text-muted">{{ org.name }} • Manage your camps/drives.</div>
+      </div>
+      <div class="mt-2 mt-md-0">
+        <a href="{% url 'org_portal' %}" class="btn btn-outline-secondary mr-2">
+          <i class="fa fa-arrow-left"></i> Back to Portal
+        </a>
+        <a href="{% url 'org_campaign_create' %}" class="btn btn-danger">
+          <i class="fa fa-plus"></i> New Campaign
+        </a>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table mb-0">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Title</th>
+                <th>Venue</th>
+                <th>Target units</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in campaigns %}
+                <tr>
+                  <td>{{ c.date|date:"Y-m-d" }}</td>
+                  <td class="font-weight-bold">{{ c.title }}</td>
+                  <td>
+                    {{ c.venue_name }}
+                    {% if c.city %}<br><span class="text-muted small">{{ c.city }}</span>{% endif %}
+                  </td>
+                  <td>{{ c.target_units }}</td>
+                  <td>{{ c.get_status_display }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="5" class="text-muted">No campaigns yet.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

@@ -9,6 +9,12 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+from blood.eligibility import (
+    is_eligible,
+    next_eligible_datetime,
+    last_verified_donation,
+    ELIGIBILITY_DAYS,
+)
 
 from .forms import (
     RegistrationForm,
@@ -86,7 +92,7 @@ def register(request):
                     phone_number=phone,
                 )
 
-                # Ensure profile + set city (safe even if signals fail)
+                #  profile + set city
                 profile, _ = UserProfile.objects.get_or_create(user=user)
                 profile.city = city
                 profile.save(update_fields=["city"])
@@ -329,6 +335,28 @@ def profile_view(request):
         roles.append("Hospital Admin")
     if not roles:
         roles = ["User"]
+    donor_eligibility = None
+    if request.user.is_donor:
+        last = last_verified_donation(request.user)
+        nxt = next_eligible_datetime(request.user)
+        eligible = is_eligible(request.user)
+
+        days_remaining = 0
+        progress_percent = 100
+        if nxt:
+            delta = nxt - timezone.now()
+            days_remaining = max(delta.days, 0)
+            progressed = max(ELIGIBILITY_DAYS - days_remaining, 0)
+            progress_percent = int((progressed / ELIGIBILITY_DAYS) * 100) if ELIGIBILITY_DAYS else 100
+
+        donor_eligibility = {
+            "eligible": eligible,
+            "last_donation": last.donated_at if last else None,
+            "next_eligible": nxt,
+            "days_remaining": days_remaining,
+            "progress_percent": progress_percent,
+            "eligibility_days": ELIGIBILITY_DAYS,
+        }
 
     return render(request, "accounts/profile.html", {
         "profile": profile,
@@ -344,6 +372,7 @@ def profile_view(request):
         "points_to_next": points_to_next,
         "completion_percent": completion_percent,
         "missing_fields": missing_fields,
+        "donor_eligibility": donor_eligibility,
     })
 
 

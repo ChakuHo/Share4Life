@@ -64,6 +64,15 @@ class PublicBloodRequest(models.Model):
     )
     verified_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.TextField(blank=True)
+
+    target_organization = models.ForeignKey(
+    "hospitals.Organization",
+    null=True, blank=True,
+    on_delete=models.SET_NULL,
+    related_name="blood_requests",
+    help_text="Which organization should verify/handle this request.",
+    )
+
     def __str__(self):
         return f"Need {self.blood_group} at {self.location_city}"
 
@@ -130,11 +139,19 @@ class BloodDonation(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def mark_verified(self, verifier_user):
+    verified_by_org = models.ForeignKey(
+    "hospitals.Organization",
+    null=True, blank=True,
+    on_delete=models.SET_NULL,
+    related_name="verified_donations",
+    )
+
+    def mark_verified(self, verifier_user, verified_org=None):
         self.status = "VERIFIED"
         self.verified_by = verifier_user
+        self.verified_by_org = verified_org
         self.verified_at = timezone.now()
-        self.save(update_fields=["status", "verified_by", "verified_at"])
+        self.save(update_fields=["status", "verified_by", "verified_by_org", "verified_at"])
 
         # close request safely
         if self.request_id:

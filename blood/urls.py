@@ -21,4 +21,7 @@ urlpatterns = [
     path("request/<int:request_id>/verify/", views.verify_request_view, name="verify_request"),
     path("request/<int:request_id>/proof/", views.request_proof_view, name="blood_request_proof"),
     path('report/<int:report_id>/view/', views.donation_report_view_inline, name='donation_report_view'),
+
+
+    path("campaigns/", views.blood_campaigns_view, name="blood_campaigns"),
 ]

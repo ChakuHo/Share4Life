@@ -76,6 +76,8 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.site_settings',
+                'hospitals.context_processors.org_context',
+                'communication.context_processors.unread_notifications',
             ],
         },
     },
@@ -91,6 +93,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        "OPTIONS": {"timeout": 20},
     }
 }
 
@@ -119,7 +122,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "Asia/Kathmandu"
 
 USE_I18N = True
 
@@ -153,3 +156,10 @@ EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", f"Share4Life <{EMAIL_HOST_USER}>")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 EMAIL_VERIFICATION_REQUIRED = True
+
+# notification timeout
+NOTIFICATION_RETENTION_DAYS = 7
+
+EMAIL_QUEUE_BATCH_SIZE = 40        # safe batch for Gmail sending limits
+EMAIL_QUEUE_BATCH_DELAY = 10       # seconds between batches
+EMAIL_QUEUE_MAX_ATTEMPTS = 3

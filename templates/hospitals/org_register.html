@@ -1,0 +1,130 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 980px;">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Register Organization</h3>
+        <div class="text-muted">Hospitals, NGOs, Red Cross, Blood Banks, and other institutions can register here.</div>
+      </div>
+      <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Back
+      </a>
+    </div>
+
+    <div class="alert alert-info">
+      <strong>Note:</strong> Your organization will be <b>reviewed by admin</b>. You will get an email for Pending/Approved/Rejected.
+    </div>
+
+    <form method="post" enctype="multipart/form-data" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <div class="row">
+        <!-- Organization -->
+        <div class="col-lg-7 mb-4">
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h5 class="mb-3"><i class="fa fa-building text-primary"></i> Organization Details</h5>
+
+              <div class="form-group">
+                <label class="font-weight-bold">Organization name</label>
+                {{ form.name }}
+                {% for e in form.name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+
+              <div class="form-group">
+                <label class="font-weight-bold">Organization type</label>
+                {{ form.org_type }}
+                {% for e in form.org_type.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              </div>
+
+              <div class="form-row">
+                <div class="form-group col-md-6">
+                  <label class="font-weight-bold">Organization email</label>
+                  {{ form.email }}
+                  {% for e in form.email.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                  <div class="text-muted small mt-1">Default is your account email. You can keep it same.</div>
+                </div>
+                <div class="form-group col-md-6">
+                  <label class="font-weight-bold">Organization phone</label>
+                  {{ form.phone }}
+                  {% for e in form.phone.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group col-md-6">
+                  <label class="font-weight-bold">City</label>
+                  {{ form.city }}
+                  {% for e in form.city.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                </div>
+                <div class="form-group col-md-6">
+                  <label class="font-weight-bold">Address</label>
+                  {{ form.address }}
+                  {% for e in form.address.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="font-weight-bold">Proof document (required)</label>
+                {{ form.proof_document }}
+                {% for e in form.proof_document.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                <div class="text-muted small mt-1">PDF/JPG/PNG. Max 5MB.</div>
+              </div>
+
+              <button class="btn btn-danger btn-lg btn-block" type="submit" id="org-reg-btn">
+                <i class="fa fa-paper-plane"></i> Submit Organization
+              </button>
+
+              <div class="text-muted small mt-2">
+                After approval, you can access the Institution Portal to verify requests and manage campaigns.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Admin account (READ ONLY) -->
+        <div class="col-lg-5 mb-4">
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <h5 class="mb-3"><i class="fa fa-user-shield text-primary"></i> Admin Account (You)</h5>
+
+              <div class="border rounded p-3 bg-light">
+                <div class="mb-2"><b>Username:</b> {{ request.user.username }}</div>
+                <div class="mb-2"><b>Email:</b> {{ request.user.email }}</div>
+                <div class="mb-0"><b>Phone:</b> {{ request.user.phone_number|default:"—" }}</div>
+              </div>
+
+              <div class="text-muted small mt-3">
+                This account will become the <b>Organization Admin</b> after approval.
+                If you want to register using a different account, logout and login again.
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </form>
+
+  </div>
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const btn = document.getElementById('org-reg-btn');
+  const form = btn ? btn.closest('form') : null;
+  if (!btn || !form) return;
+  form.addEventListener('submit', function(){
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Submitting...';
+  });
+});
+</script>
+
+{% endblock %}

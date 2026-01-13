@@ -1,0 +1,31 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 900px;">
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h3 class="mb-2">Institutions</h3>
+        <p class="text-muted mb-4">
+          Hospitals, blood banks, NGOs and verified organizations can register to access the Institution Portal.
+          After admin approval, you can create blood donation campaigns and verify requests/donations.
+        </p>
+
+        <div class="alert alert-info">
+          <strong>Note:</strong> Institution registration requires admin verification.
+        </div>
+
+        <a href="{% url 'login' %}" class="btn btn-primary mr-2">
+          <i class="fa fa-sign-in-alt"></i> Login to Continue
+        </a>
+        <a href="{% url 'register' %}" class="btn btn-outline-primary">
+          <i class="fa fa-user-plus"></i> Create Account
+        </a>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

@@ -24,6 +24,8 @@ urlpatterns = [
 
     path("communication/", include("communication.urls")),
 
+    path("institutions/", include("hospitals.urls")),
+
 ]
 
 if settings.DEBUG:
