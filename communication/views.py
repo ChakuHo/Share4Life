@@ -16,7 +16,7 @@ def inbox(request):
     days = int(getattr(settings, "NOTIFICATION_RETENTION_DAYS", 7))
     cutoff = timezone.now() - timedelta(days=days)
 
-    # Optional: stop old unread notifications (>retention) from keeping the badge forever
+    # stop old unread notifications (>retention) from keeping the badge forever
     request.user.notifications.filter(created_at__lt=cutoff, read_at__isnull=True).update(read_at=timezone.now())
 
     items = (

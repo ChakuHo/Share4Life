@@ -54,7 +54,7 @@ def home(request):
     """
     Dynamic Landing Page (Blood + Crowdfunding)
     """
-    all_requests = PublicBloodRequest.objects.filter(is_active=True).order_by("-created_at")
+    all_requests = PublicBloodRequest.objects.filter(is_active=True).order_by("-is_emergency", "-created_at")
     context = {
         "urgent_requests": all_requests[:5],
         "recent_requests": all_requests[:4],

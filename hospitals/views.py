@@ -8,6 +8,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 
 from accounts.models import CustomUser
+from communication.services import broadcast_after_commit
 from .forms import OrganizationRegisterForm, AddOrgMemberForm, BloodCampaignForm
 from .models import Organization, OrganizationMembership, BloodCampaign
 from .permissions import org_member_required
@@ -17,7 +18,6 @@ from blood.models import PublicBloodRequest, BloodDonation
 
 from django.views.decorators.http import require_POST
 from django.http import Http404
-
 
 @login_required
 @transaction.atomic
@@ -203,6 +203,35 @@ def org_campaign_create(request):
             camp = form.save(commit=False)
             camp.organization = org
             camp.save()
+
+            # Notify users in the same city
+
+            city = (camp.city or org.city or "").strip()
+
+            users_qs = CustomUser.objects.filter(is_active=True).select_related("profile")
+
+            if city:
+                users_qs = users_qs.filter(
+                    Q(profile__city__iexact=city) | Q(profile__city__isnull=True) | Q(profile__city__exact="")
+                )
+            else:
+                # if campaign city is missing, notify only blank-city users
+                users_qs = users_qs.filter(Q(profile__city__isnull=True) | Q(profile__city__exact=""))  
+
+            title = "New Blood Donation Camp"
+            body = f"{org.name} created a camp: {camp.title} on {camp.date}. Venue: {camp.venue_name} ({camp.city or org.city})"
+            url = "/blood/campaigns/"
+            email_body = body + "\n\nOpen: " + url
+
+            broadcast_after_commit(
+                users_qs,
+                title=title,
+                body=body,
+                url=url,
+                level="INFO",
+                email_subject=title,
+                email_body=email_body,
+            )   
             messages.success(request, "Campaign created.")
             return redirect("org_campaign_list")
         messages.error(request, "Please fix the errors.")

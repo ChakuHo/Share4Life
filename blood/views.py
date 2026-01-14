@@ -17,6 +17,9 @@ from .forms import (
 from .eligibility import is_eligible, next_eligible_datetime
 from hospitals.models import BloodCampaign
 
+from accounts.models import CustomUser
+from communication.services import broadcast_after_commit
+
 
 def _notify_user(user, title, body="", url="", level="INFO"):
     if not user:
@@ -59,8 +62,31 @@ def recipient_request_view(request):
 
             # Blood: KYC verified users are auto-verified
             obj.verification_status = "VERIFIED" if request.user.is_verified else "PENDING"
-
             obj.save()
+
+            # If emergency, broadcast notification + email to all active users
+            if obj.is_emergency:
+                users_qs = CustomUser.objects.filter(is_active=True)
+
+                title = "URGENT Blood Request"
+                url = f"/blood/request/{obj.id}/"
+                abs_url = request.build_absolute_uri(url)
+
+                body = (
+                    f"Urgent need: {obj.blood_group} in {obj.location_city}. "
+                    f"Hospital: {obj.hospital_name}. Contact: {obj.contact_phone}"
+                )
+                email_body = body + f"\n\nOpen: {abs_url}"
+
+                broadcast_after_commit(
+                    users_qs,
+                    title=title,
+                    body=body,
+                    url=url,
+                    level="DANGER",
+                    email_subject=title,
+                    email_body=email_body,
+                )
             messages.success(request, "Request created successfully.")
             return redirect("my_blood_requests")
 
@@ -334,7 +360,11 @@ def blood_campaigns_view(request):
     today = timezone.now().date()
     campaigns = (
         BloodCampaign.objects
-        .filter(status__in=["UPCOMING", "ONGOING"], date__gte=today)
+        .filter(
+            organization__status="APPROVED",
+            status__in=["UPCOMING", "ONGOING"],
+            date__gte=today
+        )
         .select_related("organization")
         .order_by("date", "start_time")
     )
