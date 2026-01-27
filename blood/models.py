@@ -4,7 +4,7 @@ from django.db import models
 from django.utils import timezone
 import os
 import uuid
-
+from django.db.models import Q, Sum
 
 class PublicBloodRequest(models.Model):
     """
@@ -118,11 +118,19 @@ class BloodDonation(models.Model):
         ("REJECTED", "Rejected"),
     ]
 
-    request = models.ForeignKey(PublicBloodRequest, null=True, blank=True,
-                                on_delete=models.SET_NULL, related_name="donations")
+    request = models.ForeignKey(
+        PublicBloodRequest,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="donations",
+    )
 
-    donor_user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
-                                   on_delete=models.SET_NULL, related_name="blood_donations")
+    donor_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="blood_donations",
+    )
 
     # Snapshot info (helps history even if profile changes)
     blood_group = models.CharField(max_length=5, blank=True)
@@ -132,33 +140,68 @@ class BloodDonation(models.Model):
     donated_at = models.DateTimeField(default=timezone.now)
 
     status = models.CharField(max_length=10, choices=STATUS, default="COMPLETED")
-    verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
-                                    on_delete=models.SET_NULL, related_name="blood_donations_verified_by")
+    verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="blood_donations_verified_by",
+    )
     verified_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
     verified_by_org = models.ForeignKey(
-    "hospitals.Organization",
-    null=True, blank=True,
-    on_delete=models.SET_NULL,
-    related_name="verified_donations",
+        "hospitals.Organization",
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="verified_donations",
     )
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["request", "donor_user"],
+                condition=Q(request__isnull=False, donor_user__isnull=False),
+                name="uniq_donation_per_request_per_donor",
+            )
+        ]
+
     def mark_verified(self, verifier_user, verified_org=None):
+        """
+        Mark donation VERIFIED and update the linked request:
+        - Request becomes FULFILLED only when total VERIFIED units >= units_needed
+        - Otherwise keep request IN_PROGRESS
+        """
         self.status = "VERIFIED"
         self.verified_by = verifier_user
         self.verified_by_org = verified_org
         self.verified_at = timezone.now()
         self.save(update_fields=["status", "verified_by", "verified_by_org", "verified_at"])
 
-        # close request safely
-        if self.request_id:
-            self.request.status = "FULFILLED"
-            self.request.is_active = False
-            self.request.fulfilled_at = timezone.now()
-            self.request.save(update_fields=["status", "is_active", "fulfilled_at"])
+        if not self.request_id:
+            return
+
+        req = self.request
+
+        verified_units = (
+            BloodDonation.objects
+            .filter(request_id=req.id, status="VERIFIED")
+            .aggregate(s=Sum("units"))["s"] or 0
+        )
+
+        needed = int(req.units_needed or 1)
+
+        if verified_units >= needed:
+            req.status = "FULFILLED"
+            req.is_active = False
+            req.fulfilled_at = timezone.now()
+            req.save(update_fields=["status", "is_active", "fulfilled_at"])
+        else:
+            # keep it active but in progress
+            if req.status == "OPEN":
+                req.status = "IN_PROGRESS"
+                req.save(update_fields=["status"])
 
 def donation_report_path(instance, filename):
     ext = os.path.splitext(filename)[1].lower()

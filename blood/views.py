@@ -12,13 +12,20 @@ from .models import PublicBloodRequest, GuestResponse, DonorResponse, BloodDonat
 from .forms import (
     EmergencyRequestForm, GuestResponseForm,
     RecipientRequestForm, DonorResponseForm,
-    DonationCreateForm, DonationReportForm
+    DonationCreateForm, DonationReportForm,
+    BloodRequestEditForm
 )
 from .eligibility import is_eligible, next_eligible_datetime
 from hospitals.models import BloodCampaign
 
 from accounts.models import CustomUser
 from communication.services import broadcast_after_commit
+
+from hospitals.models import OrganizationMembership
+
+from django.db.models import Case, When, Value, IntegerField
+from django.db import transaction, IntegrityError
+from django.views.decorators.http import require_POST
 
 
 def _notify_user(user, title, body="", url="", level="INFO"):
@@ -29,21 +36,25 @@ def _notify_user(user, title, body="", url="", level="INFO"):
 
 # Guest emergency request
 def emergency_request_view(request):
-    if request.method == 'POST':
-        form = EmergencyRequestForm(request.POST, request.FILES) 
+    if request.method == "POST":
+        form = EmergencyRequestForm(request.POST, request.FILES)
         if form.is_valid():
             obj = form.save(commit=False)
             obj.created_by = None
-            obj.verification_status = "UNVERIFIED"   # guest stays unverified
+            obj.is_emergency = True
             obj.status = "OPEN"
             obj.is_active = True
+
+            # Proof is mandatory
+            obj.verification_status = "PENDING"
             obj.save()
-            messages.success(request, "Emergency posted (Unverified). Proof is attached for donors to view.")
-            return redirect('public_dashboard')
+
+            messages.success(request, "Emergency posted. Proof attached and visible to donors.")
+            return redirect("public_dashboard")
     else:
         form = EmergencyRequestForm()
 
-    return render(request, 'blood/emergency_form.html', {'form': form})
+    return render(request, "blood/emergency_form.html", {"form": form})
 
 
 # Logged-in recipient request
@@ -51,6 +62,12 @@ def emergency_request_view(request):
 @recipient_required
 def recipient_request_view(request):
     require_proof = not request.user.is_verified  # KYC verified => no proof required
+
+    initial = {
+        "patient_name": (request.user.get_full_name().strip() or request.user.username),
+        "contact_phone": (request.user.phone_number or ""),
+        "location_city": (getattr(request.user, "profile", None).city or "") if getattr(request.user, "profile", None) else "",
+    }
 
     if request.method == "POST":
         form = RecipientRequestForm(request.POST, request.FILES, require_proof=require_proof)
@@ -92,7 +109,7 @@ def recipient_request_view(request):
 
         messages.error(request, "Please fix the errors and try again.")
     else:
-        form = RecipientRequestForm(require_proof=require_proof)
+        form = RecipientRequestForm(require_proof=require_proof, initial=initial)
 
     return render(request, "blood/recipient_request.html", {
         "form": form,
@@ -102,8 +119,33 @@ def recipient_request_view(request):
 
 # Public feed - show all active, but label verification
 def public_dashboard_view(request):
-    requests = PublicBloodRequest.objects.filter(is_active=True).order_by('-is_emergency', '-created_at')
-    return render(request, 'blood/public_dashboard.html', {'requests': requests})
+    qs = (
+        PublicBloodRequest.objects
+        .filter(is_active=True, status__in=["OPEN", "IN_PROGRESS"])
+        .exclude(verification_status="REJECTED")
+        .annotate(
+            v_rank=Case(
+                When(verification_status="VERIFIED", then=Value(0)),
+                When(verification_status="PENDING", then=Value(1)),
+                default=Value(2),
+                output_field=IntegerField(),
+            )
+        )
+        .order_by("-is_emergency", "v_rank", "-created_at")
+        .exclude(verification_status__in=["REJECTED", "UNVERIFIED"])
+    )
+
+    donor_eligible = None
+    donor_next_eligible = None
+    if request.user.is_authenticated and getattr(request.user, "is_donor", False):
+        donor_eligible = is_eligible(request.user)
+        donor_next_eligible = next_eligible_datetime(request.user)
+
+    return render(request, "blood/public_dashboard.html", {
+        "requests": qs,
+        "donor_eligible": donor_eligible,
+        "donor_next_eligible": donor_next_eligible,
+    })
 
 
 # Request detail - public
@@ -111,39 +153,141 @@ def request_detail_view(request, request_id):
     blood_req = get_object_or_404(PublicBloodRequest, id=request_id)
 
     guest_responses = blood_req.responses.order_by("-responded_at")
-    donor_responses = blood_req.donor_responses.select_related("donor").order_by("-created_at")
+    donor_responses = blood_req.donor_responses.select_related("donor").order_by("-responded_at", "-created_at")
     donations = blood_req.donations.select_related("donor_user").order_by("-donated_at")
 
+    # lifecycle state
+    is_active_request = bool(blood_req.is_active and blood_req.status in ("OPEN", "IN_PROGRESS"))
+
+    # Organization/institution scope for this request
+    org_membership_req = None
+    org_can_verify = False
+
+    if request.user.is_authenticated:
+        memberships = (
+            OrganizationMembership.objects
+            .filter(user=request.user, is_active=True, organization__status="APPROVED")
+            .select_related("organization")
+            .order_by("-added_at")
+        )
+
+        req_city = (blood_req.location_city or "").strip().lower()
+        target_org_id = blood_req.target_organization_id
+
+        for m in memberships:
+            org = m.organization
+            org_city = (org.city or "").strip().lower()
+
+            allowed = False
+            if target_org_id:
+                allowed = (org.id == target_org_id)
+            else:
+                allowed = bool(req_city and org_city and req_city == org_city)
+
+            if allowed:
+                org_membership_req = m
+                break
+
+        if org_membership_req and org_membership_req.role in ("ADMIN", "VERIFIER"):
+            org_can_verify = True
+
+    can_view_proof = bool(
+        blood_req.proof_document and (
+            (request.user.is_authenticated and (
+                request.user.is_staff
+                or getattr(request.user, "is_hospital_admin", False)  
+                or (blood_req.created_by_id == request.user.id)
+                or (org_membership_req is not None)  # org member in scope
+            ))
+        )
+    )
+
+    can_view_donor_contact = (
+        request.user.is_authenticated and (
+            request.user.is_staff
+            or getattr(request.user, "is_hospital_admin", False)
+            or (blood_req.created_by_id == request.user.id)
+        )
+    )
+
+    # Donor state
     eligible_info = None
+    my_response = None
+    my_donation = None
+    can_mark_donation = False
+    can_respond = False
+
     if request.user.is_authenticated and getattr(request.user, "is_donor", False):
-        eligible_info = {"eligible": is_eligible(request.user), "next_date": next_eligible_datetime(request.user)}
+        eligible = is_eligible(request.user)
+        eligible_info = {
+            "eligible": eligible,
+            "next_date": next_eligible_datetime(request.user),
+        }
+
+        my_response = DonorResponse.objects.filter(request=blood_req, donor=request.user).first()
+        my_donation = BloodDonation.objects.filter(request=blood_req, donor_user=request.user).first()
+
+        can_respond = is_active_request
+
+        # donation only after ACCEPTED + eligible + no existing donation
+        can_mark_donation = (
+            is_active_request
+            and eligible
+            and my_donation is None
+            and my_response is not None
+            and my_response.status == "ACCEPTED"
+        )
+
+        
 
     return render(request, "blood/request_detail.html", {
         "req": blood_req,
         "guest_responses": guest_responses,
         "donor_responses": donor_responses,
         "donations": donations,
-        "eligible_info": eligible_info,
-    })
 
+        "is_active_request": is_active_request,
+        "can_view_proof": can_view_proof,
+
+        # org context for this request
+        "org_membership_req": org_membership_req,
+        "org_can_verify": org_can_verify,
+
+        # donor context
+        "eligible_info": eligible_info,
+        "my_response": my_response,
+        "my_donation": my_donation,
+        "can_mark_donation": can_mark_donation,
+        "can_respond": can_respond,
+        "can_view_donor_contact": can_view_donor_contact,
+    })
 
 # Guest donate and notify recipient if possible
 def guest_donate_view(request, request_id):
     blood_req = get_object_or_404(PublicBloodRequest, id=request_id)
 
-    if request.method == 'POST':
+    # If logged in, guest flow is not needed
+    if request.user.is_authenticated:
+        messages.info(request, "You are logged in. Please use donor response instead of guest donation.")
+        return redirect("blood_request_detail", request_id=blood_req.id)
+
+    # Don't allow guest response if request closed
+    if blood_req.status in ("FULFILLED", "CANCELLED") or not blood_req.is_active:
+        messages.error(request, "This request is closed.")
+        return redirect("public_dashboard")
+
+    if request.method == "POST":
         form = GuestResponseForm(request.POST)
         if form.is_valid():
             response = form.save(commit=False)
             response.request = blood_req
             response.save()
 
-            # workflow update
             if blood_req.status == "OPEN":
                 blood_req.status = "IN_PROGRESS"
                 blood_req.save(update_fields=["status"])
 
-            # notify logged-in requester if exists
+            # Notify the requester ONLY if this request was created by a logged-in user
             if blood_req.created_by_id:
                 _notify_user(
                     blood_req.created_by,
@@ -154,11 +298,11 @@ def guest_donate_view(request, request_id):
                 )
 
             messages.success(request, "Thank you! The patient has been notified that you are coming.")
-            return redirect('public_dashboard')
+            return redirect("public_dashboard")
     else:
         form = GuestResponseForm()
 
-    return render(request, 'blood/guest_response.html', {'form': form, 'req': blood_req})
+    return render(request, "blood/guest_response.html", {"form": form, "req": blood_req})
 
 
 # Registered donor respond
@@ -166,6 +310,11 @@ def guest_donate_view(request, request_id):
 @donor_required
 def donor_respond_view(request, request_id):
     blood_req = get_object_or_404(PublicBloodRequest, id=request_id)
+
+    # block self-response (request owner cannot respond as donor)
+    if blood_req.created_by_id and blood_req.created_by_id == request.user.id:
+        messages.error(request, "You created this request. You cannot respond as a donor to your own request.")
+        return redirect("blood_request_detail", request_id=blood_req.id)
 
     if blood_req.status in ("FULFILLED", "CANCELLED") or not blood_req.is_active:
         messages.error(request, "This request is closed.")
@@ -213,26 +362,59 @@ def donor_respond_view(request, request_id):
 def donation_create_view(request, request_id):
     blood_req = get_object_or_404(PublicBloodRequest, id=request_id)
 
+    # block self-response (request owner cannot respond as donor)
+    if blood_req.created_by_id and blood_req.created_by_id == request.user.id:
+        messages.error(request, "You created this request. You cannot record donation to your own request.")
+        return redirect("blood_request_detail", request_id=blood_req.id)
+
+    # block if request is closed
+    if blood_req.status in ("FULFILLED", "CANCELLED") or not blood_req.is_active:
+        messages.error(request, "This request is closed.")
+        return redirect("blood_request_detail", request_id=blood_req.id)
+
+    # donor eligibility check
     if not is_eligible(request.user):
         nxt = next_eligible_datetime(request.user)
         messages.error(request, f"You are not eligible yet. Eligible again on: {nxt.date() if nxt else 'N/A'}")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
+    # quick check
     existing = BloodDonation.objects.filter(request=blood_req, donor_user=request.user).first()
     if existing:
         messages.info(request, "You already recorded a donation for this request.")
-        return redirect("donor_history") 
+        return redirect("donor_history")
 
     if request.method == "POST":
         form = DonationCreateForm(request.POST)
         if form.is_valid():
-            d = form.save(commit=False)
-            d.request = blood_req
-            d.donor_user = request.user
-            d.blood_group = request.user.profile.blood_group or ""
-            d.status = "COMPLETED"
-            d.save()
+            try:
+                with transaction.atomic():
+                    d, created = BloodDonation.objects.get_or_create(
+                        request=blood_req,
+                        donor_user=request.user,
+                        defaults={
+                            "hospital_name": form.cleaned_data["hospital_name"],
+                            "units": form.cleaned_data["units"],
+                            "donated_at": form.cleaned_data["donated_at"],
+                            "blood_group": request.user.profile.blood_group or "",
+                            "status": "COMPLETED",
+                        }
+                    )
+                if not created:
+                    messages.info(request, "You already recorded a donation for this request.")
+                    return redirect("donor_history")
 
+            except IntegrityError:
+                # DB constraint also protects from duplicates
+                messages.info(request, "You already recorded a donation for this request.")
+                return redirect("donor_history")
+
+            # Move request to IN_PROGRESS if it was OPEN
+            if blood_req.status == "OPEN":
+                blood_req.status = "IN_PROGRESS"
+                blood_req.save(update_fields=["status"])
+
+            # notify requester if exists
             if blood_req.created_by_id:
                 _notify_user(
                     blood_req.created_by,
@@ -244,6 +426,7 @@ def donation_create_view(request, request_id):
 
             messages.success(request, "Donation recorded. Awaiting verification.")
             return redirect("donor_history")
+
         messages.error(request, "Please fix the errors.")
     else:
         form = DonationCreateForm(initial={
@@ -264,6 +447,54 @@ def donor_history_view(request):
         "next_eligible": next_eligible_datetime(request.user),
     })
 
+@login_required
+@recipient_required
+def blood_request_edit_view(request, request_id):
+    req = get_object_or_404(PublicBloodRequest, id=request_id, created_by=request.user)
+
+    if req.status in ("FULFILLED", "CANCELLED") or not req.is_active:
+        messages.error(request, "You cannot edit a closed request.")
+        return redirect("blood_request_detail", request_id=req.id)
+
+    if request.method == "POST":
+        form = BloodRequestEditForm(request.POST, request.FILES, instance=req, user=request.user)
+        if form.is_valid():
+            obj = form.save(commit=False)
+
+            # re-review after edit (keeps platform trustworthy)
+            obj.verification_status = "VERIFIED" if request.user.is_verified else "PENDING"
+            obj.rejection_reason = ""
+            obj.verified_by = None
+            obj.verified_at = None
+
+            obj.save()
+            messages.success(request, "Request updated.")
+            return redirect("blood_request_detail", request_id=obj.id)
+        messages.error(request, "Please fix the errors.")
+    else:
+        form = BloodRequestEditForm(instance=req, user=request.user)
+
+    return render(request, "blood/request_edit.html", {"form": form, "req": req})
+
+
+@require_POST
+@login_required
+def blood_request_cancel_view(request, request_id):
+    req = get_object_or_404(PublicBloodRequest, id=request_id)
+
+    if not (request.user.is_staff or req.created_by_id == request.user.id):
+        raise Http404()
+
+    if req.status in ("FULFILLED", "CANCELLED") or not req.is_active:
+        messages.info(request, "This request is already closed.")
+        return redirect("blood_request_detail", request_id=req.id)
+
+    req.status = "CANCELLED"
+    req.is_active = False
+    req.save(update_fields=["status", "is_active"])
+
+    messages.success(request, "Request cancelled.")
+    return redirect("my_blood_requests")
 
 # Upload medical report
 @login_required
@@ -324,30 +555,61 @@ def verify_request_view(request, request_id):
 
     req = get_object_or_404(PublicBloodRequest, id=request_id)
 
-    action = request.POST.get("action")
-    if request.method == "POST":
-        if action == "approve":
-            req.verification_status = "VERIFIED"
-            req.verified_by = request.user
-            req.verified_at = timezone.now()
-            req.rejection_reason = ""
-            req.save(update_fields=["verification_status", "verified_by", "verified_at", "rejection_reason"])
-            if req.created_by_id:
-                _notify_user(req.created_by, "Request verified", "Your blood request has been verified.", url=f"/blood/request/{req.id}/", level="SUCCESS")
-            messages.success(request, "Request verified.")
-        elif action == "reject":
-            reason = (request.POST.get("reason") or "").strip()
-            req.verification_status = "REJECTED"
-            req.verified_by = request.user
-            req.verified_at = timezone.now()
-            req.rejection_reason = reason or "Rejected by hospital/admin."
-            req.save(update_fields=["verification_status", "verified_by", "verified_at", "rejection_reason"])
-            if req.created_by_id:
-                _notify_user(req.created_by, "Request rejected", req.rejection_reason, url=f"/blood/request/{req.id}/", level="DANGER")
-            messages.error(request, "Request rejected.")
+    if request.method != "POST":
+        raise Http404()
+
+    action = (request.POST.get("action") or "").strip()
+
+    if action == "approve":
+        req.verification_status = "VERIFIED"
+        req.verified_by = request.user
+        req.verified_at = timezone.now()
+        req.rejection_reason = ""
+        req.save(update_fields=["verification_status", "verified_by", "verified_at", "rejection_reason"])
+
+        if req.created_by_id:
+            _notify_user(
+                req.created_by,
+                "Request verified",
+                "Your blood request has been verified.",
+                url=f"/blood/request/{req.id}/",
+                level="SUCCESS"
+            )
+
+        messages.success(request, "Request verified.")
         return redirect("blood_request_detail", request_id=req.id)
 
-    raise Http404()
+    elif action == "reject":
+        reason = (request.POST.get("reason") or "").strip()
+
+        req.verification_status = "REJECTED"
+        req.verified_by = request.user
+        req.verified_at = timezone.now()
+        req.rejection_reason = reason or "Rejected by staff/admin."
+
+        # Close it so it disappears from public + can't be interacted with
+        req.status = "CANCELLED"
+        req.is_active = False
+
+        req.save(update_fields=[
+            "verification_status", "verified_by", "verified_at", "rejection_reason",
+            "status", "is_active"
+        ])
+
+        if req.created_by_id:
+            _notify_user(
+                req.created_by,
+                "Request rejected",
+                req.rejection_reason,
+                url=f"/blood/request/{req.id}/",
+                level="DANGER"
+            )
+
+        messages.error(request, "Request rejected.")
+        return redirect("blood_request_detail", request_id=req.id)
+
+    messages.error(request, "Invalid action.")
+    return redirect("blood_request_detail", request_id=req.id)
 
 # showing feed proof document
 def request_proof_view(request, request_id):

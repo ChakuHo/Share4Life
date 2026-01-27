@@ -15,6 +15,7 @@
       </a>
     </div>
 
+    <!-- Request summary -->
     <div class="card shadow-sm mb-4">
       <div class="card-body">
         <div class="d-flex flex-wrap justify-content-between">
@@ -23,7 +24,7 @@
 
             <div class="text-muted small">
               Blood: <strong>{{ req.blood_group }}</strong> • Units: <strong>{{ req.units_needed }}</strong><br>
-              Hospital: <strong>{{ req.hospital_name }}</strong> • City: <strong>{{ req.location_city }}</strong><br>
+              Hospital/Institution: <strong>{{ req.hospital_name }}</strong> • City: <strong>{{ req.location_city }}</strong><br>
               Contact: <strong>{{ req.contact_phone }}</strong>
             </div>
 
@@ -39,7 +40,7 @@
                 <i class="fa fa-phone"></i> Call
               </a>
 
-              {% if req.proof_document %}
+              {% if req.proof_document and can_view_proof %}
                 <a class="btn btn-outline-danger btn-sm mb-2" target="_blank" href="{{ proof_url }}">
                   <i class="fa fa-file-medical"></i> View Proof
                 </a>
@@ -58,7 +59,7 @@
               {% elif req.verification_status == "REJECTED" %}
                 <span class="badge badge-danger p-2">Rejected</span>
               {% else %}
-                <span class="badge badge-secondary p-2">Unverified</span>
+                <span class="badge badge-secondary p-2">{{ req.verification_status }}</span>
               {% endif %}
             </div>
 
@@ -73,32 +74,105 @@
         {% url 'guest_donate' req.id as guest_url %}
         {% url 'donor_respond' req.id as donor_resp_url %}
         {% url 'donation_create' req.id as donation_create_url %}
+        {% url 'blood_request_edit' req.id as edit_url %}
+        {% url 'blood_request_cancel' req.id as cancel_url %}
 
-        <div class="d-flex flex-wrap">
-          <a href="{{ guest_url|default:'#' }}" class="btn btn-outline-danger mr-2 mb-2">
-            I can Help (Guest)
-          </a>
+        {% if not is_active_request %}
+          <div class="alert alert-secondary mb-0">
+            This request is closed ({{ req.get_status_display }}).
+          </div>
+        {% else %}
 
-          {% if request.user.is_authenticated and request.user.is_donor %}
-            {% if eligible_info and not eligible_info.eligible %}
-              <button class="btn btn-secondary mr-2 mb-2" disabled>
-                Not eligible until {{ eligible_info.next_date|date:"Y-m-d" }}
-              </button>
-            {% else %}
-              <a href="{{ donor_resp_url|default:'#' }}" class="btn btn-primary mr-2 mb-2">
-                Respond as Donor
+          <!-- If viewer is the request creator -->
+          {% if user.is_authenticated and req.created_by_id == user.id %}
+            <div class="alert alert-info">
+              You created this request. Please wait for other donors to respond.
+            </div>
+
+            <div class="d-flex flex-wrap">
+              <a href="{{ edit_url|default:'#' }}" class="btn btn-outline-secondary mr-2 mb-2">
+                Edit Request
               </a>
-              <a href="{{ donation_create_url|default:'#' }}" class="btn btn-danger mb-2">
-                Mark Donation Completed
-              </a>
-            {% endif %}
+
+              <form method="post" action="{{ cancel_url|default:'#' }}" class="mb-2">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-danger">
+                  Cancel Request
+                </button>
+              </form>
+            </div>
+
+          {% else %}
+            <!-- Not the request owner -->
+            <div class="d-flex flex-wrap align-items-center">
+
+              <!-- Guest help only for anonymous -->
+              {% if not user.is_authenticated %}
+                <a href="{{ guest_url|default:'#' }}" class="btn btn-outline-danger mr-2 mb-2">
+                  I can Help (Guest)
+                </a>
+              {% endif %}
+
+              {% if user.is_authenticated and user.is_donor %}
+
+                {% if eligible_info and not eligible_info.eligible %}
+                  <button class="btn btn-secondary mr-2 mb-2" disabled>
+                    Not eligible until {{ eligible_info.next_date|date:"Y-m-d" }}
+                  </button>
+                {% else %}
+                  {% if can_respond %}
+                    <a href="{{ donor_resp_url|default:'#' }}" class="btn btn-primary mr-2 mb-2">
+                      Respond as Donor
+                    </a>
+                  {% endif %}
+
+                  {% if can_mark_donation %}
+                    <a href="{{ donation_create_url|default:'#' }}" class="btn btn-danger mb-2">
+                      Mark Donation Completed
+                    </a>
+                  {% endif %}
+                {% endif %}
+
+              {% endif %}
+            </div>
           {% endif %}
-        </div>
+
+          <!-- Institution verification controls (optional UI, only visible to org verifiers) -->
+          {% if org_can_verify %}
+            <div class="mt-3 p-3 border rounded bg-light">
+              <h6 class="mb-2"><i class="fa fa-shield-alt text-primary"></i> Institution Verification</h6>
+
+              {% if req.verification_status != "VERIFIED" %}
+                <form method="post" action="{% url 'org_verify_request' req.id %}" class="d-inline-block mr-2 mb-2">
+                  {% csrf_token %}
+                  <button type="submit" name="action" value="approve" class="btn btn-sm btn-success">
+                    Approve Request
+                  </button>
+                </form>
+
+                <form method="post" action="{% url 'org_verify_request' req.id %}" class="d-inline-block mb-2">
+                  {% csrf_token %}
+                  <div class="d-flex flex-wrap align-items-center">
+                    <input type="text" name="reason" class="form-control form-control-sm mr-2 mb-2"
+                           placeholder="Reject reason (optional)" style="width:240px;">
+                    <button type="submit" name="action" value="reject" class="btn btn-sm btn-danger mb-2">
+                      Reject
+                    </button>
+                  </div>
+                </form>
+              {% else %}
+                <div class="text-muted small">This request is already verified.</div>
+              {% endif %}
+            </div>
+          {% endif %}
+
+        {% endif %}
       </div>
     </div>
 
     <div class="row">
 
+      <!-- Guest Responses -->
       <div class="col-lg-6 mb-4">
         <div class="card shadow-sm h-100">
           <div class="card-body">
@@ -121,6 +195,7 @@
         </div>
       </div>
 
+      <!-- Registered Donor Responses -->
       <div class="col-lg-6 mb-4">
         <div class="card shadow-sm h-100">
           <div class="card-body">
@@ -130,11 +205,23 @@
               <div class="border rounded p-3 mb-2">
                 <div class="d-flex justify-content-between">
                   <strong>{{ dr.donor.username }}</strong>
-                  <small class="text-muted">{{ dr.created_at|date:"Y-m-d H:i" }}</small>
+                  <small class="text-muted">
+                    {{ dr.responded_at|default:dr.created_at|date:"Y-m-d H:i" }}
+                  </small>
                 </div>
+
                 <div class="text-muted small">
                   Status: <strong>{{ dr.get_status_display }}</strong>
-                  {% if dr.message %}<div class="mt-1">{{ dr.message }}</div>{% endif %}
+
+                  {% if dr.status == "ACCEPTED" and can_view_donor_contact %}
+                    <div class="mt-1">
+                      Phone: <strong>{{ dr.donor.phone_number|default:"—" }}</strong>
+                    </div>
+                  {% endif %}
+
+                  {% if dr.message %}
+                    <div class="mt-1">{{ dr.message }}</div>
+                  {% endif %}
                 </div>
               </div>
             {% empty %}
@@ -146,6 +233,7 @@
 
     </div>
 
+    <!-- Donations -->
     <div class="card shadow-sm">
       <div class="card-body">
         <h5 class="mb-3"><i class="fa fa-history text-primary"></i> Donations Linked to This Request</h5>
@@ -159,6 +247,15 @@
             <div class="text-muted small">
               Status: <strong>{{ d.status }}</strong> • Units: {{ d.units }} • Hospital: {{ d.hospital_name|default:req.hospital_name }}
             </div>
+
+            {% if org_can_verify and d.status == "COMPLETED" %}
+              <form method="post" action="{% url 'org_verify_donation' d.id %}" class="mt-2">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-success" type="submit">
+                  Verify Donation
+                </button>
+              </form>
+            {% endif %}
           </div>
         {% empty %}
           <div class="text-muted">No donation records yet.</div>

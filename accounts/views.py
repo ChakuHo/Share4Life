@@ -32,6 +32,13 @@ from crowdfunding.models import Campaign
 
 User = get_user_model()
 
+# hiding rejected requests from home page
+all_requests = (
+    PublicBloodRequest.objects
+    .filter(is_active=True)
+    .exclude(verification_status="REJECTED")
+    .order_by("-is_emergency", "-created_at")
+)
 
 def send_verification_email_to_user(request, user) -> bool:
     if not user.email:

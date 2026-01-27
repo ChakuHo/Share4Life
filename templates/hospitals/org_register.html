@@ -7,7 +7,9 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
       <div>
         <h3 class="mb-1">Register Organization</h3>
-        <div class="text-muted">Hospitals, NGOs, Red Cross, Blood Banks, and other institutions can register here.</div>
+        <div class="text-muted">
+          Hospitals, NGOs, Red Cross, Blood Banks, and other institutions can register here.
+        </div>
       </div>
       <a href="{% url 'home' %}" class="btn btn-outline-secondary">
         <i class="fa fa-arrow-left"></i> Back
@@ -15,7 +17,8 @@
     </div>
 
     <div class="alert alert-info">
-      <strong>Note:</strong> Your organization will be <b>reviewed by admin</b>. You will get an email for Pending/Approved/Rejected.
+      <strong>Note:</strong> Your organization will be <b>reviewed by admin</b>.
+      You will get an email for Pending/Approved/Rejected.
     </div>
 
     <form method="post" enctype="multipart/form-data" novalidate>
@@ -26,11 +29,14 @@
       {% endif %}
 
       <div class="row">
+
         <!-- Organization -->
         <div class="col-lg-7 mb-4">
           <div class="card shadow-sm">
             <div class="card-body">
-              <h5 class="mb-3"><i class="fa fa-building text-primary"></i> Organization Details</h5>
+              <h5 class="mb-3">
+                <i class="fa fa-building text-primary"></i> Organization Details
+              </h5>
 
               <div class="form-group">
                 <label class="font-weight-bold">Organization name</label>
@@ -49,7 +55,9 @@
                   <label class="font-weight-bold">Organization email</label>
                   {{ form.email }}
                   {% for e in form.email.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-                  <div class="text-muted small mt-1">Default is your account email. You can keep it same.</div>
+                  <div class="text-muted small mt-1">
+                    Default is your account email. You can keep it the same.
+                  </div>
                 </div>
                 <div class="form-group col-md-6">
                   <label class="font-weight-bold">Organization phone</label>
@@ -93,11 +101,13 @@
         <div class="col-lg-5 mb-4">
           <div class="card shadow-sm">
             <div class="card-body">
-              <h5 class="mb-3"><i class="fa fa-user-shield text-primary"></i> Admin Account (You)</h5>
+              <h5 class="mb-3">
+                <i class="fa fa-user-shield text-primary"></i> Admin Account (You)
+              </h5>
 
               <div class="border rounded p-3 bg-light">
                 <div class="mb-2"><b>Username:</b> {{ request.user.username }}</div>
-                <div class="mb-2"><b>Email:</b> {{ request.user.email }}</div>
+                <div class="mb-2"><b>Email:</b> {{ request.user.email|default:"—" }}</div>
                 <div class="mb-0"><b>Phone:</b> {{ request.user.phone_number|default:"—" }}</div>
               </div>
 

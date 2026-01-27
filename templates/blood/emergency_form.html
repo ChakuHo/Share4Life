@@ -7,7 +7,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div>
         <h3 class="mb-1">Emergency Blood Request</h3>
-        <div class="text-muted">Broadcast an urgent request. This appears on the public feed.</div>
+        <div class="text-muted">Post an urgent request with proof. This appears on the public feed.</div>
       </div>
       {% url 'public_dashboard' as feed_url %}
       <a href="{{ feed_url|default:'#' }}" class="btn btn-outline-secondary">
@@ -17,7 +17,8 @@
 
     <div class="card shadow-sm">
       <div class="card-body">
-        <form method="post" novalidate>
+
+        <form method="post" enctype="multipart/form-data" novalidate id="emergency-form">
           {% csrf_token %}
 
           {% if form.non_field_errors %}
@@ -26,13 +27,14 @@
 
           <div class="form-row">
             <div class="form-group col-md-6">
-              <label class="font-weight-bold">Patient name</label>
+              <label class="font-weight-bold">Patient name <span class="text-danger">*</span></label>
               {{ form.patient_name }}
               {% for e in form.patient_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              <div class="text-muted small">Full name as in hospital report.</div>
             </div>
 
             <div class="form-group col-md-6">
-              <label class="font-weight-bold">Blood group</label>
+              <label class="font-weight-bold">Blood group <span class="text-danger">*</span></label>
               {{ form.blood_group }}
               {% for e in form.blood_group.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
@@ -40,13 +42,14 @@
 
           <div class="form-row">
             <div class="form-group col-md-6">
-              <label class="font-weight-bold">Contact phone</label>
+              <label class="font-weight-bold">Contact phone <span class="text-danger">*</span></label>
               {{ form.contact_phone }}
               {% for e in form.contact_phone.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              <div class="text-muted small">Example: 98XXXXXXXX or +977-98XXXXXXX</div>
             </div>
 
             <div class="form-group col-md-6">
-              <label class="font-weight-bold">Units needed</label>
+              <label class="font-weight-bold">Units needed <span class="text-danger">*</span></label>
               {{ form.units_needed }}
               {% for e in form.units_needed.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
@@ -54,22 +57,36 @@
 
           <div class="form-row">
             <div class="form-group col-md-6">
-              <label class="font-weight-bold">City / Area</label>
+              <label class="font-weight-bold">City / Area <span class="text-danger">*</span></label>
               {{ form.location_city }}
               {% for e in form.location_city.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
 
             <div class="form-group col-md-6">
-              <label class="font-weight-bold">Hospital name</label>
+              <label class="font-weight-bold">Hospital name <span class="text-danger">*</span></label>
               {{ form.hospital_name }}
               {% for e in form.hospital_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
           </div>
 
+          <div class="form-group">
+            <label class="font-weight-bold">Proof document (PDF/JPG/PNG) <span class="text-danger">*</span></label>
+            {{ form.proof_document }}
+            {% for e in form.proof_document.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            <div class="text-muted small mt-1">
+              Upload hospital letter, lab report, or admission proof (max 5MB).
+            </div>
+          </div>
+
           <button class="btn btn-danger btn-lg btn-block" type="submit" id="submit-btn">
-            <i class="fa fa-bullhorn"></i> Broadcast Emergency
+            <i class="fa fa-bullhorn"></i> Post Emergency Request
           </button>
+
+          <div class="text-muted small mt-3">
+            <strong>Note:</strong> This request will be public. Please provide correct hospital details to avoid delays.
+          </div>
         </form>
+
       </div>
     </div>
 
@@ -78,12 +95,61 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
+  const form = document.getElementById('emergency-form');
   const btn = document.getElementById('submit-btn');
-  const form = btn ? btn.closest('form') : null;
-  if (!btn || !form) return;
+
+  if (!form || !btn) return;
+
+  // ---- Add client-side validation hints ----
+  const patientName = form.querySelector('[name="patient_name"]');
+  const phone = form.querySelector('[name="contact_phone"]');
+  const city = form.querySelector('[name="location_city"]');
+  const hospital = form.querySelector('[name="hospital_name"]');
+  const units = form.querySelector('[name="units_needed"]');
+  const proof = form.querySelector('[name="proof_document"]');
+
+  // Required fields
+  [patientName, phone, city, hospital, units, proof].forEach(el => {
+    if (el) el.required = true;
+  });
+
+  if (patientName) {
+    patientName.setAttribute('minlength', '2');
+    patientName.setAttribute('maxlength', '100');
+    patientName.setAttribute('placeholder', 'Patient full name');
+  }
+
+  if (phone) {
+    phone.setAttribute('placeholder', '98XXXXXXXX or +977-98XXXXXXX');
+    // basic pattern (still enforced server-side)
+    phone.setAttribute('pattern', '^[0-9+\\-\\s]{7,20}$');
+  }
+
+  if (city) {
+    city.setAttribute('minlength', '2');
+    city.setAttribute('maxlength', '100');
+    city.setAttribute('placeholder', 'City / Area');
+  }
+
+  if (hospital) {
+    hospital.setAttribute('minlength', '2');
+    hospital.setAttribute('maxlength', '150');
+    hospital.setAttribute('placeholder', 'Hospital name');
+  }
+
+  if (units) {
+    units.setAttribute('min', '1');
+    units.setAttribute('max', '10'); // limit to prevent spam; backend still allows higher if you want
+  }
+
+  if (proof) {
+    proof.setAttribute('accept', '.pdf,.jpg,.jpeg,.png');
+  }
+
+  // Show loading state
   form.addEventListener('submit', function(){
     btn.disabled = true;
-    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Broadcasting...';
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Posting...';
   });
 });
 </script>

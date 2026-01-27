@@ -11,4 +11,6 @@ urlpatterns = [
     path("portal/campaigns/new/", views.org_campaign_create, name="org_campaign_create"),
     path("portal/requests/<int:request_id>/verify/", views.org_verify_request, name="org_verify_request"),
     path("portal/donations/<int:donation_id>/verify/", views.org_verify_donation, name="org_verify_donation"),
+    path("portal/campaigns/<int:campaign_id>/edit/", views.org_campaign_edit, name="org_campaign_edit"),
+    path("portal/campaigns/<int:campaign_id>/delete/", views.org_campaign_delete, name="org_campaign_delete"),
 ]

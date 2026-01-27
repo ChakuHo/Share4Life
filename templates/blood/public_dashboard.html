@@ -1,6 +1,47 @@
 {% extends "master/base.html" %}
 {% block content %}
 
+<style>
+  /* Make all cards behave the same height and keep actions at the bottom */
+  .s4l-request-card .card-body{
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  /* Keep the top badge row consistent */
+  .s4l-toprow{
+    min-height: 34px;
+  }
+
+  /* Prevent badge wrapping from increasing height too much */
+  .s4l-badges{
+    min-height: 44px;
+  }
+
+  /* Title consistent height (approx 2 lines max) */
+  .s4l-title{
+    min-height: 52px;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  /* Details area consistent height */
+  .s4l-meta{
+    min-height: 84px;
+  }
+
+  /* Push buttons to bottom */
+  .s4l-actions{
+    margin-top: auto;
+  }
+
+  /* Avoid long time text breaking layout */
+  .s4l-time{
+    white-space: nowrap;
+  }
+</style>
+
 <section class="section-content padding-y" style="min-height:84vh;">
   <div class="container">
 
@@ -9,9 +50,11 @@
         <h3 class="mb-1">Public Emergency Feed</h3>
         <div class="text-muted">Active requests visible to everyone.</div>
       </div>
+
       {% url 'emergency_request' as emergency_url %}
       <a href="{{ emergency_url|default:'#' }}" class="btn btn-danger">
-        <i class="fa fa-tint"></i> Create Request
+        <i class="fa fa-tint"></i> Post Emergency Request
+        {# If you want old text, change to: Create Request #}
       </a>
     </div>
 
@@ -19,34 +62,103 @@
       {% for r in requests %}
         {% url 'blood_request_detail' r.id as detail_url %}
         {% url 'guest_donate' r.id as guest_url %}
+        {% url 'donor_respond' r.id as donor_respond_url %}
+        {% url 'blood_request_edit' r.id as edit_url %}
+        {% url 'blood_request_cancel' r.id as cancel_url %}
 
-        <div class="col-md-6 col-lg-4">
-          <div class="card mb-3 shadow-sm h-100">
+        <div class="col-md-6 col-lg-4 mb-3">
+          <div class="card shadow-sm h-100 s4l-request-card">
             <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-2">
+
+              <!-- Top row -->
+              <div class="d-flex justify-content-between align-items-center mb-2 s4l-toprow">
                 <span class="badge badge-danger p-2">{{ r.blood_group }}</span>
-                <small class="text-muted"><i class="fa fa-clock"></i> {{ r.created_at|timesince }} ago</small>
+                <small class="text-muted s4l-time">
+                  <i class="fa fa-clock"></i> {{ r.created_at|timesince }} ago
+                </small>
               </div>
 
-              <h5 class="mb-1">{{ r.patient_name }}</h5>
-              <div class="text-muted small mb-2">
-                <i class="fa fa-hospital mr-1"></i> {{ r.hospital_name }}<br>
-                <i class="fa fa-map-marker-alt mr-1"></i> {{ r.location_city }}<br>
-                <i class="fa fa-box mr-1"></i> Units: {{ r.units_needed }}<br>
-                <span>Status: <strong>{{ r.get_status_display }}</strong></span>
+              <!-- Badges row -->
+              <div class="d-flex flex-wrap align-items-center mb-2 s4l-badges">
+                {% if r.is_emergency %}
+                  <span class="badge badge-danger p-2 mr-2 mb-2">EMERGENCY</span>
+                {% endif %}
+
+                {% if r.verification_status == "VERIFIED" %}
+                  <span class="badge badge-success p-2 mr-2 mb-2">VERIFIED</span>
+                {% elif r.verification_status == "PENDING" %}
+                  <span class="badge badge-warning p-2 mr-2 mb-2">PENDING</span>
+                {% else %}
+                  <span class="badge badge-secondary p-2 mr-2 mb-2">{{ r.verification_status }}</span>
+                {% endif %}
+
+                <span class="badge badge-primary p-2 mb-2">{{ r.get_status_display }}</span>
               </div>
 
-              <div class="d-flex flex-wrap">
+              <!-- Title -->
+              <h5 class="mb-2 s4l-title">{{ r.patient_name }}</h5>
+
+              <!-- Details -->
+              <div class="text-muted small mb-3 s4l-meta">
+                <div class="mb-1">
+                  <i class="fa fa-hospital mr-1"></i> {{ r.hospital_name }}
+                </div>
+                <div class="mb-1">
+                  <i class="fa fa-map-marker-alt mr-1"></i> {{ r.location_city }}
+                </div>
+                <div class="mb-1">
+                  <i class="fa fa-box mr-1"></i> Units: {{ r.units_needed }}
+                </div>
+              </div>
+
+              <!-- Actions (always bottom) -->
+              <div class="d-flex flex-wrap s4l-actions">
+
                 <a href="{{ detail_url|default:'#' }}" class="btn btn-primary btn-sm mr-2 mb-2">
                   View Details
                 </a>
-                <a href="{{ guest_url|default:'#' }}" class="btn btn-outline-danger btn-sm mb-2">
-                  I can Help (Guest)
-                </a>
+
+                {% if user.is_authenticated and r.created_by_id == user.id %}
+                  <a href="{{ edit_url|default:'#' }}" class="btn btn-outline-secondary btn-sm mr-2 mb-2">
+                    Edit
+                  </a>
+
+                  <form method="post" action="{{ cancel_url|default:'#' }}" class="mb-2">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                      Cancel
+                    </button>
+                  </form>
+
+                {% else %}
+
+                  {% if not user.is_authenticated %}
+                    <a href="{{ guest_url|default:'#' }}" class="btn btn-outline-danger btn-sm mb-2">
+                      I can Help (Guest)
+                    </a>
+                  {% endif %}
+
+                  {% if user.is_authenticated and user.is_donor %}
+                    {% if donor_eligible %}
+                      <a href="{{ donor_respond_url|default:'#' }}" class="btn btn-outline-primary btn-sm mb-2">
+                        Respond as Donor
+                      </a>
+                    {% endif %}
+                  {% endif %}
+
+                {% endif %}
               </div>
+
+              {% if user.is_authenticated and user.is_donor and donor_eligible == False and donor_next_eligible %}
+                <div class="text-muted small mt-2">
+                  Not eligible until <strong>{{ donor_next_eligible|date:"Y-m-d" }}</strong>.
+                </div>
+              {% endif %}
+
             </div>
           </div>
         </div>
+
       {% empty %}
         <div class="col-12">
           <div class="alert alert-secondary">No active requests right now.</div>

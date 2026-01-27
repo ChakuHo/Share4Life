@@ -244,6 +244,40 @@ def org_campaign_create(request):
     })
 
 
+@org_member_required(roles=["ADMIN"])
+def org_campaign_edit(request, campaign_id):
+    org = request.organization
+    camp = get_object_or_404(BloodCampaign, id=campaign_id, organization=org)
+
+    if request.method == "POST":
+        form = BloodCampaignForm(request.POST, instance=camp)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Campaign updated.")
+            return redirect("org_campaign_list")
+        messages.error(request, "Please fix the errors.")
+    else:
+        form = BloodCampaignForm(instance=camp)
+
+    return render(request, "hospitals/org_campaign_form.html", {
+        "org": org,
+        "form": form,
+        "is_edit": True,
+        "camp": camp,
+    })
+
+
+@require_POST
+@org_member_required(roles=["ADMIN"])
+def org_campaign_delete(request, campaign_id):
+    org = request.organization
+    camp = get_object_or_404(BloodCampaign, id=campaign_id, organization=org)
+
+    camp.delete()
+    messages.success(request, "Campaign deleted.")
+    return redirect("org_campaign_list")
+
+
 def _notify_user(user, title, body="", url="", level="INFO"):
     # safe import so hospitals app won't crash if communication changes
     try:
@@ -263,44 +297,70 @@ def org_verify_request(request, request_id):
 
     # Scope check: this org can verify only its own city or explicitly targeted requests
     allowed = (req.target_organization_id == org.id) or (
-        req.target_organization_id is None and org.city and req.location_city.strip().lower() == org.city.strip().lower()
+        req.target_organization_id is None
+        and org.city
+        and req.location_city.strip().lower() == org.city.strip().lower()
     )
     if not allowed:
         raise Http404()
 
-    action = request.POST.get("action")
+    action = (request.POST.get("action") or "").strip()
 
     if action == "approve":
         req.verification_status = "VERIFIED"
         req.verified_by = request.user
         req.verified_at = timezone.now()
         req.rejection_reason = ""
+
+        # bind target org if not already set
         if req.target_organization_id is None:
-            req.target_organization = org  # bind it now
-        req.save(update_fields=["verification_status", "verified_by", "verified_at", "rejection_reason", "target_organization"])
+            req.target_organization = org
+
+        req.save(update_fields=[
+            "verification_status", "verified_by", "verified_at",
+            "rejection_reason", "target_organization"
+        ])
 
         if req.created_by_id:
-            _notify_user(req.created_by, "Request verified",
-                         f"{org.name} verified your blood request.",
-                         url=f"/blood/request/{req.id}/", level="SUCCESS")
+            _notify_user(
+                req.created_by,
+                "Request verified",
+                f"{org.name} verified your blood request.",
+                url=f"/blood/request/{req.id}/",
+                level="SUCCESS"
+            )
 
         messages.success(request, "Request approved and verified.")
         return redirect("org_portal")
 
-    if action == "reject":
+    elif action == "reject":
         reason = (request.POST.get("reason") or "").strip()
+
         req.verification_status = "REJECTED"
         req.verified_by = request.user
         req.verified_at = timezone.now()
         req.rejection_reason = reason or "Rejected by institution."
+
+        # Close it so it disappears from public + can't be interacted with
+        req.status = "CANCELLED"
+        req.is_active = False
+
         if req.target_organization_id is None:
             req.target_organization = org
-        req.save(update_fields=["verification_status", "verified_by", "verified_at", "rejection_reason", "target_organization"])
+
+        req.save(update_fields=[
+            "verification_status", "verified_by", "verified_at", "rejection_reason",
+            "status", "is_active", "target_organization"
+        ])
 
         if req.created_by_id:
-            _notify_user(req.created_by, "Request rejected",
-                         req.rejection_reason,
-                         url=f"/blood/request/{req.id}/", level="DANGER")
+            _notify_user(
+                req.created_by,
+                "Request rejected",
+                req.rejection_reason,
+                url=f"/blood/request/{req.id}/",
+                level="DANGER"
+            )
 
         messages.error(request, "Request rejected.")
         return redirect("org_portal")
