@@ -1,37 +1,55 @@
+# imports-------------------------------------------------------------------------------------------
 import os
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import transaction, IntegrityError
+from django.db.models import Case, When, Value, IntegerField, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
+from accounts.models import CustomUser
 from accounts.permissions import donor_required, recipient_required
-from communication.models import Notification
 
-from .models import PublicBloodRequest, GuestResponse, DonorResponse, BloodDonation, DonationMedicalReport
+from communication.models import Notification
+from communication.services import broadcast_after_commit
+
+from hospitals.models import BloodCampaign, OrganizationMembership
+
+from .eligibility import is_eligible, next_eligible_datetime
 from .forms import (
     EmergencyRequestForm, GuestResponseForm,
     RecipientRequestForm, DonorResponseForm,
     DonationCreateForm, DonationReportForm,
     BloodRequestEditForm
 )
-from .eligibility import is_eligible, next_eligible_datetime
-from hospitals.models import BloodCampaign
-
-from accounts.models import CustomUser
-from communication.services import broadcast_after_commit
-
-from hospitals.models import OrganizationMembership
-
-from django.db.models import Case, When, Value, IntegerField
-from django.db import transaction, IntegrityError
-from django.views.decorators.http import require_POST
+from .models import (
+    PublicBloodRequest, GuestResponse, DonorResponse,
+    BloodDonation, DonationMedicalReport
+)
+from .matching import city_aliases
+from .realtime import push_request_event, push_ping_to_donors
+#------------------------------------------------------------------------------------------------
 
 
 def _notify_user(user, title, body="", url="", level="INFO"):
     if not user:
         return
     Notification.objects.create(user=user, title=title, body=body, url=url, level=level)
+
+def _notify_org_members(org, title, body="", url="", level="INFO"):
+    if not org:
+        return
+    from hospitals.models import OrganizationMembership
+    members = (
+        OrganizationMembership.objects
+        .filter(organization=org, is_active=True, role__in=["ADMIN", "VERIFIER"])
+        .select_related("user")
+    )
+    for m in members:
+        _notify_user(m.user, title, body, url=url, level=level)
 
 
 # Guest emergency request
@@ -48,6 +66,9 @@ def emergency_request_view(request):
             # Proof is mandatory
             obj.verification_status = "PENDING"
             obj.save()
+
+            # Notify all active users
+            transaction.on_commit(lambda: push_ping_to_donors(obj))
 
             messages.success(request, "Emergency posted. Proof attached and visible to donors.")
             return redirect("public_dashboard")
@@ -80,6 +101,8 @@ def recipient_request_view(request):
             # Blood: KYC verified users are auto-verified
             obj.verification_status = "VERIFIED" if request.user.is_verified else "PENDING"
             obj.save()
+            
+            transaction.on_commit(lambda: push_ping_to_donors(obj))
 
             # If emergency, broadcast notification + email to all active users
             if obj.is_emergency:
@@ -134,6 +157,19 @@ def public_dashboard_view(request):
         .order_by("-is_emergency", "v_rank", "-created_at")
         .exclude(verification_status__in=["REJECTED", "UNVERIFIED"])
     )
+
+    blood_group = (request.GET.get("blood_group") or "").strip()
+    city = (request.GET.get("city") or "").strip()
+
+    if blood_group and blood_group in ["A+","A-","B+","B-","AB+","AB-","O+","O-"]:
+        qs = qs.filter(blood_group=blood_group)
+
+    if city:
+        aliases = city_aliases(city)  # {"ktm","kathmandu",...} etc
+        q = Q()
+        for a in aliases:
+            q |= Q(location_city__iexact=a)
+        qs = qs.filter(q)
 
     donor_eligible = None
     donor_next_eligible = None
@@ -311,7 +347,7 @@ def guest_donate_view(request, request_id):
 def donor_respond_view(request, request_id):
     blood_req = get_object_or_404(PublicBloodRequest, id=request_id)
 
-    # block self-response (request owner cannot respond as donor)
+    # block self-response
     if blood_req.created_by_id and blood_req.created_by_id == request.user.id:
         messages.error(request, "You created this request. You cannot respond as a donor to your own request.")
         return redirect("blood_request_detail", request_id=blood_req.id)
@@ -325,9 +361,12 @@ def donor_respond_view(request, request_id):
         messages.error(request, f"You are not eligible yet. Eligible again on: {nxt.date() if nxt else 'N/A'}")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
-    obj, _ = DonorResponse.objects.get_or_create(request=blood_req, donor=request.user)
+    obj = DonorResponse.objects.filter(request=blood_req, donor=request.user).first()
 
     if request.method == "POST":
+        if obj is None:
+            obj = DonorResponse(request=blood_req, donor=request.user)
+
         form = DonorResponseForm(request.POST, instance=obj)
         if form.is_valid():
             resp = form.save(commit=False)
@@ -338,18 +377,21 @@ def donor_respond_view(request, request_id):
                 blood_req.status = "IN_PROGRESS"
                 blood_req.save(update_fields=["status"])
 
-            # notify requester if exists
             if blood_req.created_by_id:
+                phone = (request.user.phone_number or "").strip()
+                phone_txt = f" Phone: {phone}" if phone else ""
                 _notify_user(
                     blood_req.created_by,
-                    "A donor responded to your request",
-                    f"Donor {request.user.username} responded: {resp.status}.",
+                    "Donor response",
+                    f"Donor {request.user.username} responded: {resp.status}.{phone_txt}",
                     url=f"/blood/request/{blood_req.id}/",
                     level="INFO",
                 )
 
             messages.success(request, "Response submitted.")
             return redirect("blood_request_detail", request_id=blood_req.id)
+
+        messages.error(request, "Please fix the errors.")
     else:
         form = DonorResponseForm(instance=obj)
 
@@ -362,7 +404,7 @@ def donor_respond_view(request, request_id):
 def donation_create_view(request, request_id):
     blood_req = get_object_or_404(PublicBloodRequest, id=request_id)
 
-    # block self-response (request owner cannot respond as donor)
+    # block self-donation (request owner cannot record donation for own request)
     if blood_req.created_by_id and blood_req.created_by_id == request.user.id:
         messages.error(request, "You created this request. You cannot record donation to your own request.")
         return redirect("blood_request_detail", request_id=blood_req.id)
@@ -389,7 +431,7 @@ def donation_create_view(request, request_id):
         if form.is_valid():
             try:
                 with transaction.atomic():
-                    d, created = BloodDonation.objects.get_or_create(
+                    donation, created = BloodDonation.objects.get_or_create(
                         request=blood_req,
                         donor_user=request.user,
                         defaults={
@@ -400,12 +442,12 @@ def donation_create_view(request, request_id):
                             "status": "COMPLETED",
                         }
                     )
+
                 if not created:
                     messages.info(request, "You already recorded a donation for this request.")
                     return redirect("donor_history")
 
             except IntegrityError:
-                # DB constraint also protects from duplicates
                 messages.info(request, "You already recorded a donation for this request.")
                 return redirect("donor_history")
 
@@ -424,6 +466,16 @@ def donation_create_view(request, request_id):
                     level="SUCCESS",
                 )
 
+            # Notify org members (if request is linked to an org)
+            if blood_req.target_organization_id:
+                _notify_org_members(
+                    blood_req.target_organization,
+                    "Donation awaiting verification",
+                    f"Donation marked COMPLETED by {request.user.username} for request #{blood_req.id}.",
+                    url="/institutions/portal/",
+                    level="INFO",
+                )
+
             messages.success(request, "Donation recorded. Awaiting verification.")
             return redirect("donor_history")
 
@@ -435,6 +487,7 @@ def donation_create_view(request, request_id):
         })
 
     return render(request, "blood/donation_create.html", {"form": form, "req": blood_req})
+
 
 # Donor history
 @login_required
@@ -631,3 +684,64 @@ def blood_campaigns_view(request):
         .order_by("date", "start_time")
     )
     return render(request, "blood/campaign_list.html", {"campaigns": campaigns})
+
+@require_POST
+@login_required
+@donor_required
+def quick_respond_view(request, request_id):
+    blood_req = get_object_or_404(PublicBloodRequest, id=request_id)
+
+    # block self response
+    if blood_req.created_by_id and blood_req.created_by_id == request.user.id:
+        return redirect("blood_request_detail", request_id=blood_req.id)
+
+    # closed?
+    if blood_req.status in ("FULFILLED", "CANCELLED") or not blood_req.is_active:
+        messages.error(request, "This request is closed.")
+        return redirect("blood_request_detail", request_id=blood_req.id)
+
+    # eligibility check
+    if not is_eligible(request.user):
+        messages.error(request, "You are not eligible to donate right now.")
+        return redirect("blood_request_detail", request_id=blood_req.id)
+
+    status = (request.POST.get("status") or "").strip().upper()
+    message_txt = (request.POST.get("message") or "").strip()
+
+    if status not in ("ACCEPTED", "DECLINED", "DELAYED"):
+        messages.error(request, "Invalid response.")
+        return redirect("blood_request_detail", request_id=blood_req.id)
+
+    obj, _ = DonorResponse.objects.get_or_create(request=blood_req, donor=request.user)
+    obj.status = status
+    obj.message = message_txt
+    obj.responded_at = timezone.now()
+    obj.save(update_fields=["status", "message", "responded_at"])
+
+    if status == "ACCEPTED" and blood_req.status == "OPEN":
+        blood_req.status = "IN_PROGRESS"
+        blood_req.save(update_fields=["status"])
+
+    # notify requester
+    if blood_req.created_by_id:
+        phone = (request.user.phone_number or "").strip()
+        phone_txt = f" Phone: {phone}" if phone else ""
+        _notify_user(
+            blood_req.created_by,
+            "Donor response",
+            f"{request.user.username} responded: {status}.{phone_txt}",
+            url=f"/blood/request/{blood_req.id}/",
+            level="INFO",
+        )
+
+    # realtime update to request room
+    push_request_event(blood_req.id, {
+        "type": "DONOR_RESPONSE",
+        "donor": request.user.username,
+        "status": status,
+        "message": message_txt,
+        "at": obj.responded_at.isoformat(),
+    })
+
+    messages.success(request, "Response sent.")
+    return redirect("blood_request_detail", request_id=blood_req.id)

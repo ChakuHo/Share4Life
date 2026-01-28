@@ -163,3 +163,12 @@ NOTIFICATION_RETENTION_DAYS = 7
 EMAIL_QUEUE_BATCH_SIZE = 40        # safe batch for Gmail sending limits
 EMAIL_QUEUE_BATCH_DELAY = 10       # seconds between batches
 EMAIL_QUEUE_MAX_ATTEMPTS = 3
+
+
+ASGI_APPLICATION = "config.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",  # dev
+    }
+}

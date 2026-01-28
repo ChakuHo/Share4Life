@@ -3,16 +3,22 @@
 
 {% block content %}
 
-{# Safe URL variables (won't crash if a URL name is missing) #}
+{# Safe URL variables (as-var will not crash; it becomes "" if missing) #}
 {% url 'login' as login_url %}
 {% url 'register' as register_url %}
 {% url 'profile' as profile_url %}
 {% url 'kyc_submit' as kyc_submit_url %}
 {% url 'family_add' as family_add_url %}
 
-<!-- ========================= 1. HERO SECTION (SEARCH & ACTION) ========================= -->
+{% url 'public_dashboard' as blood_feed_url %}
+{% url 'emergency_request' as emergency_request_url %}
+{% url 'recipient_request' as recipient_request_url %}
+{% url 'blood_campaigns' as blood_campaigns_url %}
+{% url 'institutions_home' as institutions_home_url %}
+
+<!-- ========================= 1. HERO SECTION ========================= -->
 <section class="section-intro padding-y-lg text-white"
-  style="background: linear-gradient(rgba(10, 37, 88, 0.9), rgba(10, 37, 88, 0.8)),
+  style="background: linear-gradient(rgba(10, 37, 88, 0.90), rgba(10, 37, 88, 0.80)),
          url('{% if site_settings and site_settings.hero_background %}{{ site_settings.hero_background.url }}{% else %}{% static "images/hospital-bg.jpg" %}{% endif %}')
          center/cover no-repeat;
          min-height: 520px; display: flex; align-items: center;">
@@ -26,53 +32,53 @@
         </span>
 
         <h1 class="display-4 font-weight-bold mb-3">
-          {{ site_settings.hero_title|default:"Every Drop Counts, Every Penny Helps."|linebreaksbr }}
+          {{ site_settings.hero_title|default:"Find Blood Donors Nearby — Fast."|linebreaksbr }}
         </h1>
 
         <p class="lead mb-4" style="opacity: 0.9;">
-          {{ site_settings.hero_subtitle|default:"The integrated platform for Blood Donation, Organ Pledging, and Medical Crowdfunding. Find donors nearby in seconds." }}
+          {{ site_settings.hero_subtitle|default:"Emergency blood requests, donor matching, and institution verification — all in one platform." }}
         </p>
 
-        <!-- Access KYC/Profile from homepage -->
+        <!-- Auth actions -->
         <div class="mb-4">
           {% if request.user.is_authenticated %}
             {% if profile_url %}
-              <a href="{{ profile_url }}" class="btn btn-light font-weight-bold mr-2">
+              <a href="{{ profile_url }}" class="btn btn-light font-weight-bold mr-2 mb-2">
                 <i class="fa fa-user"></i> My Profile
               </a>
             {% endif %}
 
             {% if kyc_submit_url and not request.user.is_verified %}
-              <a href="{{ kyc_submit_url }}" class="btn btn-danger font-weight-bold mr-2">
+              <a href="{{ kyc_submit_url }}" class="btn btn-danger font-weight-bold mr-2 mb-2">
                 <i class="fa fa-id-card"></i> Get Verified (KYC)
               </a>
             {% endif %}
 
             {% if family_add_url %}
-              <a href="{{ family_add_url }}" class="btn btn-outline-light font-weight-bold">
+              <a href="{{ family_add_url }}" class="btn btn-outline-light font-weight-bold mb-2">
                 <i class="fa fa-users"></i> Add Family
               </a>
             {% endif %}
           {% else %}
             {% if login_url %}
-              <a href="{{ login_url }}" class="btn btn-light font-weight-bold mr-2">
+              <a href="{{ login_url }}" class="btn btn-light font-weight-bold mr-2 mb-2">
                 <i class="fa fa-sign-in-alt"></i> Login
               </a>
             {% endif %}
             {% if register_url %}
-              <a href="{{ register_url }}" class="btn btn-danger font-weight-bold">
+              <a href="{{ register_url }}" class="btn btn-danger font-weight-bold mb-2">
                 <i class="fa fa-user-plus"></i> Create Account
               </a>
             {% endif %}
           {% endif %}
         </div>
 
-        <!-- Main Search Widget (UI only for now) -->
+        <!-- Search Widget (NOW WORKING) -->
         <div class="bg-white p-2 rounded shadow-lg d-inline-block w-100" style="max-width: 600px;">
-          <form action="#" method="GET" class="row no-gutters">
+          <form action="{{ blood_feed_url|default:'#' }}" method="GET" class="row no-gutters">
             <div class="col-md-4">
-              <select class="form-control border-0 custom-select-lg" style="height: 50px;">
-                <option selected>Blood Group</option>
+              <select name="blood_group" class="form-control border-0 custom-select-lg" style="height: 50px;">
+                <option value="">Blood Group</option>
                 <option>A+</option><option>A-</option>
                 <option>B+</option><option>B-</option>
                 <option>AB+</option><option>AB-</option>
@@ -80,8 +86,8 @@
               </select>
             </div>
             <div class="col-md-5 border-left">
-              <input type="text" class="form-control border-0"
-                     placeholder="Enter City or Area" style="height: 50px; padding-left: 20px;">
+              <input name="city" type="text" class="form-control border-0"
+                     placeholder="Enter City (Kathmandu / KTM / Lalitpur)" style="height: 50px; padding-left: 20px;">
             </div>
             <div class="col-md-3">
               <button type="submit" class="btn btn-danger btn-block h-100 font-weight-bold" style="border-radius: 5px;">
@@ -92,15 +98,45 @@
         </div>
       </div>
 
-      <div class="col-md-5 text-center d-none d-md-block">
-        <img src="{% static 'images/hero-vector.svg' %}" alt="Share4Life" class="img-fluid" style="opacity: 0.9;">
+      <div class="col-md-5 d-none d-md-block">
+        <div class="card shadow-lg" style="border-radius:16px;">
+          <div class="card-body">
+            <h5 class="font-weight-bold mb-2" style="color:#0a2558;">
+              <i class="fa fa-bolt text-danger mr-2"></i> Real-Time Matching
+            </h5>
+            <div class="text-muted small mb-3">
+              Donors receive instant pings and can accept/decline in seconds.
+            </div>
+
+            <div class="d-flex flex-wrap">
+              <a href="{{ blood_feed_url|default:'#' }}" class="btn btn-primary btn-sm mr-2 mb-2">
+                <i class="fa fa-tint mr-1"></i> Blood Feed
+              </a>
+              <a href="{{ blood_campaigns_url|default:'#' }}" class="btn btn-outline-primary btn-sm mr-2 mb-2">
+                <i class="fa fa-calendar mr-1"></i> Donation Camps
+              </a>
+              <a href="{{ institutions_home_url|default:'#' }}" class="btn btn-outline-secondary btn-sm mb-2">
+                <i class="fa fa-hospital mr-1"></i> Institutions
+              </a>
+            </div>
+
+            <hr>
+
+            <div class="text-muted small">
+              <div class="mb-2"><i class="fa fa-check-circle text-success mr-2"></i> Proof required for requests</div>
+              <div class="mb-2"><i class="fa fa-shield-alt text-primary mr-2"></i> Verified donations unlock 90-day eligibility tracking</div>
+              <div><i class="fa fa-bell text-warning mr-2"></i> Notifications + email queue supported</div>
+            </div>
+
+          </div>
+        </div>
       </div>
 
     </div>
   </div>
 </section>
 
-<!-- ========================= 2. LIVE URGENT TICKER (dynamic) ========================= -->
+<!-- ========================= 2. URGENT TICKER ========================= -->
 <div class="bg-danger text-white py-2 shadow-sm">
   <div class="container d-flex align-items-center">
     <span class="badge badge-light text-danger mr-3 font-weight-bold">URGENT NEEDS:</span>
@@ -108,7 +144,7 @@
     <marquee behavior="scroll" direction="left" scrollamount="6">
       {% for r in urgent_requests %}
         <span class="mr-5">
-          <i class="fa fa-tint"></i> {{ r.blood_group }} Blood needed
+          <i class="fa fa-tint"></i> {{ r.blood_group }} needed
           {% if r.hospital_name %} at {{ r.hospital_name }}{% endif %}
           {% if r.location_city %} ({{ r.location_city }}){% endif %}
         </span>
@@ -119,7 +155,7 @@
   </div>
 </div>
 
-<!-- ========================= 3. THREE PILLARS (FEATURES) ========================= -->
+<!-- ========================= 3. FEATURES ========================= -->
 <section class="section-features padding-y bg-light">
   <div class="container">
     <div class="text-center mb-5">
@@ -136,8 +172,10 @@
               <i class="fa fa-heartbeat"></i>
             </div>
             <h5 class="font-weight-bold">Donate Blood</h5>
-            <p class="text-muted">Find nearby emergency requests using GPS. Be a hero in real-time.</p>
-            <a href="#" class="btn btn-outline-danger btn-sm rounded-pill px-4">Find Requests</a>
+            <p class="text-muted">View active requests and respond instantly if you can help.</p>
+            <a href="{{ blood_feed_url|default:'#' }}" class="btn btn-outline-danger btn-sm rounded-pill px-4">
+              Find Requests
+            </a>
           </div>
         </div>
       </div>
@@ -149,9 +187,11 @@
                  style="width: 70px; height: 70px; font-size: 28px; background-color: #e8f0fe;">
               <i class="fa fa-file-medical"></i>
             </div>
-            <h5 class="font-weight-bold">Pledge Organs</h5>
-            <p class="text-muted">Securely sign legal consent forms and leave a lasting legacy.</p>
-            <a href="#" class="btn btn-outline-primary btn-sm rounded-pill px-4">Pledge Now</a>
+            <h5 class="font-weight-bold">Institutions</h5>
+            <p class="text-muted">Hospitals/NGOs can verify requests, donations, and create camps.</p>
+            <a href="{{ institutions_home_url|default:'#' }}" class="btn btn-outline-primary btn-sm rounded-pill px-4">
+              Open Portal
+            </a>
           </div>
         </div>
       </div>
@@ -161,11 +201,13 @@
           <div class="card-body text-center p-4">
             <div class="icon-box mb-3 mx-auto text-success rounded-circle d-flex align-items-center justify-content-center"
                  style="width: 70px; height: 70px; font-size: 28px; background-color: #e0f2f1;">
-              <i class="fa fa-hand-holding-heart"></i>
+              <i class="fa fa-calendar-alt"></i>
             </div>
-            <h5 class="font-weight-bold">Medical Funds</h5>
-            <p class="text-muted">Support verified patients who cannot afford critical surgeries.</p>
-            <a href="#" class="btn btn-outline-success btn-sm rounded-pill px-4">Donate Money</a>
+            <h5 class="font-weight-bold">Donation Camps</h5>
+            <p class="text-muted">Find upcoming blood donation camps created by verified organizations.</p>
+            <a href="{{ blood_campaigns_url|default:'#' }}" class="btn btn-outline-success btn-sm rounded-pill px-4">
+              View Camps
+            </a>
           </div>
         </div>
       </div>
@@ -173,12 +215,14 @@
   </div>
 </section>
 
-<!-- ========================= 4. URGENT REQUESTS GRID (dynamic) ========================= -->
+<!-- ========================= 4. ACTIVE REQUESTS GRID ========================= -->
 <section class="section-requests padding-y">
   <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h3 class="font-weight-bold" style="color: #0A2558;">Active Emergencies</h3>
-      <a href="#" class="text-danger font-weight-bold">View All <i class="fa fa-arrow-right"></i></a>
+      <a href="{{ blood_feed_url|default:'#' }}" class="text-danger font-weight-bold">
+        View All <i class="fa fa-arrow-right"></i>
+      </a>
     </div>
 
     <div class="row">
@@ -194,12 +238,14 @@
               <div class="d-flex align-items-center mb-3">
                 <div class="display-4 font-weight-bold text-danger mr-3">{{ r.blood_group }}</div>
                 <div style="line-height: 1.2;">
-                  <strong>{{ r.patient_name|default:"Patient" }}</strong><br>
-                  <small class="text-muted">{{ r.hospital_name|default:r.location_city|default:"Hospital" }}</small>
+                  <strong>{{ r.patient_name|default:"Patient"|title }}</strong><br>
+                  <small class="text-muted">{{ r.hospital_name|default:r.location_city|default:"Hospital"|title }}</small>
                 </div>
               </div>
 
-              <a href="#" class="btn btn-block btn-primary btn-sm">Contact Now</a>
+              <a href="{% url 'blood_request_detail' r.id %}" class="btn btn-block btn-primary btn-sm">
+                View Details
+              </a>
             </div>
           </div>
         </div>
@@ -209,39 +255,6 @@
         </div>
       {% endfor %}
     </div>
-  </div>
-</section>
-
-<!-- ========================= 5. CROWDFUNDING HIGHLIGHT (dynamic) ========================= -->
-<section class="section-fund padding-y bg-white border-top">
-  <div class="container">
-    {% if featured_campaign %}
-      <div class="row align-items-center">
-        <div class="col-md-6">
-          {% if featured_campaign.image %}
-            <img src="{{ featured_campaign.image.url }}" class="img-fluid rounded shadow" alt="Campaign">
-          {% else %}
-            <img src="https://via.placeholder.com/600x400" class="img-fluid rounded shadow" alt="Campaign">
-          {% endif %}
-        </div>
-
-        <div class="col-md-6 pl-md-5">
-          <h5 class="text-danger font-weight-bold mb-2">CAMPAIGN OF THE MONTH</h5>
-          <h3>{{ featured_campaign.title|default:"Featured Campaign" }}</h3>
-          <p class="text-muted">{{ featured_campaign.story|default:""|truncatechars:180 }}</p>
-
-          <div class="progress mb-2" style="height: 10px;">
-            <div class="progress-bar bg-success" role="progressbar" style="width: 50%;"></div>
-          </div>
-
-          <button class="btn btn-danger btn-lg rounded-pill shadow">
-            Donate Now <i class="fa fa-heart ml-1"></i>
-          </button>
-        </div>
-      </div>
-    {% else %}
-      <div class="text-center text-muted">No featured campaign right now.</div>
-    {% endif %}
   </div>
 </section>
 

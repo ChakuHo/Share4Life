@@ -7,7 +7,7 @@
     {% url 'profile' as profile_url %}
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
       <div>
-        <h3 class="mb-1">Donation History</h3>
+        <h3 class="mb-1 s4l-page-title">Donation History</h3>
         <div class="text-muted">Your recorded donations and verification status.</div>
       </div>
       <a href="{{ profile_url|default:'#' }}" class="btn btn-outline-secondary">
@@ -28,17 +28,17 @@
       {% endif %}
     {% endif %}
 
-    <div class="card shadow-sm">
+    <div class="card s4l-card">
       <div class="card-body">
         <div class="table-responsive">
           <table class="table mb-0 align-middle">
             <thead>
-              <tr>
-                <th>Date</th>
+              <tr class="text-muted">
+                <th style="min-width:160px;">Date</th>
                 <th>Hospital</th>
                 <th>Units</th>
                 <th>Status</th>
-                <th style="min-width: 260px;">Reports</th>
+                <th style="min-width: 320px;">Reports</th>
               </tr>
             </thead>
 
@@ -46,29 +46,45 @@
               {% for d in donations %}
                 {% url 'donation_report_upload' d.id as upload_url %}
                 <tr>
-                  <td>{{ d.donated_at|date:"Y-m-d H:i" }}</td>
-                  <td>{{ d.hospital_name|default:"—" }}</td>
+                  <td class="text-muted small">{{ d.donated_at|date:"Y-m-d H:i" }}</td>
+
+                  <td>
+                    <div class="font-weight-bold">{{ d.hospital_name|default:"—"|title }}</div>
+                    {% if d.request %}
+                      <div class="text-muted small">
+                        Linked request: <a href="{% url 'blood_request_detail' d.request.id %}">#{{ d.request.id }}</a>
+                      </div>
+                    {% endif %}
+                  </td>
+
                   <td>{{ d.units }}</td>
+
                   <td>
                     {% if d.status == "VERIFIED" %}
-                      <span class="badge badge-primary p-2">VERIFIED</span>
+                      <span class="s4l-badge">
+                        <i class="fa fa-check-circle text-success"></i> Verified
+                      </span>
                     {% elif d.status == "COMPLETED" %}
-                      <span class="badge badge-secondary p-2">COMPLETED</span>
+                      <span class="s4l-badge">
+                        <i class="fa fa-hourglass-half text-warning"></i> Pending verification
+                      </span>
                     {% else %}
-                      <span class="badge badge-danger p-2">{{ d.status }}</span>
+                      <span class="s4l-badge">
+                        <i class="fa fa-times-circle text-danger"></i> {{ d.status|title }}
+                      </span>
                     {% endif %}
                   </td>
 
                   <td>
                     <div class="d-flex flex-wrap align-items-center">
+
                       <a class="btn btn-sm btn-outline-primary mr-2 mb-2"
                          href="{{ upload_url|default:'#' }}">
-                        Upload
+                        <i class="fa fa-upload mr-1"></i> Upload Report
                       </a>
 
                       {% if d.reports.all %}
                         {% for rep in d.reports.all %}
-                          {# If you add /report/<id>/view/, this will work. If not, it will fall back to download. #}
                           {% url 'donation_report_view' rep.id as view_url %}
                           {% url 'donation_report_download' rep.id as dl_url %}
 
@@ -87,11 +103,15 @@
                       {% else %}
                         <span class="text-muted small mb-2">No reports</span>
                       {% endif %}
+
                     </div>
                   </td>
                 </tr>
+
               {% empty %}
-                <tr><td colspan="5" class="text-muted">No donation history yet.</td></tr>
+                <tr>
+                  <td colspan="5" class="text-muted">No donation history yet.</td>
+                </tr>
               {% endfor %}
             </tbody>
 
@@ -102,5 +122,26 @@
 
   </div>
 </section>
+
+<style>
+  .s4l-page-title { font-weight: 800; letter-spacing: -0.5px; }
+  .s4l-card {
+    border: 1px solid rgba(0,0,0,0.06);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.04);
+    border-radius: 14px;
+  }
+  .s4l-badge {
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-weight: 700;
+    font-size: 12px;
+    border: 1px solid rgba(0,0,0,0.08);
+    background: #f8f9fa;
+    color: #495057;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+</style>
 
 {% endblock %}

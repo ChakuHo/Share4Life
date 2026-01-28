@@ -1,14 +1,16 @@
+import os
+import uuid
+
 from django.conf import settings
 from django.core.validators import FileExtensionValidator
 from django.db import models
-from django.utils import timezone
-import os
-import uuid
 from django.db.models import Q, Sum
+from django.utils import timezone
+
 
 class PublicBloodRequest(models.Model):
     """
-    Recipients asking for help without login.
+    Blood request posted by guest or logged-in recipient.
     """
     STATUS = [
         ("OPEN", "Open"),
@@ -17,14 +19,24 @@ class PublicBloodRequest(models.Model):
         ("CANCELLED", "Cancelled"),
     ]
 
+    BLOOD_GROUPS = [
+        ("A+", "A+"), ("A-", "A-"),
+        ("B+", "B+"), ("B-", "B-"),
+        ("AB+", "AB+"), ("AB-", "AB-"),
+        ("O+", "O+"), ("O-", "O-"),
+    ]
+
     patient_name = models.CharField(max_length=100)
-    blood_group = models.CharField(max_length=5, choices=[
-        ('A+', 'A+'), ('A-', 'A-'), ('B+', 'B+'), ('B-', 'B-'),
-        ('AB+', 'AB+'), ('AB-', 'AB-'), ('O+', 'O+'), ('O-', 'O-'),
-    ])
+    blood_group = models.CharField(max_length=5, choices=BLOOD_GROUPS)
+
     location_city = models.CharField(max_length=100)
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
     hospital_name = models.CharField(max_length=150)
-    contact_phone = models.CharField(max_length=15)
+
+    # increased for E.164 phone format like +9779812345678
+    contact_phone = models.CharField(max_length=20)
+
     units_needed = models.IntegerField(default=1)
 
     is_active = models.BooleanField(default=True)
@@ -36,11 +48,11 @@ class PublicBloodRequest(models.Model):
     fulfilled_at = models.DateTimeField(null=True, blank=True)
 
     created_by = models.ForeignKey(
-    settings.AUTH_USER_MODEL,
-    null=True, blank=True,
-    on_delete=models.SET_NULL,
-    related_name="blood_requests_created"
-)
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="blood_requests_created",
+    )
 
     VERIFICATION = [
         ("UNVERIFIED", "Unverified (Guest/No proof)"),
@@ -48,7 +60,13 @@ class PublicBloodRequest(models.Model):
         ("VERIFIED", "Verified"),
         ("REJECTED", "Rejected"),
     ]
-    verification_status = models.CharField(max_length=12, choices=VERIFICATION, default="UNVERIFIED")
+
+    verification_status = models.CharField(
+        max_length=12,
+        choices=VERIFICATION,
+        default="UNVERIFIED",
+    )
+
     proof_document = models.FileField(
         upload_to="blood_request_proofs/",
         blank=True, null=True,
@@ -60,37 +78,44 @@ class PublicBloodRequest(models.Model):
         settings.AUTH_USER_MODEL,
         null=True, blank=True,
         on_delete=models.SET_NULL,
-        related_name="blood_requests_verified_by"
+        related_name="blood_requests_verified_by",
     )
     verified_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.TextField(blank=True)
 
     target_organization = models.ForeignKey(
-    "hospitals.Organization",
-    null=True, blank=True,
-    on_delete=models.SET_NULL,
-    related_name="blood_requests",
-    help_text="Which organization should verify/handle this request.",
+        "hospitals.Organization",
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="blood_requests",
+        help_text="Which organization should verify/handle this request.",
     )
 
     def __str__(self):
         return f"Need {self.blood_group} at {self.location_city}"
 
+
 class GuestResponse(models.Model):
     """
     Donors responding without login.
     """
-    request = models.ForeignKey(PublicBloodRequest, on_delete=models.CASCADE, related_name='responses')
+    request = models.ForeignKey(
+        PublicBloodRequest,
+        on_delete=models.CASCADE,
+        related_name="responses",
+    )
     donor_name = models.CharField(max_length=100)
-    donor_phone = models.CharField(max_length=15)
-    
-    # Status: 'Incoming' means they are on their way.
-    status = models.CharField(max_length=20, default='Incoming') 
+
+    # increased for E.164 phone format like +9779812345678
+    donor_phone = models.CharField(max_length=20)
+
+    status = models.CharField(max_length=20, default="Incoming")
     responded_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
         return f"{self.donor_name} is helping {self.request.patient_name}"
-    
+
+
 class DonorResponse(models.Model):
     STATUS = [
         ("PENDING", "Pending"),
@@ -99,8 +124,16 @@ class DonorResponse(models.Model):
         ("DELAYED", "Delayed"),
     ]
 
-    request = models.ForeignKey(PublicBloodRequest, on_delete=models.CASCADE, related_name="donor_responses")
-    donor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="blood_responses")
+    request = models.ForeignKey(
+        PublicBloodRequest,
+        on_delete=models.CASCADE,
+        related_name="donor_responses",
+    )
+    donor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="blood_responses",
+    )
 
     status = models.CharField(max_length=10, choices=STATUS, default="PENDING")
     message = models.CharField(max_length=255, blank=True)
@@ -110,6 +143,7 @@ class DonorResponse(models.Model):
 
     class Meta:
         unique_together = ("request", "donor")
+
 
 class BloodDonation(models.Model):
     STATUS = [
@@ -132,7 +166,6 @@ class BloodDonation(models.Model):
         related_name="blood_donations",
     )
 
-    # Snapshot info (helps history even if profile changes)
     blood_group = models.CharField(max_length=5, blank=True)
     units = models.PositiveIntegerField(default=1)
     hospital_name = models.CharField(max_length=150, blank=True)
@@ -173,11 +206,18 @@ class BloodDonation(models.Model):
         - Request becomes FULFILLED only when total VERIFIED units >= units_needed
         - Otherwise keep request IN_PROGRESS
         """
+        if self.status == "VERIFIED":
+            return
+
         self.status = "VERIFIED"
         self.verified_by = verifier_user
         self.verified_by_org = verified_org
         self.verified_at = timezone.now()
-        self.save(update_fields=["status", "verified_by", "verified_by_org", "verified_at"])
+        self.rejection_reason = ""
+
+        self.save(update_fields=[
+            "status", "verified_by", "verified_by_org", "verified_at", "rejection_reason"
+        ])
 
         if not self.request_id:
             return
@@ -198,22 +238,31 @@ class BloodDonation(models.Model):
             req.fulfilled_at = timezone.now()
             req.save(update_fields=["status", "is_active", "fulfilled_at"])
         else:
-            # keep it active but in progress
             if req.status == "OPEN":
                 req.status = "IN_PROGRESS"
                 req.save(update_fields=["status"])
+
 
 def donation_report_path(instance, filename):
     ext = os.path.splitext(filename)[1].lower()
     return f"medical_reports/donation_{instance.donation_id}/{uuid.uuid4().hex}{ext}"
 
+
 class DonationMedicalReport(models.Model):
-    donation = models.ForeignKey(BloodDonation, on_delete=models.CASCADE, related_name="reports")
+    donation = models.ForeignKey(
+        BloodDonation,
+        on_delete=models.CASCADE,
+        related_name="reports",
+    )
     file = models.FileField(
         upload_to=donation_report_path,
         validators=[FileExtensionValidator(allowed_extensions=["pdf", "jpg", "jpeg", "png"])],
     )
     note = models.CharField(max_length=255, blank=True)
-    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
-                                    on_delete=models.SET_NULL, related_name="donation_reports_uploaded")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="donation_reports_uploaded",
+    )
     uploaded_at = models.DateTimeField(auto_now_add=True)

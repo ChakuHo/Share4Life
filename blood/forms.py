@@ -57,6 +57,8 @@ class EmergencyRequestForm(forms.ModelForm):
             "units_needed",
             "is_emergency",
             "proof_document",
+            "latitude",
+            "longitude",
         ]
         widgets = {
             "patient_name": forms.TextInput(attrs={
@@ -98,6 +100,8 @@ class EmergencyRequestForm(forms.ModelForm):
                 "class": "form-control-file",
                 "accept": ".pdf,.jpg,.jpeg,.png",
             }),
+            'latitude': forms.HiddenInput(),
+            'longitude': forms.HiddenInput(),
         }
 
     def clean_contact_phone(self):
@@ -126,6 +130,8 @@ class RecipientRequestForm(forms.ModelForm):
             "units_needed",
             "is_emergency",
             "proof_document",
+            "latitude",
+            "longitude",
         ]
         widgets = {
             "patient_name": forms.TextInput(attrs={
@@ -166,6 +172,8 @@ class RecipientRequestForm(forms.ModelForm):
                 "class": "form-control-file",
                 "accept": ".pdf,.jpg,.jpeg,.png",
             }),
+            'latitude': forms.HiddenInput(),
+            'longitude': forms.HiddenInput(),
         }
 
     def __init__(self, *args, require_proof=True, **kwargs):
@@ -263,6 +271,8 @@ class BloodRequestEditForm(forms.ModelForm):
             "units_needed",
             "is_emergency",
             "proof_document",
+            "latitude",
+            "longitude",
         ]
         widgets = {
             "patient_name": forms.TextInput(attrs={
@@ -303,6 +313,8 @@ class BloodRequestEditForm(forms.ModelForm):
                 "class": "form-control-file",
                 "accept": ".pdf,.jpg,.jpeg,.png",
             }),
+            'latitude': forms.HiddenInput(),
+            'longitude': forms.HiddenInput(),
         }
 
     def __init__(self, *args, user=None, **kwargs):

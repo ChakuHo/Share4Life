@@ -25,5 +25,5 @@ urlpatterns = [
     path("request/<int:request_id>/edit/", views.blood_request_edit_view, name="blood_request_edit"),
     path("request/<int:request_id>/cancel/", views.blood_request_cancel_view, name="blood_request_cancel"),
     path("campaigns/", views.blood_campaigns_view, name="blood_campaigns"),
-
+    path("request/<int:request_id>/quick-respond/", views.quick_respond_view, name="quick_respond"),
 ]

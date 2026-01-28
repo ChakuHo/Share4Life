@@ -6,64 +6,118 @@
 
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
       <div>
-        <h3 class="mb-1">My Blood Requests</h3>
-        <div class="text-muted">Track verification and donor responses.</div>
+        <h3 class="mb-1 s4l-page-title">My Blood Requests</h3>
+        <div class="text-muted">Track verification, responses and request progress.</div>
       </div>
+
       <a href="{% url 'recipient_request' %}" class="btn btn-danger">
-        <i class="fa fa-tint"></i> New Verified Request
+        <i class="fa fa-tint"></i> New Request
       </a>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card s4l-card">
       <div class="card-body">
         <div class="table-responsive">
-          <table class="table mb-0">
+          <table class="table mb-0 align-middle">
             <thead>
-              <tr>
-                <th>Created</th>
-                <th>Patient</th>
+              <tr class="text-muted">
+                <th style="min-width:140px;">Created</th>
+                <th style="min-width:160px;">Patient</th>
                 <th>Blood</th>
                 <th>Units</th>
-                <th>Hospital</th>
+                <th style="min-width:180px;">Hospital</th>
                 <th>Verification</th>
                 <th>Status</th>
-                <th></th>
+                <th class="text-right" style="min-width:220px;"></th>
               </tr>
             </thead>
+
             <tbody>
               {% for r in items %}
+                {% url 'blood_request_detail' r.id as view_url %}
+                {% url 'blood_request_edit' r.id as edit_url %}
+                {% url 'blood_request_cancel' r.id as cancel_url %}
+
                 <tr>
-                  <td>{{ r.created_at|date:"Y-m-d H:i" }}</td>
-                  <td class="font-weight-bold">{{ r.patient_name }}</td>
-                  <td><span class="badge badge-danger p-2">{{ r.blood_group }}</span></td>
+                  <td class="text-muted small">{{ r.created_at|date:"Y-m-d H:i" }}</td>
+
+                  <td class="font-weight-bold">
+                    {{ r.patient_name|title }}
+                    <div class="text-muted small">
+                      {{ r.location_city|title }}
+                    </div>
+                  </td>
+
+                  <td>
+                    <span class="s4l-badge s4l-badge-soft">
+                      {{ r.blood_group }}
+                    </span>
+                  </td>
+
                   <td>{{ r.units_needed }}</td>
-                  <td>{{ r.hospital_name }}</td>
+
+                  <td>
+                    {{ r.hospital_name|title }}
+                  </td>
+
                   <td>
                     {% if r.verification_status == "VERIFIED" %}
-                      <span class="badge badge-success p-2">VERIFIED</span>
+                      <span class="s4l-badge s4l-badge-soft">
+                        <i class="fa fa-check-circle text-success mr-1"></i> Verified
+                      </span>
                     {% elif r.verification_status == "PENDING" %}
-                      <span class="badge badge-warning p-2">PENDING</span>
+                      <span class="s4l-badge s4l-badge-soft">
+                        <i class="fa fa-hourglass-half text-warning mr-1"></i> Pending
+                      </span>
                     {% elif r.verification_status == "REJECTED" %}
-                      <span class="badge badge-danger p-2">REJECTED</span>
+                      <span class="s4l-badge s4l-badge-soft">
+                        <i class="fa fa-times-circle text-danger mr-1"></i> Rejected
+                      </span>
                     {% else %}
-                      <span class="badge badge-secondary p-2">UNVERIFIED</span>
+                      <span class="s4l-badge s4l-badge-soft">
+                        <i class="fa fa-info-circle mr-1"></i> {{ r.verification_status|title }}
+                      </span>
                     {% endif %}
                   </td>
+
                   <td>
-                    <span class="badge badge-primary p-2">{{ r.status }}</span>
+                    <span class="s4l-badge s4l-badge-soft">
+                      {{ r.get_status_display }}
+                    </span>
+
+                    {% if not r.is_active or r.status == "FULFILLED" or r.status == "CANCELLED" %}
+                      <div class="text-muted small mt-1">Closed</div>
+                    {% endif %}
                   </td>
+
                   <td class="text-right">
-                    <a href="{% url 'blood_request_detail' r.id %}" class="btn btn-sm btn-primary">
+                    <a href="{{ view_url|default:'#' }}" class="btn btn-sm btn-primary">
                       View
                     </a>
+
+                    {% if r.is_active and r.status != "FULFILLED" and r.status != "CANCELLED" %}
+                      <a href="{{ edit_url|default:'#' }}" class="btn btn-sm btn-outline-secondary ml-2">
+                        Edit
+                      </a>
+
+                      <form method="post" action="{{ cancel_url|default:'#' }}" class="d-inline-block ml-2"
+                            onsubmit="return confirm('Cancel this request?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                          Cancel
+                        </button>
+                      </form>
+                    {% endif %}
                   </td>
                 </tr>
+
               {% empty %}
                 <tr>
                   <td colspan="8" class="text-muted">No requests yet.</td>
                 </tr>
               {% endfor %}
             </tbody>
+
           </table>
         </div>
       </div>
@@ -71,5 +125,25 @@
 
   </div>
 </section>
+
+<style>
+  .s4l-page-title { font-weight: 800; letter-spacing: -0.5px; }
+  .s4l-card {
+    border: 1px solid rgba(0,0,0,0.06);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.04);
+    border-radius: 14px;
+  }
+  .s4l-badge {
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-weight: 700;
+    font-size: 12px;
+  }
+  .s4l-badge-soft {
+    background: #f8f9fa;
+    border: 1px solid rgba(0,0,0,0.08);
+    color: #495057;
+  }
+</style>
 
 {% endblock %}

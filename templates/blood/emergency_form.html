@@ -18,8 +18,17 @@
     <div class="card shadow-sm">
       <div class="card-body">
 
+        <div class="alert alert-light mb-3" id="gps-status" style="border-radius:12px;">
+          <strong>Location matching:</strong> trying to detect your GPS location…<br>
+          <small class="text-muted">If blocked, matching will use city only.</small>
+        </div>
+
         <form method="post" enctype="multipart/form-data" novalidate id="emergency-form">
           {% csrf_token %}
+
+          {# hidden gps fields #}
+          {{ form.latitude }}
+          {{ form.longitude }}
 
           {% if form.non_field_errors %}
             <div class="alert alert-danger">{{ form.non_field_errors }}</div>
@@ -27,14 +36,13 @@
 
           <div class="form-row">
             <div class="form-group col-md-6">
-              <label class="font-weight-bold">Patient name <span class="text-danger">*</span></label>
+              <label class="font-weight-bold">Patient name</label>
               {{ form.patient_name }}
               {% for e in form.patient_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-              <div class="text-muted small">Full name as in hospital report.</div>
             </div>
 
             <div class="form-group col-md-6">
-              <label class="font-weight-bold">Blood group <span class="text-danger">*</span></label>
+              <label class="font-weight-bold">Blood group</label>
               {{ form.blood_group }}
               {% for e in form.blood_group.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
@@ -42,14 +50,13 @@
 
           <div class="form-row">
             <div class="form-group col-md-6">
-              <label class="font-weight-bold">Contact phone <span class="text-danger">*</span></label>
+              <label class="font-weight-bold">Contact phone</label>
               {{ form.contact_phone }}
               {% for e in form.contact_phone.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-              <div class="text-muted small">Example: 98XXXXXXXX or +977-98XXXXXXX</div>
             </div>
 
             <div class="form-group col-md-6">
-              <label class="font-weight-bold">Units needed <span class="text-danger">*</span></label>
+              <label class="font-weight-bold">Units needed</label>
               {{ form.units_needed }}
               {% for e in form.units_needed.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
@@ -57,20 +64,20 @@
 
           <div class="form-row">
             <div class="form-group col-md-6">
-              <label class="font-weight-bold">City / Area <span class="text-danger">*</span></label>
+              <label class="font-weight-bold">City / Area</label>
               {{ form.location_city }}
               {% for e in form.location_city.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
 
             <div class="form-group col-md-6">
-              <label class="font-weight-bold">Hospital name <span class="text-danger">*</span></label>
+              <label class="font-weight-bold">Hospital name</label>
               {{ form.hospital_name }}
               {% for e in form.hospital_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             </div>
           </div>
 
           <div class="form-group">
-            <label class="font-weight-bold">Proof document (PDF/JPG/PNG) <span class="text-danger">*</span></label>
+            <label class="font-weight-bold">Proof document (PDF/JPG/PNG)</label>
             {{ form.proof_document }}
             {% for e in form.proof_document.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             <div class="text-muted small mt-1">
@@ -81,10 +88,6 @@
           <button class="btn btn-danger btn-lg btn-block" type="submit" id="submit-btn">
             <i class="fa fa-bullhorn"></i> Post Emergency Request
           </button>
-
-          <div class="text-muted small mt-3">
-            <strong>Note:</strong> This request will be public. Please provide correct hospital details to avoid delays.
-          </div>
         </form>
 
       </div>
@@ -95,62 +98,41 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-  const form = document.getElementById('emergency-form');
+  const statusBox = document.getElementById('gps-status');
+  const latEl = document.querySelector('[name="latitude"]');
+  const lonEl = document.querySelector('[name="longitude"]');
+
   const btn = document.getElementById('submit-btn');
+  const form = document.getElementById('emergency-form');
 
-  if (!form || !btn) return;
-
-  // ---- Add client-side validation hints ----
-  const patientName = form.querySelector('[name="patient_name"]');
-  const phone = form.querySelector('[name="contact_phone"]');
-  const city = form.querySelector('[name="location_city"]');
-  const hospital = form.querySelector('[name="hospital_name"]');
-  const units = form.querySelector('[name="units_needed"]');
-  const proof = form.querySelector('[name="proof_document"]');
-
-  // Required fields
-  [patientName, phone, city, hospital, units, proof].forEach(el => {
-    if (el) el.required = true;
-  });
-
-  if (patientName) {
-    patientName.setAttribute('minlength', '2');
-    patientName.setAttribute('maxlength', '100');
-    patientName.setAttribute('placeholder', 'Patient full name');
+  function setStatus(html, cls){
+    statusBox.className = "alert mb-3 " + cls;
+    statusBox.style.borderRadius = "12px";
+    statusBox.innerHTML = html;
   }
 
-  if (phone) {
-    phone.setAttribute('placeholder', '98XXXXXXXX or +977-98XXXXXXX');
-    // basic pattern (still enforced server-side)
-    phone.setAttribute('pattern', '^[0-9+\\-\\s]{7,20}$');
+  // Try GPS
+  if (!navigator.geolocation) {
+    setStatus("<strong>Location matching:</strong> GPS not supported. Using city only.", "alert-secondary");
+  } else {
+    navigator.geolocation.getCurrentPosition(function(pos){
+      if (latEl && lonEl) {
+        latEl.value = pos.coords.latitude.toFixed(6);
+        lonEl.value = pos.coords.longitude.toFixed(6);
+      }
+      setStatus("<strong>Location matching:</strong> GPS captured. Nearby donors can be matched (5–10km fallback).", "alert-success");
+    }, function(){
+      setStatus("<strong>Location matching:</strong> GPS blocked/unavailable. Using city only.", "alert-warning");
+    }, { enableHighAccuracy: true, timeout: 8000 });
   }
 
-  if (city) {
-    city.setAttribute('minlength', '2');
-    city.setAttribute('maxlength', '100');
-    city.setAttribute('placeholder', 'City / Area');
+  // loading state
+  if (btn && form) {
+    form.addEventListener('submit', function(){
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Posting...';
+    });
   }
-
-  if (hospital) {
-    hospital.setAttribute('minlength', '2');
-    hospital.setAttribute('maxlength', '150');
-    hospital.setAttribute('placeholder', 'Hospital name');
-  }
-
-  if (units) {
-    units.setAttribute('min', '1');
-    units.setAttribute('max', '10'); // limit to prevent spam; backend still allows higher if you want
-  }
-
-  if (proof) {
-    proof.setAttribute('accept', '.pdf,.jpg,.jpeg,.png');
-  }
-
-  // Show loading state
-  form.addEventListener('submit', function(){
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Posting...';
-  });
 });
 </script>
 

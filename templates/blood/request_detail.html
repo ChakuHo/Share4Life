@@ -7,7 +7,7 @@
     {% url 'public_dashboard' as feed_url %}
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
       <div>
-        <h3 class="mb-1">Request Details</h3>
+        <h3 class="mb-1 s4l-title">Request Details</h3>
         <div class="text-muted">Responses, progress, and donation records.</div>
       </div>
       <a href="{{ feed_url|default:'#' }}" class="btn btn-outline-secondary">
@@ -16,15 +16,15 @@
     </div>
 
     <!-- Request summary -->
-    <div class="card shadow-sm mb-4">
+    <div class="card s4l-card mb-4">
       <div class="card-body">
         <div class="d-flex flex-wrap justify-content-between">
           <div>
-            <h5 class="mb-1">{{ req.patient_name }}</h5>
+            <h5 class="mb-1" style="font-weight:800;">{{ req.patient_name|title }}</h5>
 
             <div class="text-muted small">
               Blood: <strong>{{ req.blood_group }}</strong> • Units: <strong>{{ req.units_needed }}</strong><br>
-              Hospital/Institution: <strong>{{ req.hospital_name }}</strong> • City: <strong>{{ req.location_city }}</strong><br>
+              Hospital/Institution: <strong>{{ req.hospital_name|title }}</strong> • City: <strong>{{ req.location_city|title }}</strong><br>
               Contact: <strong>{{ req.contact_phone }}</strong>
             </div>
 
@@ -49,17 +49,19 @@
           </div>
 
           <div class="mt-3 mt-md-0 text-md-right">
-            <span class="badge badge-primary p-2">Status: {{ req.get_status_display }}</span>
+            <span class="s4l-pill">
+              <i class="fa fa-flag"></i> {{ req.get_status_display }}
+            </span>
 
             <div class="mt-2">
               {% if req.verification_status == "VERIFIED" %}
-                <span class="badge badge-success p-2">Request Verified</span>
+                <span class="s4l-pill"><i class="fa fa-check-circle text-success"></i> Verified</span>
               {% elif req.verification_status == "PENDING" %}
-                <span class="badge badge-warning p-2">Verification Pending</span>
+                <span class="s4l-pill"><i class="fa fa-hourglass-half text-warning"></i> Pending</span>
               {% elif req.verification_status == "REJECTED" %}
-                <span class="badge badge-danger p-2">Rejected</span>
+                <span class="s4l-pill"><i class="fa fa-times-circle text-danger"></i> Rejected</span>
               {% else %}
-                <span class="badge badge-secondary p-2">{{ req.verification_status }}</span>
+                <span class="s4l-pill"><i class="fa fa-info-circle"></i> {{ req.verification_status|title }}</span>
               {% endif %}
             </div>
 
@@ -83,7 +85,6 @@
           </div>
         {% else %}
 
-          <!-- If viewer is the request creator -->
           {% if user.is_authenticated and req.created_by_id == user.id %}
             <div class="alert alert-info">
               You created this request. Please wait for other donors to respond.
@@ -103,18 +104,15 @@
             </div>
 
           {% else %}
-            <!-- Not the request owner -->
             <div class="d-flex flex-wrap align-items-center">
 
-              <!-- Guest help only for anonymous -->
               {% if not user.is_authenticated %}
                 <a href="{{ guest_url|default:'#' }}" class="btn btn-outline-danger mr-2 mb-2">
-                  I can Help (Guest)
+                  Help as Guest
                 </a>
               {% endif %}
 
               {% if user.is_authenticated and user.is_donor %}
-
                 {% if eligible_info and not eligible_info.eligible %}
                   <button class="btn btn-secondary mr-2 mb-2" disabled>
                     Not eligible until {{ eligible_info.next_date|date:"Y-m-d" }}
@@ -125,19 +123,16 @@
                       Respond as Donor
                     </a>
                   {% endif %}
-
                   {% if can_mark_donation %}
                     <a href="{{ donation_create_url|default:'#' }}" class="btn btn-danger mb-2">
                       Mark Donation Completed
                     </a>
                   {% endif %}
                 {% endif %}
-
               {% endif %}
             </div>
           {% endif %}
 
-          <!-- Institution verification controls (optional UI, only visible to org verifiers) -->
           {% if org_can_verify %}
             <div class="mt-3 p-3 border rounded bg-light">
               <h6 class="mb-2"><i class="fa fa-shield-alt text-primary"></i> Institution Verification</h6>
@@ -174,14 +169,16 @@
 
       <!-- Guest Responses -->
       <div class="col-lg-6 mb-4">
-        <div class="card shadow-sm h-100">
+        <div class="card s4l-card h-100">
           <div class="card-body">
-            <h5 class="mb-3"><i class="fa fa-user-friends text-primary"></i> Guest Responses</h5>
+            <h5 class="mb-3" style="font-weight:800;">
+              <i class="fa fa-user-friends text-primary"></i> Guest Responses
+            </h5>
 
             {% for gr in guest_responses %}
               <div class="border rounded p-3 mb-2">
                 <div class="d-flex justify-content-between">
-                  <strong>{{ gr.donor_name }}</strong>
+                  <strong>{{ gr.donor_name|title }}</strong>
                   <small class="text-muted">{{ gr.responded_at|date:"Y-m-d H:i" }}</small>
                 </div>
                 <div class="text-muted small">
@@ -197,30 +194,55 @@
 
       <!-- Registered Donor Responses -->
       <div class="col-lg-6 mb-4">
-        <div class="card shadow-sm h-100">
+        <div class="card s4l-card h-100">
           <div class="card-body">
-            <h5 class="mb-3"><i class="fa fa-user-shield text-primary"></i> Registered Donor Responses</h5>
+            <h5 class="mb-3" style="font-weight:800;">
+              <i class="fa fa-user-shield text-primary"></i> Registered Donor Responses
+            </h5>
 
             {% for dr in donor_responses %}
               <div class="border rounded p-3 mb-2">
                 <div class="d-flex justify-content-between">
-                  <strong>{{ dr.donor.username }}</strong>
+                  <div>
+                    <strong>
+                      {{ dr.donor.get_full_name|default:dr.donor.username|title }}
+                    </strong>
+                    <div class="text-muted small">@{{ dr.donor.username }}</div>
+                  </div>
                   <small class="text-muted">
                     {{ dr.responded_at|default:dr.created_at|date:"Y-m-d H:i" }}
                   </small>
                 </div>
 
-                <div class="text-muted small">
+                <div class="text-muted small mt-2">
                   Status: <strong>{{ dr.get_status_display }}</strong>
 
-                  {% if dr.status == "ACCEPTED" and can_view_donor_contact %}
-                    <div class="mt-1">
-                      Phone: <strong>{{ dr.donor.phone_number|default:"—" }}</strong>
+                  {% if dr.status == "ACCEPTED" %}
+                    {% if can_view_donor_contact %}
+                      <div class="mt-2">
+                        Phone:
+                        {% if dr.donor.phone_number %}
+                          <a href="tel:{{ dr.donor.phone_number }}"><strong>{{ dr.donor.phone_number }}</strong></a>
+                        {% else %}
+                          <strong>—</strong>
+                        {% endif %}
+                      </div>
+                      <div class="mt-1">
+                        City: <strong>{{ dr.donor.profile.city|default:"—"|title }}</strong>
+                      </div>
+                    {% else %}
+                      <div class="mt-2 text-muted">
+                        Contact details are visible to the requester after acceptance.
+                      </div>
+                    {% endif %}
+                  {% else %}
+                    <div class="mt-2 text-muted">
+                      Contact details will appear after the donor accepts.
                     </div>
                   {% endif %}
 
                   {% if dr.message %}
-                    <div class="mt-1">{{ dr.message }}</div>
+                    <div class="mt-2">{{ dr.message }}</div>
                   {% endif %}
                 </div>
               </div>
@@ -234,9 +256,11 @@
     </div>
 
     <!-- Donations -->
-    <div class="card shadow-sm">
+    <div class="card s4l-card">
       <div class="card-body">
-        <h5 class="mb-3"><i class="fa fa-history text-primary"></i> Donations Linked to This Request</h5>
+        <h5 class="mb-3" style="font-weight:800;">
+          <i class="fa fa-history text-primary"></i> Donations Linked to This Request
+        </h5>
 
         {% for d in donations %}
           <div class="border rounded p-3 mb-2">
@@ -245,7 +269,7 @@
               <small class="text-muted">{{ d.donated_at|date:"Y-m-d H:i" }}</small>
             </div>
             <div class="text-muted small">
-              Status: <strong>{{ d.status }}</strong> • Units: {{ d.units }} • Hospital: {{ d.hospital_name|default:req.hospital_name }}
+              Status: <strong>{{ d.status }}</strong> • Units: {{ d.units }} • Hospital: {{ d.hospital_name|default:req.hospital_name|title }}
             </div>
 
             {% if org_can_verify and d.status == "COMPLETED" %}
@@ -265,5 +289,26 @@
 
   </div>
 </section>
+
+<style>
+  .s4l-title { font-weight: 800; letter-spacing: -0.4px; }
+  .s4l-card {
+    border: 1px solid rgba(0,0,0,0.06);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.04);
+    border-radius: 14px;
+  }
+  .s4l-pill {
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-weight: 700;
+    font-size: 12px;
+    border: 1px solid rgba(0,0,0,0.08);
+    background: #f8f9fa;
+    color: #495057;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+</style>
 
 {% endblock %}

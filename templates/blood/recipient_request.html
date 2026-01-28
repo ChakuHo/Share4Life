@@ -7,7 +7,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div>
         <h3 class="mb-1">Verified Blood Request</h3>
-        <div class="text-muted">Upload proof so a hospital/admin can verify your request.</div>
+        <div class="text-muted">Upload proof so an institution/admin can verify your request.</div>
       </div>
       <a href="{% url 'my_blood_requests' %}" class="btn btn-outline-secondary">
         <i class="fa fa-arrow-left"></i> Back
@@ -16,8 +16,18 @@
 
     <div class="card shadow-sm">
       <div class="card-body">
-        <form method="post" enctype="multipart/form-data" novalidate>
+
+        <div class="alert alert-light mb-3" id="gps-status" style="border-radius:12px;">
+          <strong>Location matching:</strong> trying to detect your GPS location…<br>
+          <small class="text-muted">If blocked, matching will use city only.</small>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" novalidate id="recipient-form">
           {% csrf_token %}
+
+          {# hidden GPS fields #}
+          {{ form.latitude }}
+          {{ form.longitude }}
 
           {% if form.non_field_errors %}
             <div class="alert alert-danger">{{ form.non_field_errors }}</div>
@@ -75,6 +85,7 @@
             <i class="fa fa-paper-plane"></i> Submit for Verification
           </button>
         </form>
+
       </div>
     </div>
 
@@ -83,13 +94,41 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
+  const statusBox = document.getElementById('gps-status');
+  const latEl = document.querySelector('[name="latitude"]');
+  const lonEl = document.querySelector('[name="longitude"]');
+
   const btn = document.getElementById('submit-btn');
-  const form = btn ? btn.closest('form') : null;
-  if (!btn || !form) return;
-  form.addEventListener('submit', function(){
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Submitting...';
-  });
+  const form = document.getElementById('recipient-form');
+
+  function setStatus(html, cls){
+    statusBox.className = "alert mb-3 " + cls;
+    statusBox.style.borderRadius = "12px";
+    statusBox.innerHTML = html;
+  }
+
+  // Auto-capture GPS (recommended)
+  if (!navigator.geolocation) {
+    setStatus("<strong>Location matching:</strong> GPS not supported. Using city only.", "alert-secondary");
+  } else {
+    navigator.geolocation.getCurrentPosition(function(pos){
+      if (latEl && lonEl) {
+        latEl.value = pos.coords.latitude.toFixed(6);
+        lonEl.value = pos.coords.longitude.toFixed(6);
+      }
+      setStatus("<strong>Location matching:</strong> GPS captured. Nearby donors can be matched (5–10km fallback).", "alert-success");
+    }, function(){
+      setStatus("<strong>Location matching:</strong> GPS blocked/unavailable. Using city only.", "alert-warning");
+    }, { enableHighAccuracy: true, timeout: 8000 });
+  }
+
+  // button loading state
+  if (btn && form) {
+    form.addEventListener('submit', function(){
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Submitting...';
+    });
+  }
 });
 </script>
 

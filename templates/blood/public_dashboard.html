@@ -1,62 +1,28 @@
 {% extends "master/base.html" %}
 {% block content %}
 
-<style>
-  /* Make all cards behave the same height and keep actions at the bottom */
-  .s4l-request-card .card-body{
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
-
-  /* Keep the top badge row consistent */
-  .s4l-toprow{
-    min-height: 34px;
-  }
-
-  /* Prevent badge wrapping from increasing height too much */
-  .s4l-badges{
-    min-height: 44px;
-  }
-
-  /* Title consistent height (approx 2 lines max) */
-  .s4l-title{
-    min-height: 52px;
-    font-weight: 800;
-    line-height: 1.2;
-  }
-
-  /* Details area consistent height */
-  .s4l-meta{
-    min-height: 84px;
-  }
-
-  /* Push buttons to bottom */
-  .s4l-actions{
-    margin-top: auto;
-  }
-
-  /* Avoid long time text breaking layout */
-  .s4l-time{
-    white-space: nowrap;
-  }
-</style>
-
 <section class="section-content padding-y" style="min-height:84vh;">
   <div class="container">
 
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
       <div>
-        <h3 class="mb-1">Public Emergency Feed</h3>
+        <h3 class="mb-1 s4l-page-title">Public Emergency Feed</h3>
         <div class="text-muted">Active requests visible to everyone.</div>
       </div>
 
       {% url 'emergency_request' as emergency_url %}
       <a href="{{ emergency_url|default:'#' }}" class="btn btn-danger">
-        <i class="fa fa-tint"></i> Post Emergency Request
-        {# If you want old text, change to: Create Request #}
+        <i class="fa fa-bullhorn"></i> Post Emergency
       </a>
     </div>
+
+    {# show donor eligibility once (not inside every card) #}
+    {% if user.is_authenticated and user.is_donor and donor_eligible == False and donor_next_eligible %}
+      <div class="alert alert-warning">
+        <strong>Not eligible to donate right now.</strong>
+        You can donate again on <strong>{{ donor_next_eligible|date:"Y-m-d" }}</strong>.
+      </div>
+    {% endif %}
 
     <div class="row">
       {% for r in requests %}
@@ -67,65 +33,78 @@
         {% url 'blood_request_cancel' r.id as cancel_url %}
 
         <div class="col-md-6 col-lg-4 mb-3">
-          <div class="card shadow-sm h-100 s4l-request-card">
+          <div class="card s4l-card h-100">
             <div class="card-body">
 
               <!-- Top row -->
-              <div class="d-flex justify-content-between align-items-center mb-2 s4l-toprow">
-                <span class="badge badge-danger p-2">{{ r.blood_group }}</span>
-                <small class="text-muted s4l-time">
-                  <i class="fa fa-clock"></i> {{ r.created_at|timesince }} ago
-                </small>
+              <div class="d-flex justify-content-between align-items-center s4l-toprow">
+                <span class="s4l-chip">{{ r.blood_group }}</span>
+
+                <span class="s4l-time text-muted">
+                  <i class="fa fa-clock mr-1"></i>{{ r.created_at|timesince }} ago
+                </span>
               </div>
 
-              <!-- Badges row -->
-              <div class="d-flex flex-wrap align-items-center mb-2 s4l-badges">
+              <!-- Minimal status row (less colors) -->
+              <div class="d-flex flex-wrap mt-2">
                 {% if r.is_emergency %}
-                  <span class="badge badge-danger p-2 mr-2 mb-2">EMERGENCY</span>
+                  <span class="s4l-pill s4l-pill-emergency">
+                    EMERGENCY
+                  </span>
                 {% endif %}
 
                 {% if r.verification_status == "VERIFIED" %}
-                  <span class="badge badge-success p-2 mr-2 mb-2">VERIFIED</span>
+                  <span class="s4l-pill">
+                    <i class="fa fa-check-circle mr-1 text-success"></i> Verified
+                  </span>
                 {% elif r.verification_status == "PENDING" %}
-                  <span class="badge badge-warning p-2 mr-2 mb-2">PENDING</span>
+                  <span class="s4l-pill">
+                    <i class="fa fa-hourglass-half mr-1 text-warning"></i> Pending
+                  </span>
                 {% else %}
-                  <span class="badge badge-secondary p-2 mr-2 mb-2">{{ r.verification_status }}</span>
+                  <span class="s4l-pill">
+                    <i class="fa fa-info-circle mr-1"></i> {{ r.verification_status|title }}
+                  </span>
                 {% endif %}
 
-                <span class="badge badge-primary p-2 mb-2">{{ r.get_status_display }}</span>
+                <span class="s4l-pill">
+                  <i class="fa fa-flag mr-1"></i> {{ r.get_status_display }}
+                </span>
               </div>
 
-              <!-- Title -->
-              <h5 class="mb-2 s4l-title">{{ r.patient_name }}</h5>
+              <!-- Name (Title Case) -->
+              <div class="s4l-name">
+                {{ r.patient_name|title }}
+              </div>
 
               <!-- Details -->
-              <div class="text-muted small mb-3 s4l-meta">
+              <div class="s4l-meta mt-2">
                 <div class="mb-1">
-                  <i class="fa fa-hospital mr-1"></i> {{ r.hospital_name }}
+                  <i class="fa fa-hospital mr-2"></i>{{ r.hospital_name|title }}
                 </div>
                 <div class="mb-1">
-                  <i class="fa fa-map-marker-alt mr-1"></i> {{ r.location_city }}
+                  <i class="fa fa-map-marker-alt mr-2"></i>{{ r.location_city|title }}
                 </div>
                 <div class="mb-1">
-                  <i class="fa fa-box mr-1"></i> Units: {{ r.units_needed }}
+                  <i class="fa fa-box mr-2"></i>Units: {{ r.units_needed }}
                 </div>
               </div>
 
-              <!-- Actions (always bottom) -->
-              <div class="d-flex flex-wrap s4l-actions">
+              <!-- Actions -->
+              <div class="d-flex flex-wrap s4l-actions mt-3">
 
-                <a href="{{ detail_url|default:'#' }}" class="btn btn-primary btn-sm mr-2 mb-2">
+                <a href="{{ detail_url|default:'#' }}" class="btn btn-s4l-primary btn-sm mr-2 mb-2">
                   View Details
                 </a>
 
                 {% if user.is_authenticated and r.created_by_id == user.id %}
-                  <a href="{{ edit_url|default:'#' }}" class="btn btn-outline-secondary btn-sm mr-2 mb-2">
+                  <a href="{{ edit_url|default:'#' }}" class="btn btn-outline-secondary btn-s4l-outline btn-sm mr-2 mb-2">
                     Edit
                   </a>
 
                   <form method="post" action="{{ cancel_url|default:'#' }}" class="mb-2">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                    <button type="submit" class="btn btn-outline-danger btn-s4l-outline btn-sm">
                       Cancel
                     </button>
                   </form>
@@ -133,27 +112,20 @@
                 {% else %}
 
                   {% if not user.is_authenticated %}
-                    <a href="{{ guest_url|default:'#' }}" class="btn btn-outline-danger btn-sm mb-2">
-                      I can Help (Guest)
+                    <a href="{{ guest_url|default:'#' }}" class="btn btn-outline-danger btn-s4l-outline btn-sm mb-2">
+                      Help as Guest
                     </a>
                   {% endif %}
 
-                  {% if user.is_authenticated and user.is_donor %}
-                    {% if donor_eligible %}
-                      <a href="{{ donor_respond_url|default:'#' }}" class="btn btn-outline-primary btn-sm mb-2">
-                        Respond as Donor
-                      </a>
-                    {% endif %}
+                  {% if user.is_authenticated and user.is_donor and donor_eligible %}
+                    <a href="{{ donor_respond_url|default:'#' }}" class="btn btn-outline-primary btn-s4l-outline btn-sm mb-2">
+                      Respond
+                    </a>
                   {% endif %}
 
                 {% endif %}
-              </div>
 
-              {% if user.is_authenticated and user.is_donor and donor_eligible == False and donor_next_eligible %}
-                <div class="text-muted small mt-2">
-                  Not eligible until <strong>{{ donor_next_eligible|date:"Y-m-d" }}</strong>.
-                </div>
-              {% endif %}
+              </div>
 
             </div>
           </div>
@@ -168,5 +140,100 @@
 
   </div>
 </section>
+
+<style>
+
+  
+  .s4l-page-title { font-weight: 800; letter-spacing: -0.5px; }
+  .s4l-card {
+    border: 1px solid rgba(0,0,0,0.06);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.04);
+    border-radius: 14px;
+  }
+  .s4l-card .card-body{
+    display:flex;
+    flex-direction:column;
+    height:100%;
+    padding: 18px;
+  }
+
+  /* header row */
+  .s4l-toprow{ min-height: 32px; }
+  .s4l-time{ white-space: nowrap; font-size: 12px; opacity: .75; }
+
+  /* blood group chip */
+  .s4l-chip{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:42px;
+    height:34px;
+    padding: 0 10px;
+    border-radius: 10px;
+    font-weight: 800;
+    font-size: 13px;
+    background: #ffe3e3;
+    color: #c92a35;
+  }
+
+  .s4l-pill{
+    display:inline-flex;
+    align-items:center;
+    border: 1px solid rgba(0,0,0,0.10);
+    background: #f8f9fa;
+    color: #495057;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 10px;
+    border-radius: 999px;
+    margin-right: 8px;
+    margin-bottom: 8px;
+  }
+  .s4l-pill-emergency{
+    background: #e63946;
+    border-color: #e63946;
+    color: #fff;
+  }
+
+  /* title */
+  .s4l-name{
+    margin-top: 6px;
+    font-weight: 550;     
+    letter-spacing: -0.2px;
+    font-size: 22px;
+    min-height: 52px;     /* keeps cards aligned */
+  }
+
+  /* meta */
+  .s4l-meta{
+    color: #6c757d;
+    font-size: 14px;
+    min-height: 84px;
+  }
+  .s4l-meta i { opacity: .75; }
+
+  /* actions bottom */
+  .s4l-actions{ margin-top:auto; }
+
+  /* View Details buttons styling */
+  .btn-s4l-primary{
+    background: #0a2558;
+    border-color: #0a2558;
+    color: #fff;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 8px 12px;
+  }
+  .btn-s4l-primary:hover{
+    background: #061838;
+    border-color: #061838;
+    color: #fff;
+  }
+  .btn-s4l-outline{
+    border-radius: 10px;
+    font-weight: 700;
+    padding: 8px 12px;
+  }
+</style>
 
 {% endblock %}
