@@ -1,0 +1,59 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1" style="font-weight:900; color:#0a2558;">Gallery & Impact</h3>
+        <div class="text-muted">Events, camps and community impact snapshots.</div>
+      </div>
+      <a href="{% url 'about' %}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> About
+      </a>
+    </div>
+
+    <div class="row">
+      {% for g in items %}
+        <div class="col-md-6 col-lg-4 mb-3">
+          <div class="card shadow-sm h-100">
+            <a href="{% url 'gallery_detail' g.id %}" class="text-decoration-none">
+              <img src="{{ g.image.url }}" class="img-fluid" style="border-top-left-radius:12px;border-top-right-radius:12px; height:200px; width:100%; object-fit:cover;" alt="{{ g.title|default:'Gallery' }}">
+            </a>
+            <div class="card-body">
+              <div class="d-flex justify-content-between">
+                <strong>{{ g.title|default:"Impact Update"|title }}</strong>
+                {% if g.event_date %}
+                  <small class="text-muted">{{ g.event_date|date:"Y-m-d" }}</small>
+                {% endif %}
+              </div>
+
+              <div class="text-muted small mt-1">
+                {% if g.venue %}{{ g.venue|title }}{% endif %}
+                {% if g.city %} • {{ g.city|title }}{% endif %}
+              </div>
+
+              <div class="mt-2 text-muted small">
+                {% if g.blood_units_collected %}<div><i class="fa fa-tint text-danger mr-2"></i>Blood units: <strong>{{ g.blood_units_collected }}</strong></div>{% endif %}
+                {% if g.funds_raised %}<div><i class="fa fa-hand-holding-heart text-danger mr-2"></i>Funds: <strong>{{ g.funds_raised }}</strong></div>{% endif %}
+                {% if g.people_helped %}<div><i class="fa fa-users text-primary mr-2"></i>People helped: <strong>{{ g.people_helped }}</strong></div>{% endif %}
+              </div>
+
+              <a href="{% url 'gallery_detail' g.id %}" class="btn btn-primary btn-sm mt-3">
+                View Details
+              </a>
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <div class="col-12">
+          <div class="alert alert-secondary">No gallery entries yet.</div>
+        </div>
+      {% endfor %}
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

@@ -6,6 +6,7 @@ from django.conf.urls.static import static
 
 from accounts import views as account_views
 from django.shortcuts import render
+from core import views as core_views
 
 def core_home(request):
     return render(request, "core/home.html")
@@ -26,6 +27,11 @@ urlpatterns = [
 
     path("institutions/", include("hospitals.urls")),
 
+    path("organ/", include("organ.urls")),
+
+    path("about/", core_views.about, name="about"),
+    path("gallery/", core_views.gallery_list, name="gallery_list"),
+    path("gallery/<int:pk>/", core_views.gallery_detail, name="gallery_detail"),
 ]
 
 if settings.DEBUG:

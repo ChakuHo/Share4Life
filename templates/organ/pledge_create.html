@@ -1,0 +1,98 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 920px;">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Create Organ Pledge</h3>
+        <div class="text-muted">Choose donation type, organs, and provide consent.</div>
+      </div>
+      <a href="{% url 'organ_pledge_list' %}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> My Pledges
+      </a>
+    </div>
+
+    <div class="alert alert-info">
+      <strong>Important:</strong> Organ pledges are reviewed and verified by an institution.
+      Only <b>VERIFIED</b> pledges are used for matching.
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="form-group">
+            <label class="font-weight-bold">Donation Type</label>
+            {{ form.pledge_type }}
+            {% for e in form.pledge_type.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            <div class="text-muted small mt-1">
+              Living donation is while you are alive. Deceased donation is after death consent.
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="font-weight-bold">Organs to Pledge</label>
+
+            <div class="border rounded p-3" style="background:#fafbfc;">
+              {% for cb in form.organs %}
+                <div class="form-check mb-2">
+                  {{ cb.tag }}
+                  <label class="form-check-label ml-2" for="{{ cb.id_for_label }}">
+                    {{ cb.choice_label }}
+                  </label>
+                </div>
+              {% endfor %}
+            </div>
+
+            {% for e in form.organs.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="form-group">
+            <label class="font-weight-bold">Note (optional)</label>
+            {{ form.note }}
+            {% for e in form.note.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="form-group">
+            <div class="form-check">
+              {{ form.consent_confirmed }}
+              <label class="form-check-label ml-2" for="{{ form.consent_confirmed.id_for_label }}">
+                <b>I confirm</b> I understand this is a legal pledge and the information is correct.
+              </label>
+            </div>
+            {% for e in form.consent_confirmed.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+
+          <button class="btn btn-danger btn-lg btn-block" type="submit" id="save-btn">
+            <i class="fa fa-save"></i> Save Pledge
+          </button>
+
+        </form>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const btn = document.getElementById('save-btn');
+  const form = btn ? btn.closest('form') : null;
+  if (!btn || !form) return;
+  form.addEventListener('submit', function(){
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
+  });
+});
+</script>
+
+{% endblock %} 

@@ -1,0 +1,59 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 980px;">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1" style="font-weight:900; color:#0a2558;">{{ item.title|default:"Impact Update"|title }}</h3>
+        <div class="text-muted">
+          {% if item.event_date %}{{ item.event_date|date:"Y-m-d" }}{% endif %}
+          {% if item.venue %} • {{ item.venue|title }}{% endif %}
+          {% if item.city %} • {{ item.city|title }}{% endif %}
+        </div>
+      </div>
+
+      <a href="{% url 'gallery_list' %}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Back to Gallery
+      </a>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <img src="{{ item.image.url }}" class="img-fluid" style="border-top-left-radius:12px;border-top-right-radius:12px;" alt="{{ item.title|default:'Gallery' }}">
+      <div class="card-body">
+
+        <div class="row">
+          {% if item.blood_units_collected %}
+            <div class="col-md-4 mb-2">
+              <div class="text-muted small">Blood Units Collected</div>
+              <div class="h4 mb-0">{{ item.blood_units_collected }}</div>
+            </div>
+          {% endif %}
+          {% if item.funds_raised %}
+            <div class="col-md-4 mb-2">
+              <div class="text-muted small">Funds Raised</div>
+              <div class="h4 mb-0">{{ item.funds_raised }}</div>
+            </div>
+          {% endif %}
+          {% if item.people_helped %}
+            <div class="col-md-4 mb-2">
+              <div class="text-muted small">People Helped</div>
+              <div class="h4 mb-0">{{ item.people_helped }}</div>
+            </div>
+          {% endif %}
+        </div>
+
+        {% if item.description %}
+          <hr>
+          <h6 class="font-weight-bold">What happened</h6>
+          <div class="text-muted">{{ item.description|linebreaksbr }}</div>
+        {% endif %}
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

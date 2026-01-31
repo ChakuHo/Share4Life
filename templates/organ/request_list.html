@@ -1,0 +1,55 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">My Organ Requests</h3>
+        <div class="text-muted">Track verification and matching progress.</div>
+      </div>
+      <a href="{% url 'organ_request_create' %}" class="btn btn-danger">
+        <i class="fa fa-plus"></i> New Request
+      </a>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body table-responsive">
+        <table class="table mb-0 align-middle">
+          <thead>
+            <tr class="text-muted">
+              <th>ID</th>
+              <th>Organ</th>
+              <th>Urgency</th>
+              <th>Hospital</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th class="text-right"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in items %}
+              <tr>
+                <td>#{{ r.id }}</td>
+                <td>{{ r.get_organ_needed_display }}</td>
+                <td><span class="badge badge-light p-2">{{ r.get_urgency_display }}</span></td>
+                <td>{{ r.hospital_name }}</td>
+                <td><span class="badge badge-light p-2">{{ r.get_status_display }}</span></td>
+                <td class="text-muted small">{{ r.created_at|date:"Y-m-d H:i" }}</td>
+                <td class="text-right">
+                  <a class="btn btn-sm btn-primary" href="{% url 'organ_request_detail' r.id %}">View</a>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="7" class="text-muted">No requests yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,229 @@
+{% extends "master/base.html" %}
+{% load static %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container">
+
+    <!-- Header -->
+    <div class="mb-4">
+      <h2 class="font-weight-bold" style="color:#0a2558;">
+        {{ site_settings.about_title|default:"About Share4Life" }}
+      </h2>
+
+      <p class="text-muted mb-2">
+        {{ site_settings.about_intro|default:"Share4Life connects donors, recipients, and verified institutions to save lives faster in emergencies."|linebreaksbr }}
+      </p>
+
+      <div class="d-flex flex-wrap">
+        <a href="{% url 'public_dashboard' %}" class="btn btn-danger mr-2 mb-2">
+          <i class="fa fa-tint mr-2"></i> Blood Requests
+        </a>
+        <a href="{% url 'blood_campaigns' %}" class="btn btn-outline-primary mr-2 mb-2">
+          <i class="fa fa-calendar mr-2"></i> Donation Camps
+        </a>
+        {% if request.user.is_authenticated %}
+          <a href="{% url 'organ_pledge_create' %}" class="btn btn-outline-secondary mb-2">
+            <i class="fa fa-hand-holding-heart mr-2"></i> Organ Pledge
+          </a>
+        {% else %}
+          <a href="{% url 'login' %}" class="btn btn-outline-secondary mb-2">
+            <i class="fa fa-sign-in-alt mr-2"></i> Login for Organ Pledge
+          </a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="row mb-4">
+      <div class="col-md-4 mb-3">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="text-muted small">Active Blood Requests</div>
+                <div class="h3 mb-0">{{ stats.active_requests }}</div>
+              </div>
+              <i class="fa fa-tint text-danger" style="font-size:28px;"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4 mb-3">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="text-muted small">Verified Donations</div>
+                <div class="h3 mb-0">{{ stats.verified_donations }}</div>
+              </div>
+              <i class="fa fa-check-circle text-success" style="font-size:28px;"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4 mb-3">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="text-muted small">Upcoming / Ongoing Camps</div>
+                <div class="h3 mb-0">{{ stats.upcoming_camps }}</div>
+              </div>
+              <i class="fa fa-calendar-alt text-primary" style="font-size:28px;"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trust + How it works -->
+    <div class="row mb-4">
+      <div class="col-lg-6 mb-3">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h4 class="mb-3" style="color:#0a2558;">
+              <i class="fa fa-shield-alt text-primary mr-2"></i> Trust & Safety
+            </h4>
+            <div class="text-muted" style="white-space: pre-line;">
+              {{ site_settings.about_trust_safety|default:""|linebreaksbr }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6 mb-3">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h4 class="mb-3" style="color:#0a2558;">
+              <i class="fa fa-route text-primary mr-2"></i> How It Works
+            </h4>
+            <div class="text-muted" style="white-space: pre-line;">
+              {{ site_settings.about_how_it_works|default:""|linebreaksbr }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Team -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h4 class="mb-0" style="color:#0a2558;">
+            <i class="fa fa-users text-primary mr-2"></i> Our Team
+          </h4>
+        </div>
+
+        <div class="row">
+          {% for m in team %}
+            <div class="col-md-4 mb-3">
+              <div class="border rounded p-3 h-100">
+                <div class="d-flex align-items-center">
+                  {% if m.photo %}
+                    <img src="{{ m.photo.url }}"
+                         alt="{{ m.name }}"
+                         style="width:56px;height:56px;object-fit:cover;border-radius:999px;"
+                         class="mr-3">
+                  {% else %}
+                    <div class="mr-3 d-flex align-items-center justify-content-center"
+                         style="width:56px;height:56px;border-radius:999px;background:#f1f3f5;color:#0a2558;">
+                      <i class="fa fa-user"></i>
+                    </div>
+                  {% endif %}
+
+                  <div>
+                    <div class="font-weight-bold">{{ m.name }}</div>
+                    <div class="text-muted small">{{ m.role }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% empty %}
+            <div class="col-12 text-muted">No team members added yet.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Gallery preview (FIXED) -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+          <h4 class="mb-0" style="color:#0a2558;">
+            <i class="fa fa-images text-primary mr-2"></i> Gallery Preview
+          </h4>
+          <a href="{% url 'gallery_list' %}" class="btn btn-outline-primary btn-sm mt-2 mt-md-0">
+            View Full Gallery
+          </a>
+        </div>
+
+        <div class="row">
+          {% for g in gallery %}
+            <div class="col-md-3 col-6 mb-3">
+              <a href="{% url 'gallery_detail' g.id %}" class="text-decoration-none">
+                <div class="card border-0 shadow-sm h-100">
+                  <img src="{{ g.image.url }}"
+                       alt="{{ g.title|default:'Gallery' }}"
+                       style="height:150px;width:100%;object-fit:cover;border-radius:12px;">
+                </div>
+              </a>
+              {% if g.title %}
+                <div class="text-muted small mt-1">{{ g.title }}</div>
+              {% endif %}
+            </div>
+          {% empty %}
+            <div class="col-12 text-muted">No gallery images yet.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Contact -->
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h4 class="mb-3" style="color:#0a2558;">
+          <i class="fa fa-phone text-primary mr-2"></i> Contact
+        </h4>
+
+        <div class="text-muted">
+          {% if site_settings.contact_phone %}
+            <div class="mb-2"><strong>Phone:</strong> {{ site_settings.contact_phone }}</div>
+          {% endif %}
+          {% if site_settings.contact_email %}
+            <div class="mb-2"><strong>Email:</strong> {{ site_settings.contact_email }}</div>
+          {% endif %}
+          {% if site_settings.address %}
+            <div class="mb-2"><strong>Address:</strong> {{ site_settings.address }}</div>
+          {% endif %}
+        </div>
+
+        {% if site_settings.facebook_url or site_settings.instagram_url or site_settings.twitter_url %}
+          <hr>
+          <div class="d-flex flex-wrap">
+            {% if site_settings.facebook_url %}
+              <a class="btn btn-outline-primary btn-sm mr-2 mb-2" target="_blank" href="{{ site_settings.facebook_url }}">
+                <i class="fab fa-facebook mr-1"></i> Facebook
+              </a>
+            {% endif %}
+            {% if site_settings.instagram_url %}
+              <a class="btn btn-outline-danger btn-sm mr-2 mb-2" target="_blank" href="{{ site_settings.instagram_url }}">
+                <i class="fab fa-instagram mr-1"></i> Instagram
+              </a>
+            {% endif %}
+            {% if site_settings.twitter_url %}
+              <a class="btn btn-outline-info btn-sm mb-2" target="_blank" href="{{ site_settings.twitter_url }}">
+                <i class="fab fa-twitter mr-1"></i> Twitter
+              </a>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

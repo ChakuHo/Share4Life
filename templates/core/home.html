@@ -3,7 +3,6 @@
 
 {% block content %}
 
-{# Safe URL variables (as-var will not crash; it becomes "" if missing) #}
 {% url 'login' as login_url %}
 {% url 'register' as register_url %}
 {% url 'profile' as profile_url %}
@@ -15,7 +14,7 @@
 {% url 'recipient_request' as recipient_request_url %}
 {% url 'blood_campaigns' as blood_campaigns_url %}
 {% url 'institutions_home' as institutions_home_url %}
-
+  
 <!-- ========================= 1. HERO SECTION ========================= -->
 <section class="section-intro padding-y-lg text-white"
   style="background: linear-gradient(rgba(10, 37, 88, 0.90), rgba(10, 37, 88, 0.80)),

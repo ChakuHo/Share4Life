@@ -1,0 +1,96 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 980px;">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Organ Request #{{ obj.id }}</h3>
+        <div class="text-muted">Status: <strong>{{ obj.get_status_display }}</strong></div>
+      </div>
+      <a href="{% url 'organ_request_list' %}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Back
+      </a>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-4 mb-2">
+            <div class="text-muted small">Patient</div>
+            <div class="font-weight-bold">{{ obj.patient_name }}</div>
+          </div>
+          <div class="col-md-4 mb-2">
+            <div class="text-muted small">Organ Needed</div>
+            <div class="font-weight-bold">{{ obj.get_organ_needed_display }}</div>
+          </div>
+          <div class="col-md-4 mb-2">
+            <div class="text-muted small">Urgency</div>
+            <div class="font-weight-bold">{{ obj.get_urgency_display }}</div>
+          </div>
+        </div>
+
+        <div class="text-muted small">
+          Hospital: <strong>{{ obj.hospital_name }}</strong> • City: <strong>{{ obj.city }}</strong><br>
+          Contact: <strong>{{ obj.contact_phone }}</strong>
+        </div>
+
+        {% if obj.rejection_reason and obj.status == "REJECTED" %}
+          <div class="alert alert-danger mt-3 mb-0">
+            <strong>Rejection reason:</strong> {{ obj.rejection_reason }}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="mb-3"><i class="fa fa-file-medical text-primary"></i> Medical Documents</h5>
+
+        {% for d in obj.documents.all %}
+          <div class="border rounded p-3 mb-2">
+            <div class="d-flex justify-content-between">
+              <strong>{{ d.get_doc_type_display }}</strong>
+              <small class="text-muted">{{ d.uploaded_at|date:"Y-m-d H:i" }}</small>
+            </div>
+            {% if d.note %}<div class="text-muted small mt-1">{{ d.note }}</div>{% endif %}
+            <a class="btn btn-sm btn-outline-secondary mt-2" target="_blank" href="{{ d.file.url }}">
+              View File
+            </a>
+          </div>
+        {% empty %}
+          <div class="text-muted">No documents uploaded yet.</div>
+        {% endfor %}
+
+        <hr>
+
+        <h6 class="mb-2">Upload Document</h6>
+        <form method="post" enctype="multipart/form-data" action="{% url 'organ_request_doc_upload' obj.id %}">
+          {% csrf_token %}
+          <div class="form-row">
+            <div class="form-group col-md-4">
+              <label class="font-weight-bold">Type</label>
+              {{ doc_form.doc_type }}
+            </div>
+            <div class="form-group col-md-5">
+              <label class="font-weight-bold">File</label>
+              {{ doc_form.file }}
+            </div>
+            <div class="form-group col-md-3">
+              <label class="font-weight-bold">Note</label>
+              {{ doc_form.note }}
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" type="submit">
+            <i class="fa fa-upload"></i> Upload
+          </button>
+        </form>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

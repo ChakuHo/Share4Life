@@ -1,0 +1,66 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">My Organ Pledges</h3>
+        <div class="text-muted">Track pledge status and verification.</div>
+      </div>
+      <a href="{% url 'organ_pledge_create' %}" class="btn btn-danger">
+        <i class="fa fa-plus"></i> New Pledge
+      </a>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table mb-0 align-middle">
+            <thead>
+              <tr class="text-muted">
+                <th>ID</th>
+                <th>Type</th>
+                <th>Organs</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th class="text-right"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in pledges %}
+                <tr>
+                  <td>#{{ p.id }}</td>
+                  <td>{{ p.get_pledge_type_display }}</td>
+                  <td>
+                    {% if p.organ_names %}
+                      {{ p.organ_names|join:", " }}
+                    {% else %}
+                      {{ p.organs|join:", " }}
+                    {% endif %}
+                  </td>
+                  <td>
+                    <span class="badge badge-light p-2">{{ p.get_status_display }}</span>
+                  </td>
+                  <td class="text-muted small">{{ p.created_at|date:"Y-m-d H:i" }}</td>
+                  <td class="text-right">
+                    <a class="btn btn-sm btn-primary" href="{% url 'organ_pledge_detail' p.id %}">
+                      View
+                    </a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="6" class="text-muted">No pledges yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

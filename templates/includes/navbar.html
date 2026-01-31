@@ -18,14 +18,21 @@
 {% url 'my_blood_requests' as my_requests_url %}
 {% url 'blood_campaigns' as blood_campaigns_url %}
 
-{# Communication inbox (safe) #}
+{# Communication inbox #}
 {% url 'inbox' as inbox_url %}
 
-{# Organization links #}
+{# Organization (Institutions) links #}
 {% url 'institutions_home' as institutions_home_url %}
 {% url 'org_register' as org_register_url %}
 {% url 'org_portal' as org_portal_url %}
 {% url 'org_pending' as org_pending_url %}
+
+{# Organ app links (NEW) #}
+{% url 'organ_pledge_list' as organ_pledge_list_url %}
+{% url 'organ_pledge_create' as organ_pledge_create_url %}
+{% url 'organ_request_list' as organ_request_list_url %}
+{% url 'organ_request_create' as organ_request_create_url %}
+{% url 'organ_portal' as organ_portal_url %}
 
 <!-- TOP BAR (NAVY) -->
 <div class="s4l-topbar">
@@ -73,11 +80,28 @@
       </div>
 
       <!-- CENTER NAV -->
-      <div class="col-lg-5 d-none d-lg-block text-center">
+      <div class="col-lg-6 d-none d-lg-block text-center">
         <nav class="nav justify-content-center s4l-menu">
           <a class="nav-link" href="{{ blood_feed_url }}">Find Blood</a>
           <a class="nav-link" href="{{ blood_campaigns_url }}">Donation Camps</a>
 
+          {# Organ link (context-aware) #}
+          {% if user.is_authenticated %}
+            {% if user.is_donor and organ_pledge_list_url %}
+              <a class="nav-link" href="{{ organ_pledge_list_url }}">Organ</a>
+            {% elif user.is_recipient and organ_request_list_url %}
+              <a class="nav-link" href="{{ organ_request_list_url }}">Organ</a>
+            {% elif organ_pledge_create_url %}
+              <a class="nav-link" href="{{ organ_pledge_create_url }}">Organ</a>
+            {% else %}
+              <a class="nav-link" href="#">Organ</a>
+            {% endif %}
+          {% else %}
+            {# Not logged in → send to login #}
+            <a class="nav-link" href="{{ login_url }}">Organ</a>
+          {% endif %}
+
+          {# Institutions #}
           {% if user.is_authenticated %}
             {% if org_membership %}
               <a class="nav-link" href="{{ org_portal_url }}">Institutions</a>
@@ -90,12 +114,13 @@
             <a class="nav-link" href="{{ institutions_home_url }}">Institutions</a>
           {% endif %}
 
-          <a class="nav-link" href="#">About</a>
+          {% url 'about' as about_url %}
+          <a class="nav-link" href="{{ about_url|default:'#' }}">About</a>
         </nav>
       </div>
 
       <!-- RIGHT -->
-      <div class="col-lg-4 col-md-9 col-6 d-flex justify-content-end align-items-center">
+      <div class="col-lg-3 col-md-9 col-6 d-flex justify-content-end align-items-center">
 
         <!-- Request Blood (pulse) -->
         {% if user.is_authenticated and user.is_recipient %}
@@ -143,13 +168,34 @@
 
               {% if user.is_recipient %}
                 <a class="dropdown-item" href="{{ my_requests_url }}">
-                  <i class="fa fa-clipboard-list mr-2 text-primary"></i> My Requests
+                  <i class="fa fa-clipboard-list mr-2 text-primary"></i> My Blood Requests
                 </a>
               {% endif %}
 
               {% if user.is_donor %}
                 <a class="dropdown-item" href="{{ donor_history_url }}">
                   <i class="fa fa-history mr-2 text-primary"></i> Donation History
+                </a>
+              {% endif %}
+
+              {# Organ links (NEW) #}
+              <div class="dropdown-divider"></div>
+
+              {% if organ_pledge_list_url %}
+                <a class="dropdown-item" href="{{ organ_pledge_list_url }}">
+                  <i class="fa fa-hand-holding-heart mr-2 text-primary"></i> My Organ Pledges
+                </a>
+              {% endif %}
+
+              {% if organ_request_list_url %}
+                <a class="dropdown-item" href="{{ organ_request_list_url }}">
+                  <i class="fa fa-file-medical mr-2 text-primary"></i> My Organ Requests
+                </a>
+              {% endif %}
+
+              {% if org_membership and organ_portal_url %}
+                <a class="dropdown-item" href="{{ organ_portal_url }}">
+                  <i class="fa fa-shield-alt mr-2 text-primary"></i> Organ Portal
                 </a>
               {% endif %}
 
@@ -165,6 +211,8 @@
               {% endif %}
 
               <!-- Institution -->
+              <div class="dropdown-divider"></div>
+
               {% if org_membership %}
                 <a class="dropdown-item" href="{{ org_portal_url }}">
                   <i class="fa fa-hospital mr-2 text-primary"></i> Institution Portal
@@ -258,11 +306,27 @@
       {% endif %}
 
       <a href="{{ blood_feed_url }}" class="d-block py-2 text-dark border-bottom">Find Blood</a>
-      <a href="#" class="d-block py-2 text-dark border-bottom">Crowdfunding</a>
+      <a href="{{ blood_campaigns_url }}" class="d-block py-2 text-dark border-bottom">Donation Camps</a>
+
+      {# Organ links #}
+      {% if user.is_authenticated %}
+        {% if user.is_donor and organ_pledge_list_url %}
+          <a href="{{ organ_pledge_list_url }}" class="d-block py-2 text-dark border-bottom">Organ Pledges</a>
+        {% elif user.is_recipient and organ_request_list_url %}
+          <a href="{{ organ_request_list_url }}" class="d-block py-2 text-dark border-bottom">Organ Requests</a>
+        {% elif organ_pledge_create_url %}
+          <a href="{{ organ_pledge_create_url }}" class="d-block py-2 text-dark border-bottom">Organ</a>
+        {% endif %}
+      {% else %}
+        <a href="{{ login_url }}" class="d-block py-2 text-dark border-bottom">Organ</a>
+      {% endif %}
 
       {% if user.is_authenticated %}
         {% if org_membership %}
           <a href="{{ org_portal_url }}" class="d-block py-2 text-dark border-bottom">Institutions</a>
+          {% if organ_portal_url %}
+            <a href="{{ organ_portal_url }}" class="d-block py-2 text-dark border-bottom">Organ Portal</a>
+          {% endif %}
         {% elif org_application %}
           <a href="{{ org_pending_url }}" class="d-block py-2 text-dark border-bottom">Institutions</a>
         {% else %}
@@ -276,7 +340,7 @@
 
       {% if user.is_authenticated %}
         {% if profile_url %}<a href="{{ profile_url }}" class="d-block py-2 text-dark border-bottom">Profile</a>{% endif %}
-        {% if user.is_recipient %}<a href="{{ my_requests_url }}" class="d-block py-2 text-dark border-bottom">My Requests</a>{% endif %}
+        {% if user.is_recipient %}<a href="{{ my_requests_url }}" class="d-block py-2 text-dark border-bottom">My Blood Requests</a>{% endif %}
         {% if user.is_donor %}<a href="{{ donor_history_url }}" class="d-block py-2 text-dark border-bottom">Donation History</a>{% endif %}
 
         {% if inbox_url %}
@@ -313,6 +377,8 @@
 
   .s4l-menu .nav-link { color:#444; font-weight:700; font-size:15px; padding:0.35rem 0.9rem; }
   .s4l-menu .nav-link:hover { color: var(--primary-color); }
+  .s4l-menu { flex-wrap: nowrap; }
+  .s4l-menu .nav-link { white-space: nowrap; }
 
   .s4l-avatar { width:36px; height:36px; border-radius:999px; object-fit:cover; border:2px solid #e9ecef; }
   .s4l-avatar-fallback { width:36px; height:36px; border-radius:999px; background:#f1f3f5; color:var(--primary-color); display:flex; align-items:center; justify-content:center; border:2px solid #e9ecef; }

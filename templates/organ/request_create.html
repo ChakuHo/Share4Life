@@ -1,0 +1,94 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 900px;">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Create Organ Request</h3>
+        <div class="text-muted">Submit request with hospital and medical details.</div>
+      </div>
+      <a href="{% url 'organ_request_list' %}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> My Requests
+      </a>
+    </div>
+
+    <div class="alert alert-info">
+      <strong>Note:</strong> Organ requests go through institution verification before matching.
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label class="font-weight-bold">Patient name</label>
+              {{ form.patient_name }}
+              {% for e in form.patient_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="form-group col-md-3">
+              <label class="font-weight-bold">Organ needed</label>
+              {{ form.organ_needed }}
+              {% for e in form.organ_needed.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="form-group col-md-3">
+              <label class="font-weight-bold">Urgency</label>
+              {{ form.urgency }}
+              {% for e in form.urgency.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label class="font-weight-bold">Hospital name</label>
+              {{ form.hospital_name }}
+              {% for e in form.hospital_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="form-group col-md-3">
+              <label class="font-weight-bold">City</label>
+              {{ form.city }}
+              {% for e in form.city.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="form-group col-md-3">
+              <label class="font-weight-bold">Contact phone</label>
+              {{ form.contact_phone }}
+              {% for e in form.contact_phone.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="font-weight-bold">Note (optional)</label>
+            {{ form.note }}
+            {% for e in form.note.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+
+          <button class="btn btn-danger btn-lg btn-block" type="submit" id="req-btn">
+            <i class="fa fa-paper-plane"></i> Submit Request
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const btn = document.getElementById('req-btn');
+  const form = btn ? btn.closest('form') : null;
+  if (!btn || !form) return;
+  form.addEventListener('submit', function(){
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Submitting...';
+  });
+});
+</script>
+
+{% endblock %}
