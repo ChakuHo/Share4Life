@@ -32,6 +32,8 @@ urlpatterns = [
     path("about/", core_views.about, name="about"),
     path("gallery/", core_views.gallery_list, name="gallery_list"),
     path("gallery/<int:pk>/", core_views.gallery_detail, name="gallery_detail"),
+
+    path("crowdfunding/", include("crowdfunding.urls")),
 ]
 
 if settings.DEBUG:

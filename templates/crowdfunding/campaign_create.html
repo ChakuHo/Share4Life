@@ -1,0 +1,85 @@
+{% extends "master/base.html" %}
+{% block content %}
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 900px;">
+    <h3 class="mb-3" style="font-weight:900;color:#0a2558;">Create Campaign</h3>
+
+    <div class="alert alert-info">
+      Only KYC verified users can create campaigns. Admin approval is required.
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="form-group">
+            <label class="font-weight-bold">Title</label>
+            {{ form.title }}
+            {% for e in form.title.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="form-group">
+            <label class="font-weight-bold">Patient name</label>
+            {{ form.patient_name }}
+            {% for e in form.patient_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="form-group">
+            <label class="font-weight-bold">Description</label>
+            {{ form.description }}
+            {% for e in form.description.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="form-group">
+            <label class="font-weight-bold">Campaign image</label>
+            {{ form.image }}
+            {% for e in form.image.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label class="font-weight-bold">Target amount</label>
+              {{ form.target_amount }}
+              {% for e in form.target_amount.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="form-group col-md-6">
+              <label class="font-weight-bold">Deadline</label>
+              {{ form.deadline }}
+              {% for e in form.deadline.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-md-4">
+              <label class="font-weight-bold">Hospital name</label>
+              {{ form.hospital_name }}
+              {% for e in form.hospital_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="form-group col-md-4">
+              <label class="font-weight-bold">Hospital city</label>
+              {{ form.hospital_city }}
+              {% for e in form.hospital_city.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="form-group col-md-4">
+              <label class="font-weight-bold">Hospital contact phone</label>
+              {{ form.hospital_contact_phone }}
+              {% for e in form.hospital_contact_phone.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+          </div>
+
+          <hr>
+          <h5 class="mb-2">Proof Document (Required)</h5>
+
+          <div class="form-row">
+            <div class="form-group col-md-4">
+              <label class="font-weight-bold">Proof type</label>
+              {{ form.proof_type }}
+              {% for e in form.proof_type.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="form-group col-md-8">
+              <label 

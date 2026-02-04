@@ -1,0 +1,51 @@
+{% extends "master/base.html" %}
+{% block content %}
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 1000px;">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-0" style="font-weight:900;color:#0a2558;">My Contributions</h3>
+        <div class="text-muted small">Total successful contributions: <b>Rs. {{ total_amount }}</b></div>
+      </div>
+      <a class="btn btn-outline-secondary" href="{% url 'profile' %}">
+        <i class="fa fa-arrow-left"></i> Profile
+      </a>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body table-responsive">
+        <table class="table mb-0">
+          <thead>
+            <tr class="text-muted">
+              <th>Date</th>
+              <th>Campaign</th>
+              <th>Gateway</th>
+              <th>Status</th>
+              <th class="text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in items %}
+              <tr>
+                <td class="text-muted small">{{ d.created_at|date:"Y-m-d H:i" }}</td>
+                <td>
+                  <a href="{% url 'campaign_detail' d.campaign_id %}">{{ d.campaign.title }}</a>
+                </td>
+                <td>{{ d.gateway }}</td>
+                <td>
+                  <span class="badge badge-light p-2">{{ d.status }}</span>
+                </td>
+                <td class="text-right">Rs. {{ d.amount }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="text-muted">No donations yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,253 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 1000px;">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1" style="font-weight:900;color:#0a2558;">{{ camp.title }}</h3>
+        <div class="text-muted">
+          Patient: {{ camp.patient_name }}
+          {% if camp.hospital_name %} • Hospital: {{ camp.hospital_name }}{% endif %}
+          {% if camp.hospital_city %} • {{ camp.hospital_city }}{% endif %}
+          {% if camp.deadline %} • Deadline: {{ camp.deadline }}{% endif %}
+        </div>
+      </div>
+
+      <a href="{% url 'campaign_list' %}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Back
+      </a>
+    </div>
+
+    {# Status banners (visible to everyone who can view this page) #}
+    {% if camp.status == "PENDING" %}
+      <div class="alert alert-warning">
+        <strong>Pending review.</strong>
+        This campaign will be visible for public donations after admin approval.
+      </div>
+    {% elif camp.status == "REJECTED" %}
+      <div class="alert alert-danger">
+        <strong>Campaign rejected.</strong><br>
+        Reason: {{ camp.rejection_reason|default:"Rejected by admin." }}
+      </div>
+    {% elif camp.status == "COMPLETED" %}
+      <div class="alert alert-success">
+        <strong>Target reached.</strong> This campaign has reached its goal. Donations are closed.
+      </div>
+    {% endif %}
+
+    <div class="card shadow-sm mb-3">
+      {% if camp.image %}
+        <img src="{{ camp.image.url }}" class="img-fluid"
+             alt="{{ camp.title }}"
+             style="border-top-left-radius:12px;border-top-right-radius:12px;max-height:340px;object-fit:cover;width:100%;">
+      {% endif %}
+
+      <div class="card-body">
+        <div class="row">
+
+          <!-- LEFT: Story + Docs + Proof + Report -->
+          <div class="col-md-8 mb-3 mb-md-0">
+            <h5 class="mb-2">Story</h5>
+            <div class="text-muted">{{ camp.description|linebreaksbr }}</div>
+
+            <hr>
+            <h5 class="mb-2">Verification Documents</h5>
+            {% for d in documents %}
+              <div class="border rounded p-2 mb-2">
+                <strong>{{ d.get_doc_type_display }}</strong>
+                <a href="{{ d.file.url }}" target="_blank" class="btn btn-sm btn-outline-secondary ml-2">View</a>
+              </div>
+            {% empty %}
+              <div class="text-muted">No documents uploaded.</div>
+            {% endfor %}
+
+            <hr>
+            <h5 class="mb-2">Disbursement Proof (Public)</h5>
+            {% for x in disbursements %}
+              <div class="border rounded p-3 mb-2">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <strong>Released: Rs. {{ x.amount }}</strong>
+                    <div class="text-muted small">{{ x.released_at|date:"Y-m-d H:i" }}</div>
+                  </div>
+                  <a href="{{ x.proof_file.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                    View Proof
+                  </a>
+                </div>
+                {% if x.note %}
+                  <div class="text-muted small mt-2">{{ x.note|linebreaksbr }}</div>
+                {% endif %}
+              </div>
+            {% empty %}
+              <div class="text-muted">No disbursement proof uploaded yet.</div>
+            {% endfor %}
+
+            <hr>
+            <h5 class="mb-2">Report this campaign</h5>
+            <div class="text-muted small mb-2">
+              If you suspect fraud or wrong documents, report it for admin review.
+            </div>
+
+            <form method="post" action="{% url 'campaign_report' camp.id %}" novalidate>
+              {% csrf_token %}
+
+              {% if report_form.non_field_errors %}
+                <div class="alert alert-danger">{{ report_form.non_field_errors }}</div>
+              {% endif %}
+
+              <div class="form-row">
+                <div class="form-group col-md-4">
+                  <label class="font-weight-bold">Reason</label>
+                  {{ report_form.reason }}
+                  {% for e in report_form.reason.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                </div>
+                <div class="form-group col-md-8">
+                  <label class="font-weight-bold">Message</label>
+                  {{ report_form.message }}
+                  {% for e in report_form.message.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                </div>
+              </div>
+
+              {% if not request.user.is_authenticated %}
+                <div class="form-row">
+                  <div class="form-group col-md-6">
+                    <label class="font-weight-bold">Your Name</label>
+                    {{ report_form.guest_name }}
+                    {% for e in report_form.guest_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                  </div>
+                  <div class="form-group col-md-6">
+                    <label class="font-weight-bold">Your Email</label>
+                    {{ report_form.guest_email }}
+                    {% for e in report_form.guest_email.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                  </div>
+                </div>
+              {% endif %}
+
+              <button class="btn btn-outline-danger btn-sm" type="submit">
+                Submit Report
+              </button>
+            </form>
+
+          </div>
+
+          <!-- RIGHT: Progress + Donate -->
+          <div class="col-md-4">
+            <div class="border rounded p-3">
+
+              <div class="text-muted small">Raised</div>
+              <div class="h4 mb-0">Rs. {{ raised_total }}</div>
+              <div class="text-muted small mt-2">Goal: Rs. {{ camp.target_amount }}</div>
+
+              <div class="progress mt-3" style="height:10px;">
+                <div class="progress-bar bg-success s4l-progress"
+                     data-pct="{{ pct }}"
+                     role="progressbar"
+                     aria-valuemin="0"
+                     aria-valuemax="100"></div>
+              </div>
+
+              <div class="text-muted small mt-2">Donors: {{ donor_count }}</div>
+
+              {% if available_balance is not None %}
+                <div class="text-muted small mt-1">
+                  Available balance: Rs. {{ available_balance }}
+                </div>
+              {% endif %}
+
+              {% if open_reports_count %}
+                <div class="alert alert-warning mt-3 mb-0">
+                  Reports pending review: <strong>{{ open_reports_count }}</strong>
+                </div>
+              {% endif %}
+
+              <hr>
+
+              {# Donation rules #}
+              {% if camp.status != "APPROVED" %}
+                <div class="alert alert-info mb-0">
+                  Donations are available only after admin approval.
+                </div>
+
+              {% elif camp.is_expired %}
+                <div class="alert alert-warning mb-0">
+                  Campaign deadline has passed. Donations are closed.
+                </div>
+
+              {% elif camp.status == "COMPLETED" %}
+                <div class="alert alert-success mb-0">
+                  Target reached. Donations are closed.
+                </div>
+
+              {% else %}
+                <form method="post" action="{% url 'donate_start' camp.id %}" novalidate>
+                  {% csrf_token %}
+
+                  {% if donation_form.non_field_errors %}
+                    <div class="alert alert-danger">{{ donation_form.non_field_errors }}</div>
+                  {% endif %}
+
+                  <div class="form-group">
+                    <label class="font-weight-bold">Amount</label>
+                    {{ donation_form.amount }}
+                    {% for e in donation_form.amount.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                  </div>
+
+                  <div class="form-group">
+                    <label class="font-weight-bold">Payment Gateway</label>
+                    {{ donation_form.gateway }}
+                    {% for e in donation_form.gateway.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                  </div>
+
+                  {% if not request.user.is_authenticated %}
+                    <div class="form-group">
+                      <label class="font-weight-bold">Your Name</label>
+                      {{ donation_form.guest_name }}
+                      {% for e in donation_form.guest_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                      <label class="font-weight-bold">Phone</label>
+                      {{ donation_form.guest_phone }}
+                      {% for e in donation_form.guest_phone.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group">
+                      <label class="font-weight-bold">Email (optional)</label>
+                      {{ donation_form.guest_email }}
+                      {% for e in donation_form.guest_email.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                    </div>
+                  {% endif %}
+
+                  <button class="btn btn-danger btn-block" type="submit">Donate</button>
+                </form>
+              {% endif %}
+
+              {% if request.user.is_staff %}
+                <a href="{% url 'disburse_create' camp.id %}" class="btn btn-outline-primary btn-block mt-2">
+                  Upload Disbursement Proof
+                </a>
+              {% endif %}
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+  document.querySelectorAll(".s4l-progress").forEach(function(el){
+    var pct = parseInt(el.getAttribute("data-pct") || "0", 10);
+    if (isNaN(pct)) pct = 0;
+    pct = Math.max(0, Math.min(100, pct));
+    el.style.width = pct + "%";
+    el.setAttribute("aria-valuenow", String(pct));
+  });
+});
+</script>
+
+{% endblock %}

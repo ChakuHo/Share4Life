@@ -172,3 +172,24 @@ CHANNEL_LAYERS = {
         "BACKEND": "channels.layers.InMemoryChannelLayer",  # dev
     }
 }
+
+
+# --- Khalti (Sandbox) ---
+KHALTI_PUBLIC_KEY = os.environ.get("KHALTI_PUBLIC_KEY", "")
+KHALTI_SECRET_KEY = os.environ.get("KHALTI_SECRET_KEY", "")
+
+# Khalti base URL
+KHALTI_BASE_URL = os.environ.get("KHALTI_BASE_URL", "https://a.khalti.com/api/v2")
+KHALTI_WEBSITE_URL = os.environ.get("KHALTI_WEBSITE_URL", "http://127.0.0.1:8000")
+
+# esewa
+ESEWA_PRODUCT_CODE = os.environ.get("ESEWA_PRODUCT_CODE", "EPAYTEST")
+ESEWA_SECRET_KEY = os.environ.get("ESEWA_SECRET_KEY", "8gBm/:&EnhH.1/q")
+
+ESEWA_FORM_URL = os.environ.get(
+    "ESEWA_FORM_URL",
+    "https://rc-epay.esewa.com.np/api/epay/main/v2/form"
+)
+
+# After target reached: keep public for 1 day then archive the crowdfunding campaign
+CAMPAIGN_ARCHIVE_AFTER_DAYS = int(os.environ.get("CAMPAIGN_ARCHIVE_AFTER_DAYS", "1"))

@@ -27,12 +27,16 @@
 {% url 'org_portal' as org_portal_url %}
 {% url 'org_pending' as org_pending_url %}
 
-{# Organ app links (NEW) #}
+{# Organ app links #}
 {% url 'organ_pledge_list' as organ_pledge_list_url %}
 {% url 'organ_pledge_create' as organ_pledge_create_url %}
 {% url 'organ_request_list' as organ_request_list_url %}
 {% url 'organ_request_create' as organ_request_create_url %}
 {% url 'organ_portal' as organ_portal_url %}
+
+{# Crowdfunding links#}
+{% url 'campaign_list' as campaign_list_url %}
+{% url 'my_donations' as my_donations_url %}
 
 <!-- TOP BAR (NAVY) -->
 <div class="s4l-topbar">
@@ -80,7 +84,7 @@
       </div>
 
       <!-- CENTER NAV -->
-      <div class="col-lg-6 d-none d-lg-block text-center">
+      <div class="col-lg-5 d-none d-lg-block text-center s4l-center-col">
         <nav class="nav justify-content-center s4l-menu">
           <a class="nav-link" href="{{ blood_feed_url }}">Find Blood</a>
           <a class="nav-link" href="{{ blood_campaigns_url }}">Donation Camps</a>
@@ -114,13 +118,15 @@
             <a class="nav-link" href="{{ institutions_home_url }}">Institutions</a>
           {% endif %}
 
+          <a class="nav-link" href="{{ campaign_list_url|default:'#' }}">Crowdfunding</a>
+
           {% url 'about' as about_url %}
           <a class="nav-link" href="{{ about_url|default:'#' }}">About</a>
         </nav>
       </div>
 
       <!-- RIGHT -->
-      <div class="col-lg-3 col-md-9 col-6 d-flex justify-content-end align-items-center">
+      <div class="col-lg-4 col-md-9 col-6 d-flex justify-content-end align-items-center flex-nowrap s4l-right-col">
 
         <!-- Request Blood (pulse) -->
         {% if user.is_authenticated and user.is_recipient %}
@@ -178,7 +184,13 @@
                 </a>
               {% endif %}
 
-              {# Organ links (NEW) #}
+              {% if my_donations_url %}
+                <a class="dropdown-item" href="{{ my_donations_url }}">
+                  <i class="fa fa-hand-holding-heart mr-2 text-primary"></i> My Contributions
+                </a>
+              {% endif %}
+
+              {# Organ links #}
               <div class="dropdown-divider"></div>
 
               {% if organ_pledge_list_url %}
@@ -273,10 +285,12 @@
           </div>
         {% else %}
           {% if login_url %}
-            <a href="{{ login_url }}" class="text-dark font-weight-bold mr-3 text-decoration-none">Log In</a>
+            <a href="{{ login_url }}" class="text-dark font-weight-bold mr-3 text-decoration-none" style="white-space:nowrap;">
+              Log In
+            </a>
           {% endif %}
           {% if register_url %}
-            <a href="{{ register_url }}" class="btn btn-outline-primary rounded-pill px-3 font-weight-bold">
+            <a href="{{ register_url }}" class="btn btn-outline-primary rounded-pill px-3 font-weight-bold" style="white-space:nowrap;">
               Join Now
             </a>
           {% endif %}
@@ -307,6 +321,7 @@
 
       <a href="{{ blood_feed_url }}" class="d-block py-2 text-dark border-bottom">Find Blood</a>
       <a href="{{ blood_campaigns_url }}" class="d-block py-2 text-dark border-bottom">Donation Camps</a>
+      <a href="{{ campaign_list_url|default:'#' }}" class="d-block py-2 text-dark border-bottom">Crowdfunding</a>
 
       {# Organ links #}
       {% if user.is_authenticated %}
@@ -336,12 +351,19 @@
         <a href="{{ institutions_home_url }}" class="d-block py-2 text-dark border-bottom">Institutions</a>
       {% endif %}
 
-      <a href="#" class="d-block py-2 text-dark border-bottom">About</a>
+      {% url 'about' as about_url %}
+      <a href="{{ about_url|default:'#' }}" class="d-block py-2 text-dark border-bottom">About</a>
 
       {% if user.is_authenticated %}
         {% if profile_url %}<a href="{{ profile_url }}" class="d-block py-2 text-dark border-bottom">Profile</a>{% endif %}
         {% if user.is_recipient %}<a href="{{ my_requests_url }}" class="d-block py-2 text-dark border-bottom">My Blood Requests</a>{% endif %}
         {% if user.is_donor %}<a href="{{ donor_history_url }}" class="d-block py-2 text-dark border-bottom">Donation History</a>{% endif %}
+
+        {% if my_donations_url %}
+          <a href="{{ my_donations_url }}" class="d-block py-2 text-dark border-bottom">
+            My Contributions
+          </a>
+        {% endif %}
 
         {% if inbox_url %}
           <a href="{{ inbox_url }}" class="d-flex justify-content-between align-items-center py-2 text-dark border-bottom">
@@ -375,6 +397,16 @@
   .s4l-logo { height: 56px; width: auto; }
   .s4l-brand-text { font-weight: 900; color: var(--primary-color); letter-spacing: -1px; }
 
+  /* keep menu clickable even if right side overlaps */
+  .s4l-center-col { position: relative; z-index: 3; }
+  .s4l-menu { position: relative; z-index: 3; }
+  .s4l-right-col { position: relative; z-index: 2; }
+
+  /* Shift right items a bit left on desktop */
+  @media (min-width: 992px){
+    .s4l-right-col { padding-right: 26px; }
+  }
+
   .s4l-menu .nav-link { color:#444; font-weight:700; font-size:15px; padding:0.35rem 0.9rem; }
   .s4l-menu .nav-link:hover { color: var(--primary-color); }
   .s4l-menu { flex-wrap: nowrap; }
@@ -403,6 +435,9 @@
     border-radius:999px;
     border:2px solid rgba(230,57,70,0.35);
     animation: s4lPulse 1.8s infinite;
+
+    /* do not steal clicks from About/other links */
+    pointer-events: none;
   }
   @keyframes s4lPulse {
     0% { transform: scale(0.92); opacity: 1; }

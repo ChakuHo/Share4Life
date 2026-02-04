@@ -28,7 +28,10 @@ from .models import CustomUser, UserProfile, FamilyMember, KYCProfile, KYCDocume
 from .tokens import make_email_token, read_email_token
 
 from blood.models import PublicBloodRequest
-from crowdfunding.models import Campaign
+from crowdfunding.models import Campaign, Donation
+from django.db.models import Sum
+from crowdfunding.models import Donation
+
 
 User = get_user_model()
 
@@ -65,7 +68,7 @@ def home(request):
     context = {
         "urgent_requests": all_requests[:5],
         "recent_requests": all_requests[:4],
-        "featured_campaign": Campaign.objects.filter(is_featured=True).first(),
+        "featured_campaign": Campaign.objects.filter(is_featured=True, status__in=["APPROVED", "COMPLETED"]).first(),
     }
     return render(request, "core/home.html", context)
 
@@ -364,6 +367,23 @@ def profile_view(request):
             "progress_percent": progress_percent,
             "eligibility_days": ELIGIBILITY_DAYS,
         }
+    don_total = (
+        Donation.objects
+        .filter(donor_user=request.user, status="SUCCESS")
+        .aggregate(s=Sum("amount"))["s"] or 0
+    )
+    don_count = Donation.objects.filter(donor_user=request.user, status="SUCCESS").count()
+    don_campaigns = (
+        Donation.objects
+        .filter(donor_user=request.user, status="SUCCESS")
+        .values("campaign_id").distinct().count()
+    )
+
+    crowdfunding_stats = {
+        "total_amount": don_total,
+        "count": don_count,
+        "campaigns_supported": don_campaigns,
+    }
 
     return render(request, "accounts/profile.html", {
         "profile": profile,
@@ -380,6 +400,7 @@ def profile_view(request):
         "completion_percent": completion_percent,
         "missing_fields": missing_fields,
         "donor_eligibility": donor_eligibility,
+        "crowdfunding_stats": crowdfunding_stats,
     })
 
 

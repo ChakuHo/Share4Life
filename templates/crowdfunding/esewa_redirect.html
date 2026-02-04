@@ -1,0 +1,29 @@
+{% extends "master/base.html" %}
+{% block content %}
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width:720px;">
+    <div class="card shadow-sm">
+      <div class="card-body text-center">
+        <h4 class="mb-2">Redirecting to eSewa...</h4>
+        <div class="text-muted mb-3">Please do not refresh.</div>
+
+        <form id="esewaForm" method="POST" action="{{ ESEWA_FORM_URL }}">
+          {% for k,v in form.items %}
+            <input type="hidden" name="{{ k }}" value="{{ v }}">
+          {% endfor %}
+          <noscript>
+            <button class="btn btn-primary" type="submit">Continue to eSewa</button>
+          </noscript>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+  var f = document.getElementById("esewaForm");
+  if (f) f.submit();
+});
+</script>
+{% endblock %}

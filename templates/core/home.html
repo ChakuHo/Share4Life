@@ -14,15 +14,26 @@
 {% url 'recipient_request' as recipient_request_url %}
 {% url 'blood_campaigns' as blood_campaigns_url %}
 {% url 'institutions_home' as institutions_home_url %}
-  
-<!-- ========================= 1. HERO SECTION ========================= -->
-<section class="section-intro padding-y-lg text-white"
-  style="background: linear-gradient(rgba(10, 37, 88, 0.90), rgba(10, 37, 88, 0.80)),
-         url('{% if site_settings and site_settings.hero_background %}{{ site_settings.hero_background.url }}{% else %}{% static "images/hospital-bg.jpg" %}{% endif %}')
-         center/cover no-repeat;
-         min-height: 520px; display: flex; align-items: center;">
 
-  <div class="container">
+{# Crowdfunding URLs (safe; becomes "" if not implemented yet) #}
+{% url 'campaign_list' as campaign_list_url %}
+{% if featured_campaign %}
+  {% url 'campaign_detail' featured_campaign.id as campaign_detail_url %}
+{% endif %}
+
+<!-- ========================= 1. HERO SECTION ========================= -->
+<section class="s4l-hero text-white">
+
+  <!-- Background image rendered via HTML (NOT CSS) to avoid VSCode CSS errors -->
+  {% if site_settings and site_settings.hero_background %}
+    <img class="s4l-hero-bg" src="{{ site_settings.hero_background.url }}" alt="" aria-hidden="true">
+  {% else %}
+    <img class="s4l-hero-bg" src="{% static 'images/hospital-bg.jpg' %}" alt="" aria-hidden="true">
+  {% endif %}
+
+  <div class="s4l-hero-overlay"></div>
+
+  <div class="container position-relative" style="z-index:2;">
     <div class="row align-items-center">
 
       <div class="col-md-7">
@@ -31,11 +42,11 @@
         </span>
 
         <h1 class="display-4 font-weight-bold mb-3">
-          {{ site_settings.hero_title|default:"Find Blood Donors Nearby — Fast."|linebreaksbr }}
+          {{ site_settings.hero_title|default:"Every Drop Counts, Every Penny Helps."|linebreaksbr }}
         </h1>
 
         <p class="lead mb-4" style="opacity: 0.9;">
-          {{ site_settings.hero_subtitle|default:"Emergency blood requests, donor matching, and institution verification — all in one platform." }}
+          {{ site_settings.hero_subtitle|default:"Emergency blood requests, donor matching, and verified support — all in one platform." }}
         </p>
 
         <!-- Auth actions -->
@@ -72,7 +83,7 @@
           {% endif %}
         </div>
 
-        <!-- Search Widget (NOW WORKING) -->
+        <!-- Blood Search Widget -->
         <div class="bg-white p-2 rounded shadow-lg d-inline-block w-100" style="max-width: 600px;">
           <form action="{{ blood_feed_url|default:'#' }}" method="GET" class="row no-gutters">
             <div class="col-md-4">
@@ -86,7 +97,8 @@
             </div>
             <div class="col-md-5 border-left">
               <input name="city" type="text" class="form-control border-0"
-                     placeholder="Enter City (Kathmandu / KTM / Lalitpur)" style="height: 50px; padding-left: 20px;">
+                     placeholder="Enter City (Kathmandu / KTM / Lalitpur)"
+                     style="height: 50px; padding-left: 20px;">
             </div>
             <div class="col-md-3">
               <button type="submit" class="btn btn-danger btn-block h-100 font-weight-bold" style="border-radius: 5px;">
@@ -104,7 +116,7 @@
               <i class="fa fa-bolt text-danger mr-2"></i> Real-Time Matching
             </h5>
             <div class="text-muted small mb-3">
-              Donors receive instant pings and can accept/decline in seconds.
+              Donors receive instant pings and can accept, decline, or delay in seconds.
             </div>
 
             <div class="d-flex flex-wrap">
@@ -122,8 +134,8 @@
             <hr>
 
             <div class="text-muted small">
-              <div class="mb-2"><i class="fa fa-check-circle text-success mr-2"></i> Proof required for requests</div>
-              <div class="mb-2"><i class="fa fa-shield-alt text-primary mr-2"></i> Verified donations unlock 90-day eligibility tracking</div>
+              <div class="mb-2"><i class="fa fa-check-circle text-success mr-2"></i> Proof + verification for trust</div>
+              <div class="mb-2"><i class="fa fa-shield-alt text-primary mr-2"></i> Verified donations unlock 90-day eligibility</div>
               <div><i class="fa fa-bell text-warning mr-2"></i> Notifications + email queue supported</div>
             </div>
 
@@ -200,16 +212,17 @@
           <div class="card-body text-center p-4">
             <div class="icon-box mb-3 mx-auto text-success rounded-circle d-flex align-items-center justify-content-center"
                  style="width: 70px; height: 70px; font-size: 28px; background-color: #e0f2f1;">
-              <i class="fa fa-calendar-alt"></i>
+              <i class="fa fa-hand-holding-heart"></i>
             </div>
-            <h5 class="font-weight-bold">Donation Camps</h5>
-            <p class="text-muted">Find upcoming blood donation camps created by verified organizations.</p>
-            <a href="{{ blood_campaigns_url|default:'#' }}" class="btn btn-outline-success btn-sm rounded-pill px-4">
-              View Camps
+            <h5 class="font-weight-bold">Crowdfunding</h5>
+            <p class="text-muted">Support verified medical campaigns and track progress transparently.</p>
+            <a href="{{ campaign_list_url|default:'#' }}" class="btn btn-outline-success btn-sm rounded-pill px-4">
+              View Campaigns
             </a>
           </div>
         </div>
       </div>
+
     </div>
   </div>
 </section>
@@ -257,11 +270,109 @@
   </div>
 </section>
 
+<!-- ========================= 5. CAMPAIGN OF THE MONTH ========================= -->
+<section class="section-content padding-y bg-light">
+  <div class="container">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h3 class="font-weight-bold mb-0" style="color:#0A2558;">Campaign of the Month</h3>
+      <a href="{{ campaign_list_url|default:'#' }}" class="btn btn-outline-primary btn-sm">
+        View All
+      </a>
+    </div>
+
+    {% if featured_campaign %}
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="row align-items-center">
+
+            <div class="col-md-4 mb-3 mb-md-0">
+              {% if featured_campaign.image %}
+                <img src="{{ featured_campaign.image.url }}" class="img-fluid rounded" alt="Campaign">
+              {% else %}
+                <div class="border rounded d-flex align-items-center justify-content-center" style="height:200px;">
+                  <span class="text-muted">No image</span>
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="col-md-8">
+              <div class="text-danger font-weight-bold small mb-1">FEATURED CAMPAIGN</div>
+              <h4 class="font-weight-bold mb-2">{{ featured_campaign.title }}</h4>
+              <div class="text-muted mb-3">{{ featured_campaign.description|truncatechars:180 }}</div>
+
+              {% with pct=featured_campaign.get_percentage %}
+                <div class="progress mb-2" style="height:10px;">
+                  <div class="progress-bar bg-success s4l-progress" role="progressbar"
+                       data-pct="{{ pct }}" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+              {% endwith %}
+
+              <div class="d-flex justify-content-between text-muted small">
+                <div>Raised: Rs. {{ featured_campaign.raised_amount }}</div>
+                <div>Goal: Rs. {{ featured_campaign.target_amount }}</div>
+              </div>
+
+              <div class="mt-3">
+                <a href="{{ campaign_detail_url|default:campaign_list_url|default:'#' }}" class="btn btn-danger">
+                  Donate Now
+                </a>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <div class="alert alert-secondary mb-0">
+        No featured campaign yet.
+      </div>
+    {% endif %}
+
+  </div>
+</section>
+
 <style>
+  .s4l-hero{
+    position: relative;
+    min-height: 520px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+  }
+  .s4l-hero-bg{
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+  }
+  .s4l-hero-overlay{
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(rgba(10, 37, 88, 0.90), rgba(10, 37, 88, 0.80));
+    z-index: 1;
+  }
+
   .card-hover { transition: transform 0.3s ease, box-shadow 0.3s ease; }
   .card-hover:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important; }
   .custom-select-lg { font-size: 16px; color: #495057; }
   .btn-primary { background: linear-gradient(135deg, #0a2558 0%, #061838 100%); border: none; }
 </style>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+  document.querySelectorAll(".s4l-progress").forEach(function(el){
+    var pct = parseInt(el.getAttribute("data-pct") || "0", 10);
+    if (isNaN(pct)) pct = 0;
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    el.style.width = pct + "%";
+    el.setAttribute("aria-valuenow", String(pct));
+  });
+});
+</script>
 
 {% endblock %}
