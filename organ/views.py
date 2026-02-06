@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.db import IntegrityError
 from django.db.models import Q
+from django.db.utils import NotSupportedError
 
 from communication.models import Notification
 from hospitals.permissions import org_member_required
@@ -31,6 +32,42 @@ def _notify_user(user, title, body="", url="", level="INFO"):
 
 def _norm_city(s: str) -> str:
     return " ".join((s or "").strip().lower().split())
+
+
+def _notify_org_members(org, title, body="", url="", level="INFO"):
+    """
+    Notify all active org members (ADMIN/VERIFIER/STAFF) of a single organization.
+    """
+    if not org:
+        return
+
+    members = (
+        OrganizationMembership.objects
+        .filter(
+            organization=org,
+            is_active=True,
+            role__in=["ADMIN", "VERIFIER", "STAFF"],
+            organization__status="APPROVED",
+        )
+        .select_related("user")
+    )
+    for m in members:
+        _notify_user(m.user, title, body, url=url, level=level)
+
+
+def _notify_orgs_in_city(city: str, title, body="", url="", level="INFO"):
+    """
+    Option 1: Notify ALL approved organizations in the same city.
+    """
+    from hospitals.models import Organization  # local import avoids circular imports
+
+    city_raw = (city or "").strip()
+    if not city_raw:
+        return
+
+    orgs = Organization.objects.filter(status="APPROVED", city__iexact=city_raw)
+    for org in orgs:
+        _notify_org_members(org, title, body, url=url, level=level)
 
 
 def _user_org_membership(user):
@@ -64,15 +101,15 @@ def _org_can_access_request(org, req: OrganRequest) -> bool:
 
 def _org_can_verify_pledge(org, pledge: OrganPledge) -> bool:
     """
-    Your rule A:
-      - If org.city exists => ONLY pledges from same donor city
-      - If org.city blank => fallback global
+    City-scoped if org.city exists, else global fallback.
+    SAFETY: donor may not have a profile in some edge cases.
     """
     oc = _norm_city(org.city)
     if not oc:
         return True
 
-    donor_city = _norm_city(getattr(pledge.donor.profile, "city", ""))
+    donor_profile = getattr(pledge.donor, "profile", None)
+    donor_city = _norm_city(getattr(donor_profile, "city", ""))
     return donor_city == oc
 
 
@@ -148,11 +185,22 @@ def pledge_submit(request, pledge_id):
         pledge.consent_at = timezone.now()
     pledge.save(update_fields=["status", "submitted_at", "consent_at"])
 
+    # Donor notification (already)
     _notify_user(
         request.user,
         "Organ pledge submitted",
         "Your pledge is submitted for verification.",
         url=f"/organ/pledge/{pledge.id}/",
+        level="INFO",
+    )
+
+    # - Org notification: all orgs in donor city
+    donor_city = getattr(getattr(request.user, "profile", None), "city", "")
+    _notify_orgs_in_city(
+        donor_city,
+        "New organ pledge pending verification",
+        f"Pledge #{pledge.id} submitted by {request.user.username}.",
+        url="/organ/portal/",
         level="INFO",
     )
 
@@ -184,13 +232,39 @@ def organ_request_create(request):
         messages.error(request, "Enable Recipient role or join an institution to create organ requests.")
         return redirect("profile_edit")
 
+    mem = _user_org_membership(request.user)
+
     if request.method == "POST":
         form = OrganRequestForm(request.POST)
         if form.is_valid():
             obj = form.save(commit=False)
             obj.created_by = request.user
             obj.status = "UNDER_REVIEW"
+
+            # If org staff creates it, bind to their org (helps verification routing; doesn’t remove anything)
+            if mem:
+                obj.target_organization = mem.organization
+
             obj.save()
+
+            # - notify org reviewers
+            if obj.target_organization_id:
+                _notify_org_members(
+                    obj.target_organization,
+                    "New organ request pending verification",
+                    f"Request #{obj.id} needs verification ({obj.get_organ_needed_display()}).",
+                    url="/organ/portal/",
+                    level="INFO",
+                )
+            else:
+                _notify_orgs_in_city(
+                    obj.city,
+                    "New organ request pending verification",
+                    f"Request #{obj.id} needs verification ({obj.get_organ_needed_display()}).",
+                    url="/organ/portal/",
+                    level="INFO",
+                )
+
             messages.success(request, "Organ request submitted. Upload medical documents for verification.")
             return redirect("organ_request_detail", request_id=obj.id)
         messages.error(request, "Please fix the errors.")
@@ -212,16 +286,45 @@ def organ_request_list(request):
 def organ_request_detail(request, request_id):
     obj = get_object_or_404(OrganRequest, id=request_id)
 
-    # owner, staff, hospital_admin can view 
-    if request.user.is_staff or obj.created_by_id == request.user.id or getattr(request.user, "is_hospital_admin", False):
-        doc_form = OrganRequestDocumentForm()
-        return render(request, "organ/request_detail.html", {"obj": obj, "doc_form": doc_form})
+    doc_form = OrganRequestDocumentForm()
 
-    # allow org members to view requests in their org scope
+    # defaults (safe)
+    back_url = "/"
+    back_label = "Back"
+
+    # Owner view
+    if obj.created_by_id == request.user.id:
+        back_url = "/organ/my/requests/"
+        back_label = "Back to My Requests"
+        return render(request, "organ/request_detail.html", {
+            "obj": obj,
+            "doc_form": doc_form,
+            "back_url": back_url,
+            "back_label": back_label,
+        })
+
+    # Staff / hospital admin can view
+    if request.user.is_staff or getattr(request.user, "is_hospital_admin", False):
+        back_url = "/organ/portal/"
+        back_label = "Back to Portal"
+        return render(request, "organ/request_detail.html", {
+            "obj": obj,
+            "doc_form": doc_form,
+            "back_url": back_url,
+            "back_label": back_label,
+        })
+
+    # Org members in scope can view
     mem = _user_org_membership(request.user)
     if mem and _org_can_access_request(mem.organization, obj):
-        doc_form = OrganRequestDocumentForm()
-        return render(request, "organ/request_detail.html", {"obj": obj, "doc_form": doc_form})
+        back_url = "/organ/portal/"
+        back_label = "Back to Portal"
+        return render(request, "organ/request_detail.html", {
+            "obj": obj,
+            "doc_form": doc_form,
+            "back_url": back_url,
+            "back_label": back_label,
+        })
 
     raise Http404()
 
@@ -235,7 +338,6 @@ def organ_request_doc_upload(request, request_id):
     if request.user.is_staff or obj.created_by_id == request.user.id or getattr(request.user, "is_hospital_admin", False):
         pass
     else:
-        # org members in scope can upload docs too (useful for staff)
         mem = _user_org_membership(request.user)
         if not (mem and _org_can_access_request(mem.organization, obj)):
             raise Http404()
@@ -246,6 +348,25 @@ def organ_request_doc_upload(request, request_id):
         doc.request = obj
         doc.save()
         messages.success(request, "Document uploaded.")
+
+        # - If still pending review, notify org(s) that docs are added
+        if obj.status == "UNDER_REVIEW":
+            if obj.target_organization_id:
+                _notify_org_members(
+                    obj.target_organization,
+                    "Medical document uploaded (Organ request)",
+                    f"Request #{obj.id} now has new documents.",
+                    url=f"/organ/request/{obj.id}/",
+                    level="INFO",
+                )
+            else:
+                _notify_orgs_in_city(
+                    obj.city,
+                    "Medical document uploaded (Organ request)",
+                    f"Request #{obj.id} now has new documents.",
+                    url=f"/organ/request/{obj.id}/",
+                    level="INFO",
+                )
     else:
         messages.error(request, "Please fix the errors.")
     return redirect("organ_request_detail", request_id=obj.id)
@@ -257,7 +378,6 @@ def organ_portal(request):
     org = request.organization
     org_city = _norm_city(org.city)
 
-    # Pledges: city-scoped if org has city, else fallback global
     pending_pledges = (
         OrganPledge.objects
         .filter(status="UNDER_REVIEW")
@@ -303,12 +423,10 @@ def org_verify_pledge(request, pledge_id):
     org = request.organization
     pledge = get_object_or_404(OrganPledge, id=pledge_id)
 
-    #  only verify pending items
     if pledge.status != "UNDER_REVIEW":
         messages.info(request, "This pledge is not pending verification.")
         return redirect("organ_portal")
 
-    # city-scoped if org.city exists, else global fallback
     if not _org_can_verify_pledge(org, pledge):
         raise Http404()
 
@@ -329,6 +447,16 @@ def org_verify_pledge(request, pledge_id):
             url=f"/organ/pledge/{pledge.id}/",
             level="SUCCESS",
         )
+
+        # - org internal notification
+        _notify_org_members(
+            org,
+            "Pledge verified",
+            f"Pledge #{pledge.id} verified by {request.user.username}.",
+            url="/organ/portal/",
+            level="SUCCESS",
+        )
+
         messages.success(request, "Pledge verified.")
         return redirect("organ_portal")
 
@@ -348,11 +476,45 @@ def org_verify_pledge(request, pledge_id):
             url=f"/organ/pledge/{pledge.id}/",
             level="DANGER",
         )
+
+        # - org internal notification
+        _notify_org_members(
+            org,
+            "Pledge rejected",
+            f"Pledge #{pledge.id} rejected by {request.user.username}.",
+            url="/organ/portal/",
+            level="WARNING",
+        )
+
         messages.error(request, "Pledge rejected.")
         return redirect("organ_portal")
 
     messages.error(request, "Invalid action.")
     return redirect("organ_portal")
+
+@org_member_required(roles=["ADMIN", "VERIFIER", "STAFF"])
+def org_pledge_detail(request, pledge_id):
+    """
+    Org-side pledge review page (so verifiers can view donor pledge + documents).
+    This avoids the donor-only restriction of pledge_detail().
+    """
+    org = request.organization
+
+    pledge = get_object_or_404(
+        OrganPledge.objects
+        .select_related("donor", "donor__profile")
+        .prefetch_related("documents"),
+        id=pledge_id
+    )
+
+    # scope check same as verification (only show if org can verify, else 404)
+    if not _org_can_verify_pledge(org, pledge):
+        raise Http404()
+
+    return render(request, "organ/org_pledge_detail.html", {
+        "org": org,
+        "pledge": pledge,
+    })
 
 
 @require_POST
@@ -361,18 +523,15 @@ def org_verify_organ_request(request, request_id):
     org = request.organization
     obj = get_object_or_404(OrganRequest, id=request_id)
 
-    # only verify pending items
     if obj.status != "UNDER_REVIEW":
         messages.info(request, "This request is not pending verification.")
         return redirect("organ_portal")
 
-    # check (prevents URL bypass)
     if not _org_can_access_request(org, obj):
         raise Http404()
 
     action = (request.POST.get("action") or "").strip()
 
-    # bind target org on first handling
     if obj.target_organization_id is None:
         obj.target_organization = org
 
@@ -392,6 +551,16 @@ def org_verify_organ_request(request, request_id):
                 url=f"/organ/request/{obj.id}/",
                 level="SUCCESS",
             )
+
+        # - org internal notification
+        _notify_org_members(
+            org,
+            "Organ request approved",
+            f"Request #{obj.id} approved by {request.user.username}.",
+            url="/organ/portal/",
+            level="SUCCESS",
+        )
+
         messages.success(request, "Request verified and activated.")
         return redirect("organ_portal")
 
@@ -412,6 +581,16 @@ def org_verify_organ_request(request, request_id):
                 url=f"/organ/request/{obj.id}/",
                 level="DANGER",
             )
+
+        # - org internal notification
+        _notify_org_members(
+            org,
+            "Organ request rejected",
+            f"Request #{obj.id} rejected by {request.user.username}.",
+            url="/organ/portal/",
+            level="WARNING",
+        )
+
         messages.error(request, "Request rejected.")
         return redirect("organ_portal")
 
@@ -432,18 +611,38 @@ def org_match_create(request, request_id):
         messages.error(request, "This request is not active for matching.")
         return redirect("organ_portal")
 
-    # Verified-only pledges, organ-needed filter
-    pledges_qs = (
+    # Base queryset (NO JSON contains here)
+    base_qs = (
         OrganPledge.objects
         .filter(status="VERIFIED", pledge_type__in=["LIVING", "DECEASED"])
-        .filter(organs__contains=[req.organ_needed])
         .select_related("donor", "donor__profile")
         .order_by("-verified_at", "-created_at")
     )
 
     # city-scope pledges if org has a city, else global fallback
     if _norm_city(org.city):
-        pledges_qs = pledges_qs.filter(donor__profile__city__iexact=org.city)
+        base_qs = base_qs.filter(donor__profile__city__iexact=org.city)
+
+    # Organ-needed filter:
+    # Try DB JSON contains (works on Postgres)
+    # Fallback to Python filtering (needed on SQLite)
+    try:
+        pledges_qs = base_qs.filter(organs__contains=[req.organ_needed])
+        pledges_count = pledges_qs.count()
+    except NotSupportedError:
+        ids = []
+        for p in base_qs:  # using base_qs not the contains filter
+            organs = p.organs or []
+            if req.organ_needed in organs:
+                ids.append(p.id)
+
+        pledges_qs = (
+            OrganPledge.objects
+            .filter(id__in=ids)
+            .select_related("donor", "donor__profile")
+            .order_by("-verified_at", "-created_at")
+        )
+        pledges_count = len(ids)
 
     form = OrganMatchCreateForm(request.POST or None)
     form.fields["pledge"].queryset = pledges_qs
@@ -465,6 +664,7 @@ def org_match_create(request, request_id):
             req.status = "MATCH_IN_PROGRESS"
             req.save(update_fields=["status"])
 
+        # notify recipient + donor 
         if req.created_by_id:
             _notify_user(
                 req.created_by,
@@ -481,6 +681,17 @@ def org_match_create(request, request_id):
             level="INFO",
         )
 
+        try:
+            _notify_org_members(
+                org,
+                "Organ match created",
+                f"Match #{match.id} created for Request #{req.id}.",
+                url=f"/organ/portal/matches/{match.id}/update/",
+                level="SUCCESS",
+            )
+        except Exception:
+            pass
+
         messages.success(request, "Match created.")
         return redirect("organ_portal")
 
@@ -488,14 +699,15 @@ def org_match_create(request, request_id):
         "org": org,
         "req": req,
         "form": form,
-        "pledges_count": pledges_qs.count(),
+        "pledges_count": pledges_count,
     })
-
 
 @org_member_required(roles=["ADMIN", "VERIFIER", "STAFF"])
 def org_match_update(request, match_id):
     org = request.organization
     match = get_object_or_404(OrganMatch, id=match_id, organization=org)
+
+    old_status = match.status
 
     form = OrganMatchStatusForm(request.POST or None, instance=match)
     if request.method == "POST" and form.is_valid():
@@ -503,25 +715,86 @@ def org_match_update(request, match_id):
         obj.updated_by = request.user
         obj.save()
 
+        new_status = obj.status
         status_txt = obj.get_status_display()
+        notes_txt = (obj.notes or "").strip()
 
-        if obj.request.created_by_id:
+ 
+        # Keep OrganRequest status in sync based on match status
+        req = obj.request
+
+        # statuses that mean "matching still ongoing"
+        ONGOING = {"PROPOSED", "CONTACTED", "SCREENING", "APPROVED"}
+
+        # Do not override closed/cancelled/rejected requests
+        if req.status not in ("CLOSED", "CANCELLED", "REJECTED", "EXPIRED"):
+            if new_status == "COMPLETED":
+                # When match completes, close the request
+                req.status = "CLOSED"
+                req.save(update_fields=["status"])
+
+            elif new_status in ("FAILED", "CANCELLED"):
+                # If this match failed/cancelled and there are NO other ongoing matches,
+                # revert request back to ACTIVE (so org can create another match)
+                other_ongoing_exists = (
+                    req.matches
+                    .exclude(id=obj.id)
+                    .filter(status__in=list(ONGOING))
+                    .exists()
+                )
+                if not other_ongoing_exists and req.status == "MATCH_IN_PROGRESS":
+                    req.status = "ACTIVE"
+                    req.save(update_fields=["status"])
+
+            else:
+                # any ongoing match status should push request to MATCH_IN_PROGRESS
+                if new_status in ONGOING and req.status == "ACTIVE":
+                    req.status = "MATCH_IN_PROGRESS"
+                    req.save(update_fields=["status"])
+
+    # notes
+        extra = ""
+        if notes_txt:
+            short_notes = notes_txt if len(notes_txt) <= 220 else (notes_txt[:220] + "…")
+            extra = f"\nReason/Notes: {short_notes}"
+
+        # notify requester
+        if req.created_by_id:
             _notify_user(
-                obj.request.created_by,
+                req.created_by,
                 "Match update",
-                f"Match status updated: {status_txt}.",
-                url=f"/organ/request/{obj.request.id}/",
+                f"Match #{obj.id} status updated: {status_txt}.{extra}",
+                url=f"/organ/request/{req.id}/",
                 level="INFO",
             )
+
+        # notify donor
         _notify_user(
             obj.pledge.donor,
             "Match update",
-            f"Match status updated: {status_txt}.",
+            f"Match #{obj.id} status updated: {status_txt}.{extra}",
             url=f"/organ/pledge/{obj.pledge.id}/",
             level="INFO",
         )
 
-        messages.success(request, "Match updated.")
+        # notify org members (internal tracking)
+        try:
+            _notify_org_members(
+                org,
+                "Match update",
+                f"Match #{obj.id} status updated: {status_txt}.{extra}",
+                url=f"/organ/portal/matches/{obj.id}/update/",
+                level="INFO",
+            )
+        except Exception:
+            pass
+
+        # message
+        if old_status != new_status:
+            messages.success(request, "Match updated.")
+        else:
+            messages.success(request, "Saved (no status change).")
+
         return redirect("organ_portal")
 
     return render(request, "organ/organ_match_update.html", {"org": org, "match": match, "form": form})

@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.utils import timezone
 from django.utils.html import format_html
 from accounts.models import CustomUser
+
 from .models import (
     Campaign,
     CampaignDocument,
@@ -24,8 +25,16 @@ class DonationAdmin(admin.ModelAdmin):
         "created_at", "verified_at",
     )
     list_filter = ("gateway", "status", "created_at")
-    search_fields = ("campaign__title", "donor_user__username", "guest_name", "guest_phone", "gateway_ref", "pidx")
-    readonly_fields = ("raw_response_pretty",)
+    search_fields = (
+        "campaign__title",
+        "donor_user__username",
+        "guest_name",
+        "guest_phone",
+        "gateway_ref",
+        "pidx",
+        "esewa_transaction_uuid",
+        "esewa_transaction_code",
+    )
 
     fieldsets = (
         ("Donation", {"fields": ("campaign", "amount", "gateway", "status")}),
@@ -43,6 +52,31 @@ class DonationAdmin(admin.ModelAdmin):
         return format_html("<pre style='white-space:pre-wrap'>{}</pre>", pretty)
 
     raw_response_pretty.short_description = "Raw response (pretty)"
+
+    def get_readonly_fields(self, request, obj=None):
+        """
+        Always read-only:
+          - created_at (auto_now_add, non-editable)
+          - verified_at (timestamp)
+          - raw_response_pretty (computed)
+
+        After SUCCESS, lock gateway reference fields so they can't be altered.
+        """
+        base = ["raw_response_pretty", "created_at", "verified_at"]
+
+        lock_after_success = [
+            "gateway_ref",
+            "pidx",
+            "payment_url",
+            "esewa_transaction_uuid",
+            "esewa_transaction_code",
+        ]
+
+        if obj and obj.status == "SUCCESS":
+            return tuple(base + lock_after_success)
+
+        return tuple(base)
+
 
 @admin.register(Campaign)
 class CampaignAdmin(admin.ModelAdmin):
@@ -78,7 +112,7 @@ class CampaignAdmin(admin.ModelAdmin):
     )
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
-        # show only staff users in approved_by selector (even though it's readonly)
+        # show only staff users in approved_by selector
         if db_field.name == "approved_by":
             kwargs["queryset"] = CustomUser.objects.filter(is_staff=True)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
@@ -145,14 +179,12 @@ class CampaignAdmin(admin.ModelAdmin):
             else:
                 self._notify_owner_missing(request, camp)
 
-        # special handling for COMPLETED/ARCHIVED can be added here if needed
-
     def save_model(self, request, obj, form, change):
         old_status = None
         if change and obj.pk:
             old_status = Campaign.objects.filter(pk=obj.pk).values_list("status", flat=True).first()
 
-        # If created via admin and owner is empty, set owner = admin  (helps with notifications)
+        # If created via admin and owner is empty, set owner = admin (helps with notifications)
         if not change and not obj.owner_id:
             obj.owner = request.user
 

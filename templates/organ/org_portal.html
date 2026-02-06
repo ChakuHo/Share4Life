@@ -48,9 +48,14 @@
                       Submitted: {{ p.submitted_at|date:"Y-m-d H:i" }}
                     </div>
                     <div class="mt-2">
-                      <a class="btn btn-sm btn-outline-primary" href="{% url 'organ_pledge_detail' p.id %}">
-                        View (Donor Side)
-                      </a>
+                      {# If you added org_pledge_detail view, this is the correct link #}
+                      {% if org_pledge_detail_url %}
+                        <a class="btn btn-sm btn-outline-primary" href="{{ org_pledge_detail_url }}">View & Review</a>
+                      {% else %}
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'org_pledge_detail' p.id %}">
+                          View & Review
+                        </a>
+                      {% endif %}
                     </div>
                   </div>
 
@@ -169,7 +174,9 @@
                   <a class="btn btn-sm btn-outline-primary mr-2 mb-2" href="{% url 'organ_request_detail' r.id %}">
                     View
                   </a>
-                  <a class="btn btn-sm btn-danger mb-2" href="{% url 'org_match_create' r.id %}">
+
+                  <!-- ✅ FIX HERE: correct URL name is organ_match_create -->
+                  <a class="btn btn-sm btn-danger mb-2" href="{% url 'organ_match_create' r.id %}">
                     <i class="fa fa-link"></i> Create Match
                   </a>
                 </div>

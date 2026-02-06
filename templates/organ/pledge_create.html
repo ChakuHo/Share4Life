@@ -62,13 +62,19 @@
           </div>
 
           <div class="form-group">
-            <div class="form-check">
+            <label class="font-weight-bold d-block">Consent</label>
+
+            {# ✅ FIX: use Bootstrap custom-control markup because the widget uses custom-control-input #}
+            <div class="custom-control custom-checkbox">
               {{ form.consent_confirmed }}
-              <label class="form-check-label ml-2" for="{{ form.consent_confirmed.id_for_label }}">
+              <label class="custom-control-label" for="{{ form.consent_confirmed.id_for_label }}">
                 <b>I confirm</b> I understand this is a legal pledge and the information is correct.
               </label>
             </div>
-            {% for e in form.consent_confirmed.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+
+            {% for e in form.consent_confirmed.errors %}
+              <div class="text-danger small mt-1">{{ e }}</div>
+            {% endfor %}
           </div>
 
           <button class="btn btn-danger btn-lg btn-block" type="submit" id="save-btn">
@@ -95,4 +101,4 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 
-{% endblock %} 
+{% endblock %}

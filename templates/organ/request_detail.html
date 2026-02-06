@@ -9,9 +9,16 @@
         <h3 class="mb-1">Organ Request #{{ obj.id }}</h3>
         <div class="text-muted">Status: <strong>{{ obj.get_status_display }}</strong></div>
       </div>
-      <a href="{% url 'organ_request_list' %}" class="btn btn-outline-secondary">
-        <i class="fa fa-arrow-left"></i> Back
-      </a>
+
+      {% if back_url %}
+        <a href="{{ back_url }}" class="btn btn-outline-secondary">
+          <i class="fa fa-arrow-left"></i> {{ back_label|default:"Back" }}
+        </a>
+      {% else %}
+        <a href="javascript:void(0)" onclick="history.back();" class="btn btn-outline-secondary">
+          <i class="fa fa-arrow-left"></i> Back
+        </a>
+      {% endif %}
     </div>
 
     <div class="card shadow-sm mb-3">

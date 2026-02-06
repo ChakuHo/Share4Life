@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction, IntegrityError
 from django.db.models import Case, When, Value, IntegerField, Q
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -691,17 +691,35 @@ def blood_campaigns_view(request):
 def quick_respond_view(request, request_id):
     blood_req = get_object_or_404(PublicBloodRequest, id=request_id)
 
+    # detect fetch/ajax
+    wants_json = (
+        request.headers.get("x-requested-with") == "XMLHttpRequest"
+        or "application/json" in (request.headers.get("accept") or "").lower()
+    )
+
+    def _json_error(msg, status=400, redirect_url=""):
+        return JsonResponse({"ok": False, "error": msg, "redirect_url": redirect_url}, status=status)
+
     # block self response
     if blood_req.created_by_id and blood_req.created_by_id == request.user.id:
+        if wants_json:
+            return _json_error("You cannot respond to your own request.", status=403,
+                               redirect_url=f"/blood/request/{blood_req.id}/")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
     # closed?
     if blood_req.status in ("FULFILLED", "CANCELLED") or not blood_req.is_active:
+        if wants_json:
+            return _json_error("This request is closed.", status=409,
+                               redirect_url=f"/blood/request/{blood_req.id}/")
         messages.error(request, "This request is closed.")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
     # eligibility check
     if not is_eligible(request.user):
+        if wants_json:
+            return _json_error("You are not eligible to donate right now.", status=403,
+                               redirect_url=f"/blood/request/{blood_req.id}/")
         messages.error(request, "You are not eligible to donate right now.")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
@@ -709,10 +727,15 @@ def quick_respond_view(request, request_id):
     message_txt = (request.POST.get("message") or "").strip()
 
     if status not in ("ACCEPTED", "DECLINED", "DELAYED"):
+        if wants_json:
+            return _json_error("Invalid response.", status=400,
+                               redirect_url=f"/blood/request/{blood_req.id}/")
         messages.error(request, "Invalid response.")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
     obj, _ = DonorResponse.objects.get_or_create(request=blood_req, donor=request.user)
+    old_status = obj.status
+
     obj.status = status
     obj.message = message_txt
     obj.responded_at = timezone.now()
@@ -722,8 +745,8 @@ def quick_respond_view(request, request_id):
         blood_req.status = "IN_PROGRESS"
         blood_req.save(update_fields=["status"])
 
-    # notify requester
-    if blood_req.created_by_id:
+    # notify requester (avoid spam if clicking same button repeatedly)
+    if blood_req.created_by_id and old_status != status:
         phone = (request.user.phone_number or "").strip()
         phone_txt = f" Phone: {phone}" if phone else ""
         _notify_user(
@@ -742,6 +765,15 @@ def quick_respond_view(request, request_id):
         "message": message_txt,
         "at": obj.responded_at.isoformat(),
     })
+
+    # JSON for fetch, redirect for normal browser POST
+    if wants_json:
+        return JsonResponse({
+            "ok": True,
+            "request_id": blood_req.id,
+            "status": status,
+            "redirect_url": f"/blood/request/{blood_req.id}/",
+        })
 
     messages.success(request, "Response sent.")
     return redirect("blood_request_detail", request_id=blood_req.id)

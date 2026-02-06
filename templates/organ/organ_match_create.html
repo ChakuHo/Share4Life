@@ -19,6 +19,22 @@
       Found: <strong>{{ pledges_count }}</strong> eligible pledges.
     </div>
 
+    {% if pledges_count|default:0 == 0 %}
+      <div class="alert alert-warning">
+        <div class="font-weight-bold mb-1">No eligible verified pledges available right now.</div>
+        <div class="small">
+          This can happen if:
+          <ul class="mb-0">
+            <li>No pledges are <b>VERIFIED</b> yet.</li>
+            <li>No verified pledge includes <b>{{ req.get_organ_needed_display }}</b>.</li>
+            {% if org.city %}
+              <li>Your organization is city-scoped to <b>{{ org.city }}</b> and no verified pledges exist in that city.</li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+    {% endif %}
+
     <div class="card shadow-sm">
       <div class="card-body">
         <div class="mb-3">
@@ -50,9 +66,16 @@
             {% for e in form.notes.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
           </div>
 
-          <button class="btn btn-danger btn-block" type="submit" id="match-btn">
+          <button class="btn btn-danger btn-block" type="submit" id="match-btn"
+                  {% if pledges_count|default:0 == 0 %}disabled{% endif %}>
             <i class="fa fa-link"></i> Create Match
           </button>
+
+          {% if pledges_count|default:0 == 0 %}
+            <div class="text-muted small mt-2">
+              Create Match is disabled because no eligible verified pledges were found.
+            </div>
+          {% endif %}
         </form>
       </div>
     </div>
@@ -65,7 +88,9 @@ document.addEventListener('DOMContentLoaded', function(){
   const btn = document.getElementById('match-btn');
   const form = btn ? btn.closest('form') : null;
   if (!btn || !form) return;
+
   form.addEventListener('submit', function(){
+    if (btn.disabled) return;
     btn.disabled = true;
     btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Creating...';
   });

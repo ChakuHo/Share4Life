@@ -1,0 +1,108 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 980px;">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Review Pledge #{{ pledge.id }}</h3>
+        <div class="text-muted">{{ org.name }}{% if org.city %} • {{ org.city }}{% endif %}</div>
+      </div>
+      <a href="{% url 'organ_portal' %}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Back to Portal
+      </a>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-4 mb-2">
+            <div class="text-muted small">Donor</div>
+            <div class="font-weight-bold">{{ pledge.donor.username }}</div>
+          </div>
+          <div class="col-md-4 mb-2">
+            <div class="text-muted small">Type</div>
+            <div class="font-weight-bold">{{ pledge.get_pledge_type_display }}</div>
+          </div>
+          <div class="col-md-4 mb-2">
+            <div class="text-muted small">Status</div>
+            <div class="badge badge-light p-2">{{ pledge.get_status_display }}</div>
+          </div>
+        </div>
+
+        <div class="mt-2">
+          <div class="text-muted small">Organs</div>
+          <div class="font-weight-bold">
+            {% if pledge.organ_names %}
+              {{ pledge.organ_names|join:", " }}
+            {% else %}
+              {{ pledge.organs|join:", " }}
+            {% endif %}
+          </div>
+        </div>
+
+        {% if pledge.note %}
+          <div class="mt-2">
+            <div class="text-muted small">Note</div>
+            <div class="border rounded p-2 bg-light">{{ pledge.note }}</div>
+          </div>
+        {% endif %}
+
+        {% if pledge.rejection_reason and pledge.status == "REJECTED" %}
+          <div class="alert alert-danger mt-3 mb-0">
+            <strong>Rejection reason:</strong> {{ pledge.rejection_reason }}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="mb-3"><i class="fa fa-file-medical text-primary"></i> Documents</h5>
+
+        {% for d in pledge.documents.all %}
+          <div class="border rounded p-3 mb-2">
+            <div class="d-flex justify-content-between">
+              <strong>{{ d.get_doc_type_display }}</strong>
+              <small class="text-muted">{{ d.uploaded_at|date:"Y-m-d H:i" }}</small>
+            </div>
+            {% if d.note %}<div class="text-muted small mt-1">{{ d.note }}</div>{% endif %}
+            <a class="btn btn-sm btn-outline-secondary mt-2" target="_blank" href="{{ d.file.url }}">
+              View File
+            </a>
+          </div>
+        {% empty %}
+          <div class="text-muted">No documents uploaded.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="mb-3"><i class="fa fa-shield-alt text-primary"></i> Verification</h5>
+
+        <form method="post" action="{% url 'org_verify_pledge' pledge.id %}" class="d-inline-block mr-2 mb-2">
+          {% csrf_token %}
+          <button class="btn btn-success" type="submit" name="action" value="approve">
+            <i class="fa fa-check"></i> Approve
+          </button>
+        </form>
+
+        <form method="post" action="{% url 'org_verify_pledge' pledge.id %}" class="d-inline-block mb-2">
+          {% csrf_token %}
+          <div class="d-flex flex-wrap align-items-center">
+            <input class="form-control mr-2 mb-2" style="width:320px;"
+                   type="text" name="reason" placeholder="Reject reason (optional)">
+            <button class="btn btn-danger mb-2" type="submit" name="action" value="reject">
+              <i class="fa fa-times"></i> Reject
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

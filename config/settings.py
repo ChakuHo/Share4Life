@@ -31,6 +31,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne', # ASGI server
     'jazzmin',  # Admin UI
     'django.contrib.admin',
     'django.contrib.auth',
@@ -39,8 +40,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+
     # Third Party Libraries
-    'rest_framework',   # For future mobile API
     'channels',         # For InDrive matching
 
     # Local Apps
