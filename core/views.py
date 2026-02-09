@@ -5,6 +5,8 @@ from django.utils import timezone
 from blood.models import PublicBloodRequest, BloodDonation
 from hospitals.models import BloodCampaign
 from .models import TeamMember, GalleryImage
+from django.db.models import Sum, Count, Q
+from crowdfunding.models import Campaign, Donation, Disbursement
 
 
 def _has_field(model, name: str) -> bool:
@@ -41,11 +43,9 @@ def about(request):
     # -----------------------------
     req_qs = PublicBloodRequest.objects.filter(is_active=True)
 
-    # If your model has status (OPEN/IN_PROGRESS), use it; otherwise ignore
     if _has_field(PublicBloodRequest, "status"):
         req_qs = req_qs.filter(status__in=["OPEN", "IN_PROGRESS"])
 
-    # If your model has verification_status, hide rejected (matches your home feed behavior)
     if _has_field(PublicBloodRequest, "verification_status"):
         req_qs = req_qs.exclude(verification_status="REJECTED")
 
@@ -55,14 +55,10 @@ def about(request):
     # Verified blood donations
     # -----------------------------
     don_qs = BloodDonation.objects.all()
-
-    # Your project sometimes uses 'verification_status' and sometimes 'status' in different models.
-    # So we check safely.
     if _has_field(BloodDonation, "verification_status"):
         don_qs = don_qs.filter(verification_status="VERIFIED")
     elif _has_field(BloodDonation, "status"):
         don_qs = don_qs.filter(status="VERIFIED")
-
     verified_donations = don_qs.count()
 
     # -----------------------------
@@ -73,7 +69,6 @@ def about(request):
         camp_qs = camp_qs.filter(status__in=["UPCOMING", "ONGOING"])
         upcoming_camps = camp_qs.count()
     else:
-        # fallback: if status doesn't exist, try date-based logic
         if _has_field(BloodCampaign, "start_date"):
             upcoming_camps = BloodCampaign.objects.filter(start_date__gte=timezone.now().date()).count()
         else:
@@ -83,6 +78,66 @@ def about(request):
         "active_requests": active_requests,
         "verified_donations": verified_donations,
         "upcoming_camps": upcoming_camps,
+    }
+
+    # -----------------------------
+    # Crowdfunding impact stats
+    # -----------------------------
+    total_raised = Donation.objects.filter(status="SUCCESS").aggregate(s=Sum("amount"))["s"] or 0
+    total_disbursed = Disbursement.objects.aggregate(s=Sum("amount"))["s"] or 0
+
+    # Active = can still accept donations
+    active_campaigns = Campaign.objects.filter(status="APPROVED").count()
+
+    # Completed on About = COMPLETED + ARCHIVED (because you auto-archive after 1 day)
+    completed_campaigns = Campaign.objects.filter(status__in=["COMPLETED", "ARCHIVED"]).count()
+    archived_campaigns = Campaign.objects.filter(status="ARCHIVED").count()
+
+    # Pending proof: campaigns that have SUCCESS donations but no disbursement records yet
+    pending_disbursement_proof = (
+        Campaign.objects.filter(status__in=["APPROVED", "COMPLETED", "ARCHIVED"])
+        .annotate(dcnt=Count("disbursements"))
+        .filter(dcnt=0)
+        .annotate(success_cnt=Count("donations", filter=Q(donations__status="SUCCESS")))
+        .filter(success_cnt__gt=0)
+        .count()
+    )
+
+    # Avg days to complete: include ARCHIVED too (they still have completed_at)
+    completed_qs = Campaign.objects.filter(
+        status__in=["COMPLETED", "ARCHIVED"],
+        completed_at__isnull=False
+    ).only("created_at", "completed_at")
+
+    days_list = []
+    for c in completed_qs:
+        if c.created_at and c.completed_at:
+            days_list.append((c.completed_at.date() - c.created_at.date()).days)
+    avg_days_to_complete = round(sum(days_list) / len(days_list), 1) if days_list else None
+
+    top_contributors = (
+        Donation.objects.filter(status="SUCCESS", donor_user__isnull=False)
+        .values("donor_user__username", "donor_user__first_name", "donor_user__last_name")
+        .annotate(total=Sum("amount"), cnt=Count("id"))
+        .order_by("-total")[:5]
+    )
+
+    # Top campaigns by raised: include ARCHIVED for transparency
+    top_campaigns = (
+        Campaign.objects.filter(status__in=["APPROVED", "COMPLETED", "ARCHIVED"])
+        .annotate(raised=Sum("donations__amount", filter=Q(donations__status="SUCCESS")))
+        .annotate(disbursed=Sum("disbursements__amount"))
+        .order_by("-raised")[:5]
+    )
+
+    cf = {
+        "active_campaigns": active_campaigns,
+        "completed_campaigns": completed_campaigns,  # now includes archived too
+        "archived_campaigns": archived_campaigns,    # extra metric (optional to show)
+        "total_raised": total_raised,
+        "total_disbursed": total_disbursed,
+        "pending_disbursement_proof": pending_disbursement_proof,
+        "avg_days_to_complete": avg_days_to_complete,
     }
 
     # -----------------------------
@@ -105,6 +160,9 @@ def about(request):
 
     return render(request, "core/about.html", {
         "stats": stats,
+        "cf": cf,
+        "top_contributors": top_contributors,
+        "top_campaigns": top_campaigns,
         "team": team,
         "gallery": gallery,
     })

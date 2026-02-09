@@ -194,3 +194,7 @@ ESEWA_FORM_URL = os.environ.get(
 
 # After target reached: keep public for 1 day then archive the crowdfunding campaign
 CAMPAIGN_ARCHIVE_AFTER_DAYS = int(os.environ.get("CAMPAIGN_ARCHIVE_AFTER_DAYS", "1"))
+
+# reminder for disbursement proof upload (if campaign has raised money but no disbursement record)
+DISBURSEMENT_PROOF_REMINDER_DAYS = 3
+DISBURSEMENT_PROOF_REMINDER_COOLDOWN_HOURS = 24

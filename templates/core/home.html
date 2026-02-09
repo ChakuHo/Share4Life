@@ -15,7 +15,6 @@
 {% url 'blood_campaigns' as blood_campaigns_url %}
 {% url 'institutions_home' as institutions_home_url %}
 
-{# Crowdfunding URLs (safe; becomes "" if not implemented yet) #}
 {% url 'campaign_list' as campaign_list_url %}
 {% if featured_campaign %}
   {% url 'campaign_detail' featured_campaign.id as campaign_detail_url %}
@@ -24,7 +23,6 @@
 <!-- ========================= 1. HERO SECTION ========================= -->
 <section class="s4l-hero text-white">
 
-  <!-- Background image rendered via HTML (NOT CSS) to avoid VSCode CSS errors -->
   {% if site_settings and site_settings.hero_background %}
     <img class="s4l-hero-bg" src="{{ site_settings.hero_background.url }}" alt="" aria-hidden="true">
   {% else %}
@@ -49,7 +47,6 @@
           {{ site_settings.hero_subtitle|default:"Emergency blood requests, donor matching, and verified support — all in one platform." }}
         </p>
 
-        <!-- Auth actions -->
         <div class="mb-4">
           {% if request.user.is_authenticated %}
             {% if profile_url %}
@@ -333,6 +330,103 @@
   </div>
 </section>
 
+<!-- ========================= HOME POPUP MODAL (SESSION ONLY) ========================= -->
+{% if home_popup %}
+<div class="modal fade" id="s4lHomePopup" tabindex="-1" role="dialog" aria-labelledby="s4lHomePopupTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document" style="max-width: 780px;">
+    <div class="modal-content" style="border-radius:14px; overflow:hidden;">
+
+      <div class="modal-header" style="background:#0a2558;">
+        <h5 class="modal-title text-white" id="s4lHomePopupTitle">
+          {% if home_popup.kind == "crowdfunding" %}
+            <i class="fa fa-hand-holding-heart mr-2"></i> Ongoing Crowdfunding
+          {% elif home_popup.kind == "blood_campaign" %}
+            <i class="fa fa-calendar mr-2"></i> Donation Camp Update
+          {% else %}
+            <i class="fa fa-bullhorn mr-2"></i> Announcement
+          {% endif %}
+        </h5>
+
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true" class="text-white">&times;</span>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="row align-items-center">
+
+          <div class="col-md-5 mb-3 mb-md-0">
+            {% if home_popup.image_url %}
+              <img src="{{ home_popup.image_url }}" alt="" class="img-fluid rounded"
+                   style="max-height:240px; width:100%; object-fit:cover;">
+            {% else %}
+              <div class="border rounded d-flex align-items-center justify-content-center" style="height:220px;">
+                <span class="text-muted">No image</span>
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="col-md-7">
+            <h4 class="font-weight-bold mb-2">{{ home_popup.title }}</h4>
+            <div class="text-muted mb-3">{{ home_popup.subtitle }}</div>
+
+            {% if home_popup.kind == "crowdfunding" %}
+              {% if home_popup.deadline %}
+                <div class="small text-muted mb-2">Deadline: <b>{{ home_popup.deadline }}</b></div>
+              {% endif %}
+
+              <div class="progress mb-2" style="height:10px;">
+                <div class="progress-bar bg-success s4l-progress" role="progressbar"
+                     data-pct="{{ home_popup.pct|default:0 }}"
+                     aria-valuemin="0" aria-valuemax="100"></div>
+              </div>
+
+              <div class="d-flex justify-content-between small text-muted">
+                <div>Raised: <b>Rs. {{ home_popup.raised }}</b></div>
+                <div>Goal: <b>Rs. {{ home_popup.target }}</b></div>
+              </div>
+            {% endif %}
+
+            <div class="mt-3">
+              <a href="{{ home_popup.cta_url }}" class="btn btn-danger" id="s4lHomePopupCTA">
+                {{ home_popup.cta_text }}
+              </a>
+              <button type="button" class="btn btn-outline-secondary ml-2" data-dismiss="modal">
+                Not now
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  document.addEventListener("DOMContentLoaded", function(){
+    try {
+      var kind = "{{ home_popup.kind|escapejs }}";
+      var id = "{{ home_popup.id|escapejs }}";
+      var key = "s4l_home_popup_seen:" + kind + ":" + id;
+
+      // sessionStorage => not on refresh, yes after tab/browser close
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, "1"); // set immediately (prevents repeat even if user clicks CTA)
+
+        if (window.jQuery) {
+          window.jQuery("#s4lHomePopup").modal("show");
+        }
+      }
+    } catch(e) {}
+  });
+})();
+</script>
+{% endif %}
+
 <style>
   .s4l-hero{
     position: relative;
@@ -367,8 +461,7 @@ document.addEventListener("DOMContentLoaded", function(){
   document.querySelectorAll(".s4l-progress").forEach(function(el){
     var pct = parseInt(el.getAttribute("data-pct") || "0", 10);
     if (isNaN(pct)) pct = 0;
-    if (pct < 0) pct = 0;
-    if (pct > 100) pct = 100;
+    pct = Math.max(0, Math.min(100, pct));
     el.style.width = pct + "%";
     el.setAttribute("aria-valuenow", String(pct));
   });

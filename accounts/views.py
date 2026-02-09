@@ -8,6 +8,7 @@ from django.http import HttpResponseBadRequest
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
+from datetime import timedelta
 from django.utils.http import url_has_allowed_host_and_scheme
 from blood.eligibility import (
     is_eligible,
@@ -38,6 +39,9 @@ from .forms import (
     UserProfileForm,
     UserRoleForm,
 )
+
+from django.db.models import Q
+from django.core.exceptions import FieldError
 from .kyc_forms import KYCProfileForm, KYCUploadForm
 from .models import CustomUser, UserProfile, FamilyMember, KYCProfile, KYCDocument
 from .tokens import make_email_token, read_email_token
@@ -76,13 +80,113 @@ def send_verification_email_to_user(request, user) -> bool:
 
 def home(request):
     """
-    Dynamic Landing Page (Blood + Crowdfunding)
+    Dynamic Landing Page (Blood + Crowdfunding) + Home Popup (session-only)
+
+    Popup behavior (JS sessionStorage):
+      - Not shown again on refresh
+      - Shown again if tab/browser is closed
+
+    Popup priority:
+      1) Crowdfunding (APPROVED + not expired)
+      2) Blood campaign (if BloodCampaign model exists and has recognizable status fields)
     """
-    all_requests = PublicBloodRequest.objects.filter(is_active=True).order_by("-is_emergency", "-created_at")
+    all_requests = (
+        PublicBloodRequest.objects
+        .filter(is_active=True)
+        .order_by("-is_emergency", "-created_at")
+    )
+
+    featured_campaign = Campaign.objects.filter(
+        is_featured=True,
+        status__in=["APPROVED", "COMPLETED"]
+    ).first()
+
+    home_popup = None
+    today = timezone.localdate()
+
+    # ---------- 1) Crowdfunding popup ----------
+    ongoing_cf = (
+        Campaign.objects
+        .filter(status="APPROVED")
+        .filter(Q(deadline__isnull=True) | Q(deadline__gte=today))
+        .order_by("-is_featured", "-created_at")
+        .first()
+    )
+
+    if ongoing_cf:
+        # Use raised_total() for accurate amount (raised_amount field might be stale)
+        raised = ongoing_cf.raised_total()
+        target = ongoing_cf.target_amount
+        pct = ongoing_cf.get_percentage()
+
+        home_popup = {
+            "kind": "crowdfunding",
+            "id": ongoing_cf.id,
+            "title": ongoing_cf.title,
+            "subtitle": f"Help {ongoing_cf.patient_name} — verified medical fundraising is ongoing.",
+            "image_url": ongoing_cf.image.url if ongoing_cf.image else "",
+            "cta_text": "Donate Now",
+            "cta_url": reverse("campaign_detail", args=[ongoing_cf.id]),
+            "pct": pct,
+            "raised": raised,
+            "target": target,
+            "deadline": ongoing_cf.deadline.strftime("%Y-%m-%d") if ongoing_cf.deadline else "",
+        }
+
+    # ---------- 2) Blood campaign popup fallback (safe) ----------
+    if not home_popup:
+        BloodCampaign = None
+        try:
+            from hospitals.models import BloodCampaign as BloodCampaign  # if your command is in hospitals
+        except Exception:
+            try:
+                from blood.models import BloodCampaign as BloodCampaign  # if you put it in blood
+            except Exception:
+                BloodCampaign = None
+
+        if BloodCampaign:
+            def safe_first(filters: dict, order_by: str):
+                try:
+                    return BloodCampaign.objects.filter(**filters).order_by(order_by).first()
+                except (FieldError, Exception):
+                    return None
+
+            # Try common statuses without breaking if field differs
+            bc = (
+                safe_first({"status": "ONGOING"}, "-id")
+                or safe_first({"status": "ACTIVE"}, "-id")
+                or safe_first({"is_active": True}, "-id")
+            )
+
+            if bc:
+                title = getattr(bc, "title", None) or getattr(bc, "name", None) or "Blood Donation Camp"
+                city = getattr(bc, "city", None) or getattr(bc, "location_city", None) or ""
+                image_url = ""
+                try:
+                    if getattr(bc, "image", None):
+                        image_url = bc.image.url
+                except Exception:
+                    image_url = ""
+
+                home_popup = {
+                    "kind": "blood_campaign",
+                    "id": bc.id,
+                    "title": title,
+                    "subtitle": f"Blood donation camp is active{(' in ' + city) if city else ''}.",
+                    "image_url": image_url,
+                    "cta_text": "View Camps",
+                    "cta_url": reverse("blood_campaigns"),
+                    "pct": 0,
+                    "raised": "",
+                    "target": "",
+                    "deadline": "",
+                }
+
     context = {
         "urgent_requests": all_requests[:5],
         "recent_requests": all_requests[:4],
-        "featured_campaign": Campaign.objects.filter(is_featured=True, status__in=["APPROVED", "COMPLETED"]).first(),
+        "featured_campaign": featured_campaign,
+        "home_popup": home_popup,  # NEW
     }
     return render(request, "core/home.html", context)
 

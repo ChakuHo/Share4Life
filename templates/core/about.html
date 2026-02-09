@@ -22,13 +22,21 @@
         <a href="{% url 'blood_campaigns' %}" class="btn btn-outline-primary mr-2 mb-2">
           <i class="fa fa-calendar mr-2"></i> Donation Camps
         </a>
+
+        <a href="{% url 'campaign_list' %}" class="btn btn-outline-success mr-2 mb-2">
+          <i class="fa fa-hand-holding-heart mr-2"></i> Crowdfunding
+        </a>
+
         {% if request.user.is_authenticated %}
-          <a href="{% url 'organ_pledge_create' %}" class="btn btn-outline-secondary mb-2">
-            <i class="fa fa-hand-holding-heart mr-2"></i> Organ Pledge
+          <a href="{% url 'my_campaigns' %}" class="btn btn-outline-secondary mr-2 mb-2">
+            <i class="fa fa-user mr-2"></i> My Campaigns
+          </a>
+          <a href="{% url 'campaign_create' %}" class="btn btn-primary mb-2">
+            <i class="fa fa-plus mr-2"></i> Start a Campaign
           </a>
         {% else %}
           <a href="{% url 'login' %}" class="btn btn-outline-secondary mb-2">
-            <i class="fa fa-sign-in-alt mr-2"></i> Login for Organ Pledge
+            <i class="fa fa-sign-in-alt mr-2"></i> Login to Start a Campaign
           </a>
         {% endif %}
       </div>
@@ -79,6 +87,111 @@
       </div>
     </div>
 
+    <!-- Crowdfunding Impact -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <h4 class="mb-3" style="color:#0a2558;">
+          <i class="fa fa-hand-holding-heart text-danger mr-2"></i> Crowdfunding Impact & Transparency
+        </h4>
+
+        <div class="row">
+          <div class="col-md-3 mb-3">
+            <div class="text-muted small">Active Campaigns</div>
+            <div class="h3 mb-0">{{ cf.active_campaigns }}</div>
+          </div>
+          <div class="col-md-3 mb-3">
+            <div class="text-muted small">Completed Campaigns</div>
+            <div class="h3 mb-0">{{ cf.completed_campaigns }}</div>
+          </div>
+          <div class="col-md-3 mb-3">
+            <div class="text-muted small">Total Raised</div>
+            <div class="h3 mb-0">Rs. {{ cf.total_raised }}</div>
+          </div>
+          <div class="col-md-3 mb-3">
+            <div class="text-muted small">Total Disbursed (Proof)</div>
+            <div class="h3 mb-0">Rs. {{ cf.total_disbursed }}</div>
+          </div>
+        </div>
+
+        <div class="text-muted small">
+          {% if cf.avg_days_to_complete %}
+            Avg time to complete: <b>{{ cf.avg_days_to_complete }}</b> days •
+          {% endif %}
+          Pending disbursement proof: <b>{{ cf.pending_disbursement_proof }}</b>
+        </div>
+
+        {% if top_contributors %}
+          <hr>
+          <h6 class="font-weight-bold mb-2">Top Contributors</h6>
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>Contributor</th>
+                  <th>Donations</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for t in top_contributors %}
+                  <tr>
+                    <td>
+                      {% if t.donor_user__first_name or t.donor_user__last_name %}
+                        {{ t.donor_user__first_name|title }} {{ t.donor_user__last_name|title }}
+                      {% else %}
+                        {{ t.donor_user__username }}
+                      {% endif %}
+                    </td>
+                    <td>{{ t.cnt }}</td>
+                    <td><b>Rs. {{ t.total }}</b></td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+
+        {% if top_campaigns %}
+          <hr>
+          <h6 class="font-weight-bold mb-2">Top Campaigns</h6>
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>Campaign</th>
+                  <th>Raised</th>
+                  <th>Disbursed</th>
+                  <th>Proof</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for c in top_campaigns %}
+                  <tr>
+                    <td><a href="{% url 'campaign_detail' c.id %}">{{ c.title }}</a></td>
+                    <td>Rs. {{ c.raised|default:0 }}</td>
+                    <td>Rs. {{ c.disbursed|default:0 }}</td>
+                    <td>
+                      {% if c.disbursed|default:0 %}
+                        <span class="badge badge-success">Yes</span>
+                      {% else %}
+                        <span class="badge badge-warning">Pending</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+
+        <hr>
+        <div class="text-muted">
+          <b>Disbursement proof</b> is uploaded by staff after funds are released for treatment expenses.
+          This keeps crowdfunding transparent and audit-friendly.
+        </div>
+      </div>
+    </div>
+
     <!-- Trust + How it works -->
     <div class="row mb-4">
       <div class="col-lg-6 mb-3">
@@ -111,11 +224,9 @@
     <!-- Team -->
     <div class="card shadow-sm mb-4">
       <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h4 class="mb-0" style="color:#0a2558;">
-            <i class="fa fa-users text-primary mr-2"></i> Our Team
-          </h4>
-        </div>
+        <h4 class="mb-3" style="color:#0a2558;">
+          <i class="fa fa-users text-primary mr-2"></i> Our Team
+        </h4>
 
         <div class="row">
           {% for m in team %}
@@ -123,10 +234,8 @@
               <div class="border rounded p-3 h-100">
                 <div class="d-flex align-items-center">
                   {% if m.photo %}
-                    <img src="{{ m.photo.url }}"
-                         alt="{{ m.name }}"
-                         style="width:56px;height:56px;object-fit:cover;border-radius:999px;"
-                         class="mr-3">
+                    <img src="{{ m.photo.url }}" alt="{{ m.name }}"
+                         style="width:56px;height:56px;object-fit:cover;border-radius:999px;" class="mr-3">
                   {% else %}
                     <div class="mr-3 d-flex align-items-center justify-content-center"
                          style="width:56px;height:56px;border-radius:999px;background:#f1f3f5;color:#0a2558;">
@@ -148,7 +257,7 @@
       </div>
     </div>
 
-    <!-- Gallery preview (FIXED) -->
+    <!-- Gallery preview  -->
     <div class="card shadow-sm mb-4">
       <div class="card-body">
         <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">

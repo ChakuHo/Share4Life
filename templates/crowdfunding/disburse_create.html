@@ -1,19 +1,102 @@
 {% extends "master/base.html" %}
 {% block content %}
-<section class="section-content padding-y" style="min-height:84vh;">
-  <div class="container" style="max-width: 900px;">
-    <h3 class="mb-2" style="font-weight:900;color:#0a2558;">Upload Disbursement Proof</h3>
-    <div class="text-muted mb-3">{{ camp.title }}</div>
 
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <form method="post" enctype="multipart/form-data" novalidate>
-          {% csrf_token %}
-          {{ form.as_p }}
-          <button class="btn btn-danger btn-block" type="submit">Save Proof</button>
-        </form>
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 980px;">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1" style="font-weight:900;color:#0a2558;">Upload Disbursement Proof</h3>
+        <div class="text-muted">{{ camp.title }}</div>
+      </div>
+
+      <div class="mt-2 mt-md-0">
+        <a class="btn btn-outline-secondary btn-sm" href="{% url 'campaign_detail' camp.id %}">
+          <i class="fa fa-arrow-left mr-1"></i> Back to Campaign
+        </a>
       </div>
     </div>
+
+    <div class="alert alert-light border d-flex flex-wrap justify-content-between align-items-center" style="border-radius:12px;">
+      <div class="mb-1">
+        <div class="text-muted small">Available Balance</div>
+        <div class="h5 mb-0" style="color:#0a2558;">Rs. {{ available }}</div>
+      </div>
+      <div class="text-muted small">
+        Upload a receipt/bank slip/hospital invoice as proof. This will be visible on the campaign page.
+      </div>
+    </div>
+
+    <div class="card shadow-sm" style="border-radius:14px;">
+      <div class="card-body">
+
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+              {{ form.non_field_errors }}
+            </div>
+          {% endif %}
+
+          <div class="form-group">
+            <label class="font-weight-bold">Amount Disbursed (Rs.)</label>
+            <input
+              type="number"
+              name="{{ form.amount.name }}"
+              class="form-control {% if form.amount.errors %}is-invalid{% endif %}"
+              step="0.01"
+              min="0"
+              max="{{ available }}"
+              value="{{ form.amount.value|default_if_none:'' }}"
+              placeholder="e.g. 5000"
+              required
+            >
+            {% if form.amount.errors %}
+              <div class="invalid-feedback">{{ form.amount.errors|striptags }}</div>
+            {% endif %}
+            <small class="text-muted">Must be ≤ available balance.</small>
+          </div>
+
+          <div class="form-group">
+            <label class="font-weight-bold">Proof File</label>
+            <input
+              type="file"
+              name="{{ form.proof_file.name }}"
+              class="form-control-file {% if form.proof_file.errors %}is-invalid{% endif %}"
+              accept=".pdf,.jpg,.jpeg,.png"
+              required
+            >
+            {% if form.proof_file.errors %}
+              <div class="text-danger small mt-1">{{ form.proof_file.errors|striptags }}</div>
+            {% endif %}
+            <small class="text-muted">
+              Allowed: PDF/JPG/PNG. Keep it clear and readable (receipt / invoice / bank slip).
+            </small>
+          </div>
+
+          <div class="form-group">
+            <label class="font-weight-bold">Note (optional)</label>
+            <textarea
+              name="{{ form.note.name }}"
+              class="form-control {% if form.note.errors %}is-invalid{% endif %}"
+              rows="3"
+              placeholder="Example: Paid to hospital billing counter, invoice #1234..."
+            >{{ form.note.value|default_if_none:'' }}</textarea>
+            {% if form.note.errors %}
+              <div class="invalid-feedback">{{ form.note.errors|striptags }}</div>
+            {% endif %}
+          </div>
+
+          <button class="btn btn-danger btn-block" type="submit">
+            <i class="fa fa-save mr-1"></i> Save Proof
+          </button>
+        </form>
+
+      </div>
+    </div>
+
   </div>
 </section>
+
 {% endblock %}

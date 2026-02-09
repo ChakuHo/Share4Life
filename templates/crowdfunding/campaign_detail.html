@@ -20,7 +20,7 @@
       </a>
     </div>
 
-    {# Status banners (visible to everyone who can view this page) #}
+    {# Status banners #}
     {% if camp.status == "PENDING" %}
       <div class="alert alert-warning">
         <strong>Pending review.</strong>
@@ -35,6 +35,10 @@
       <div class="alert alert-success">
         <strong>Target reached.</strong> This campaign has reached its goal. Donations are closed.
       </div>
+    {% elif camp.status == "ARCHIVED" %}
+      <div class="alert alert-secondary">
+        <strong>Archived.</strong> This campaign is archived for record/transparency. Donations are closed.
+      </div>
     {% endif %}
 
     <div class="card shadow-sm mb-3">
@@ -47,7 +51,7 @@
       <div class="card-body">
         <div class="row">
 
-          <!-- LEFT: Story + Docs + Proof + Report -->
+          <!-- LEFT -->
           <div class="col-md-8 mb-3 mb-md-0">
             <h5 class="mb-2">Story</h5>
             <div class="text-muted">{{ camp.description|linebreaksbr }}</div>
@@ -65,12 +69,21 @@
 
             <hr>
             <h5 class="mb-2">Disbursement Proof (Public)</h5>
+            <div class="text-muted small mb-2">
+              Disbursement proof is uploaded by staff after funds are released for treatment/hospital bills.
+            </div>
+
             {% for x in disbursements %}
               <div class="border rounded p-3 mb-2">
                 <div class="d-flex justify-content-between align-items-start">
                   <div>
                     <strong>Released: Rs. {{ x.amount }}</strong>
                     <div class="text-muted small">{{ x.released_at|date:"Y-m-d H:i" }}</div>
+                    {% if x.released_by %}
+                      <div class="text-muted small">
+                        Released by: {{ x.released_by.get_full_name|default:x.released_by.username }}
+                      </div>
+                    {% endif %}
                   </div>
                   <a href="{{ x.proof_file.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
                     View Proof
@@ -132,7 +145,7 @@
 
           </div>
 
-          <!-- RIGHT: Progress + Donate -->
+          <!-- RIGHT -->
           <div class="col-md-4">
             <div class="border rounded p-3">
 
@@ -150,10 +163,24 @@
 
               <div class="text-muted small mt-2">Donors: {{ donor_count }}</div>
 
+              <div class="text-muted small mt-1">
+                Disbursed total: Rs. {{ disbursed_total }}
+              </div>
+
               {% if available_balance is not None %}
                 <div class="text-muted small mt-1">
                   Available balance: Rs. {{ available_balance }}
                 </div>
+              {% endif %}
+
+          
+              {% if request.user.is_authenticated and needs_disbursement_proof %}
+                {% if request.user.is_staff or is_owner %}
+                  <div class="alert alert-warning mt-3">
+                    <strong>Disbursement proof pending.</strong><br>
+                    Staff should upload proof after funds are released to maintain transparency.
+                  </div>
+                {% endif %}
               {% endif %}
 
               {% if open_reports_count %}
@@ -164,10 +191,9 @@
 
               <hr>
 
-              {# Donation rules #}
               {% if camp.status != "APPROVED" %}
                 <div class="alert alert-info mb-0">
-                  Donations are available only after admin approval.
+                  Donations are available only when campaign is APPROVED (not archived/completed/pending).
                 </div>
 
               {% elif camp.is_expired %}
@@ -178,6 +204,12 @@
               {% elif camp.status == "COMPLETED" %}
                 <div class="alert alert-success mb-0">
                   Target reached. Donations are closed.
+                </div>
+
+              {% elif request.user.is_authenticated and camp.owner_id == request.user.id %}
+                <div class="alert alert-light mb-0" style="border-radius:12px;">
+                  <strong>You created this campaign.</strong><br>
+                  Donations from the campaign owner are disabled to maintain transparency.
                 </div>
 
               {% else %}

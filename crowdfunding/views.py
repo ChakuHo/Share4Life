@@ -70,11 +70,22 @@ def campaign_list(request):
 def campaign_detail(request, pk):
     camp = get_object_or_404(Campaign, pk=pk)
 
-    if camp.status not in ("APPROVED", "COMPLETED"):
+    # Allow public viewing for APPROVED/COMPLETED/ARCHIVED
+    public_ok = camp.status in ("APPROVED", "COMPLETED", "ARCHIVED")
+
+    if not public_ok:
+        # Only staff or owner can view non-public statuses (PENDING/REJECTED)
         if not (request.user.is_authenticated and (request.user.is_staff or camp.owner_id == request.user.id)):
             raise Http404()
 
     _auto_update_campaign(camp)
+
+    is_owner = bool(request.user.is_authenticated and camp.owner_id == request.user.id)
+
+    raised_total = camp.raised_total()
+    disbursed_total = camp.disbursed_total()
+    has_any_disbursement = camp.disbursements.exists()
+    needs_disbursement_proof = bool(raised_total > 0 and not has_any_disbursement)
 
     donation_form = DonationForm(user=request.user)
     report_form = CampaignReportForm(user=request.user)
@@ -83,15 +94,17 @@ def campaign_detail(request, pk):
         "camp": camp,
         "donation_form": donation_form,
         "report_form": report_form,
-        "raised_total": camp.raised_total(),
+        "raised_total": raised_total,
         "pct": camp.get_percentage(),
         "donor_count": camp.donations.filter(status="SUCCESS").count(),
         "documents": camp.documents.order_by("-uploaded_at"),
         "disbursements": camp.disbursements.order_by("-released_at"),
         "available_balance": camp.available_balance(),
         "open_reports_count": camp.reports.filter(status="OPEN").count(),
+        "is_owner": is_owner,
+        "needs_disbursement_proof": needs_disbursement_proof,
+        "disbursed_total": disbursed_total,
     })
-
 
 @login_required
 def campaign_create(request):
@@ -155,6 +168,11 @@ def campaign_create(request):
 def donate_start(request, pk):
     camp = get_object_or_404(Campaign, pk=pk, status="APPROVED")
     _auto_update_campaign(camp)
+
+    #  BLOCK self-donation (campaign owner cannot donate to own campaign)
+    if request.user.is_authenticated and camp.owner_id == request.user.id:
+        messages.error(request, "You cannot donate to your own campaign.")
+        return redirect("campaign_detail", pk=camp.id)
 
     if camp.is_expired():
         messages.error(request, "Campaign deadline has passed.")
@@ -222,7 +240,7 @@ def donate_start(request, pk):
             messages.error(request, f"Khalti initiate failed: {e}")
             return redirect("campaign_detail", pk=camp.id)
 
-    # ---------- ESEWA RC-EPAY v2 (teacher style) ----------
+    # ---------- ESEWA RC-EPAY v2 ----------
     if donation.gateway == "ESEWA":
         try:
             total_amount = int(round(float(donation.amount)))
@@ -232,7 +250,6 @@ def donate_start(request, pk):
             txn_uuid = f"C{camp.id}-D{donation.id}-{uuid.uuid4().hex[:8]}"
             signature = _make_esewa_signature(total_amount, txn_uuid)
 
-            # requires these fields in Donation model; if missing you must add and migrate
             donation.esewa_transaction_uuid = txn_uuid
             donation.save(update_fields=["esewa_transaction_uuid"])
 
