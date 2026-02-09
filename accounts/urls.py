@@ -59,5 +59,8 @@ urlpatterns = [
     path("kyc/submit/", views.kyc_submit, name="kyc_submit"),
     path("family/add/", views.family_add, name="family_add"),
     path("profile/edit/", views.profile_edit, name="profile_edit"),
+
+    path("profile/certificate/pdf/", views.download_certificate_pdf, name="download_certificate_pdf"),
 ]
+
 

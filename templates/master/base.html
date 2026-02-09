@@ -6,6 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     <title>{% block title %}Share4Life - Save a Life Today{% endblock %}</title>
 
+    <!-- Favicon from SiteSettings -->
+    {% if site_settings and site_settings.favicon %}
+      <link rel="icon" href="{{ site_settings.favicon.url }}">
+      <link rel="shortcut icon" href="{{ site_settings.favicon.url }}">
+      <link rel="apple-touch-icon" href="{{ site_settings.favicon.url }}">
+    {% endif %}
+
     <!-- FontAwesome & Bootstrap -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
     <link href="{% static 'css/bootstrap.css' %}" rel="stylesheet" type="text/css" />
@@ -102,9 +109,7 @@
 
     {% include 'includes/footer.html' %}
 
-    <!-- ========================= -->
     <!-- Toast -->
-    <!-- ========================= -->
     <div class="s4l-toast-wrap">
       <div class="toast" id="s4lToast" role="alert" aria-live="assertive" aria-atomic="true" data-delay="2500">
         <div class="toast-header">
@@ -118,9 +123,7 @@
       </div>
     </div>
 
-    <!-- ========================= -->
     <!-- REAL-TIME DONOR PING MODAL -->
-    <!-- ========================= -->
     {% if user.is_authenticated and user.is_donor %}
     <div class="modal fade" id="donorPingModal" tabindex="-1" role="dialog" aria-labelledby="donorPingTitle" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered" role="document" style="max-width: 520px;">
@@ -168,7 +171,6 @@
 
     <script>
     (function(){
-      // ---- Toast helper (SAFE) ----
       function showToast(title, body){
         try {
           const t = document.getElementById("s4lToast");
@@ -179,26 +181,20 @@
           ttl.textContent = title || "Share4Life";
           b.textContent = body || "—";
 
-          // Bootstrap 5 API
           if (window.bootstrap && window.bootstrap.Toast) {
             new window.bootstrap.Toast(t).show();
             return;
           }
-
-          // Bootstrap 4 jQuery plugin API (only if exists)
           if (window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.toast === "function") {
             window.jQuery(t).toast("show");
             return;
           }
-
-          // fallback
           console.log("[Toast]", title, body);
         } catch (e) {
           console.log("[ToastError]", e);
         }
       }
 
-      // ---- CSRF helper ----
       function getCookie(name) {
         let cookieValue = null;
         if (document.cookie && document.cookie !== '') {
@@ -222,7 +218,6 @@
         );
       }
 
-      // ---- WebSocket connection ----
       const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
       const socketUrl = wsScheme + "://" + window.location.host + "/ws/blood/donor/";
       let currentPing = null;
@@ -254,12 +249,8 @@
         openBtn.href = data.detail_url || "#";
       }
 
-      function showModal() {
-        window.jQuery && window.jQuery("#donorPingModal").modal("show");
-      }
-      function hideModal() {
-        window.jQuery && window.jQuery("#donorPingModal").modal("hide");
-      }
+      function showModal() { window.jQuery && window.jQuery("#donorPingModal").modal("show"); }
+      function hideModal() { window.jQuery && window.jQuery("#donorPingModal").modal("hide"); }
 
       function bindButtons(){
         const acceptBtn = document.getElementById("ping-accept");
@@ -276,9 +267,7 @@
           return currentPing.request_id;
         }
 
-        openBtn.addEventListener("click", function(){
-          hideModal();
-        });
+        openBtn.addEventListener("click", function(){ hideModal(); });
 
         acceptBtn.addEventListener("click", function(){
           const id = guard(); if (!id) return;
@@ -286,25 +275,14 @@
 
           postQuickRespond(id, "ACCEPTED")
             .then(function(resp){
-              // IMPORTANT: hide modal regardless of toast plugin state
               hideModal();
-
-              if (!resp || !resp.ok) {
-                showToast("Error", "Could not send ACCEPT. Please try again.");
-                return;
-              }
-
+              if (!resp || !resp.ok) { showToast("Error", "Could not send ACCEPT. Please try again."); return; }
               showToast("Accepted", "Response sent. Opening request…");
               const url = (currentPing && currentPing.detail_url) ? currentPing.detail_url : `/blood/request/${id}/`;
               setTimeout(function(){ window.location.href = url; }, 400);
             })
-            .catch(function(){
-              hideModal();
-              showToast("Error", "Network error while sending ACCEPT.");
-            })
-            .finally(function(){
-              acceptBtn.disabled = false;
-            });
+            .catch(function(){ hideModal(); showToast("Error", "Network error while sending ACCEPT."); })
+            .finally(function(){ acceptBtn.disabled = false; });
         });
 
         declineBtn.addEventListener("click", function(){
@@ -314,19 +292,11 @@
           postQuickRespond(id, "DECLINED")
             .then(function(resp){
               hideModal();
-              if (!resp || !resp.ok) {
-                showToast("Error", "Could not send DECLINE. Please try again.");
-                return;
-              }
+              if (!resp || !resp.ok) { showToast("Error", "Could not send DECLINE. Please try again."); return; }
               showToast("Declined", "Response sent.");
             })
-            .catch(function(){
-              hideModal();
-              showToast("Error", "Network error while sending DECLINE.");
-            })
-            .finally(function(){
-              declineBtn.disabled = false;
-            });
+            .catch(function(){ hideModal(); showToast("Error", "Network error while sending DECLINE."); })
+            .finally(function(){ declineBtn.disabled = false; });
         });
 
         delayBtn.addEventListener("click", function(){
@@ -336,39 +306,27 @@
           postQuickRespond(id, "DELAYED")
             .then(function(resp){
               hideModal();
-              if (!resp || !resp.ok) {
-                showToast("Error", "Could not send DELAY. Please try again.");
-                return;
-              }
+              if (!resp || !resp.ok) { showToast("Error", "Could not send DELAY. Please try again."); return; }
               showToast("Delayed", "Response sent.");
             })
-            .catch(function(){
-              hideModal();
-              showToast("Error", "Network error while sending DELAY.");
-            })
-            .finally(function(){
-              delayBtn.disabled = false;
-            });
+            .catch(function(){ hideModal(); showToast("Error", "Network error while sending DELAY."); })
+            .finally(function(){ delayBtn.disabled = false; });
         });
       }
 
-      // Connect socket
       function connect() {
         const socket = new WebSocket(socketUrl);
 
         socket.onmessage = function(e){
           const data = JSON.parse(e.data || "{}");
           if (data.type !== "DONOR_PING") return;
-
           currentPing = data;
           setPingUI(data);
           bindButtons();
           showModal();
         };
 
-        socket.onclose = function(){
-          setTimeout(connect, 2000);
-        };
+        socket.onclose = function(){ setTimeout(connect, 2000); };
       }
 
       connect();

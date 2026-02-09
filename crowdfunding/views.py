@@ -302,6 +302,19 @@ def khalti_return(request, donation_id):
                 donation.gateway_ref = data.get("transaction_id") or data.get("idx") or pidx
                 donation.save(update_fields=["status", "verified_at", "gateway_ref", "raw_response"])
 
+                # points: amount // 100
+                if donation.donor_user_id:
+                    try:
+                        from django.apps import apps
+                        from django.db.models import F
+                        Profile = apps.get_model("accounts", "UserProfile")
+                        amt = int(donation.amount or 0)
+                        add_points = max(0, amt // 100)
+                        if add_points:
+                            Profile.objects.filter(user_id=donation.donor_user_id).update(points=F("points") + add_points)
+                    except Exception:
+                        pass
+
                 camp.refresh_raised_amount()
                 camp.mark_completed_if_needed()
 
@@ -373,6 +386,19 @@ def esewa_return(request, donation_id):
             donation.gateway_ref = txn_code or donation.gateway_ref
             donation.save(update_fields=["status", "verified_at", "esewa_transaction_code", "gateway_ref", "raw_response"])
 
+            # points: amount // 100
+            if donation.donor_user_id:
+                try:
+                    from django.apps import apps
+                    from django.db.models import F
+                    Profile = apps.get_model("accounts", "UserProfile")
+                    amt = int(donation.amount or 0)
+                    add_points = max(0, amt // 100)
+                    if add_points:
+                        Profile.objects.filter(user_id=donation.donor_user_id).update(points=F("points") + add_points)
+                except Exception:
+                    pass
+
             camp.refresh_raised_amount()
             camp.mark_completed_if_needed()
 
@@ -395,7 +421,6 @@ def esewa_return(request, donation_id):
         messages.success(request, "eSewa payment successful. Thank you for donating.")
         return redirect("campaign_detail", pk=camp.id)
 
-    # failed/cancelled
     if donation.status != "SUCCESS":
         donation.status = "FAILED"
         donation.save(update_fields=["status", "raw_response"])
@@ -407,7 +432,7 @@ def esewa_return(request, donation_id):
     return redirect("campaign_detail", pk=camp.id)
 
 
-# Backward compatible stubs (in case you still have old URLs/templates somewhere)
+# Backward compatible stubs if only we have old urls
 def esewa_success(request, donation_id):
     messages.info(request, "This endpoint is deprecated. Please use the eSewa return flow.")
     return redirect("campaign_detail", pk=get_object_or_404(Donation, pk=donation_id).campaign_id)

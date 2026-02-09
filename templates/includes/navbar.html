@@ -66,7 +66,7 @@
 <!-- MAIN NAV (WHITE) -->
 <header class="s4l-navbar shadow-sm bg-white">
   <div class="container">
-    <div class="row align-items-center py-3">
+    <div class="row align-items-center py-2 no-gutters">
 
       <!-- BRAND -->
       <div class="col-lg-3 col-md-3 col-6">
@@ -394,7 +394,36 @@
   .s4l-toplink:hover { text-decoration: underline; color:#fff; }
 
   .s4l-navbar { position: sticky; top: 0; z-index: 1000; }
-  .s4l-logo { height: 56px; width: auto; }
+  .s4l-logo{
+  height: 56px;
+  max-height: 56px;
+
+  width: auto;
+  max-width: 180px;      /* This helps in preventing overlapping */
+  object-fit: contain;
+  display: block;
+}
+
+@media (max-width: 1199.98px){
+  .s4l-logo{ max-width: 160px; }
+}
+@media (max-width: 991.98px){
+  .s4l-logo{
+    height: 48px;
+    max-height: 48px;
+    max-width: 150px;
+  }
+}
+@media (max-width: 575.98px){
+  .s4l-logo{
+    height: 42px;
+    max-height: 42px;
+    max-width: 130px;
+  }
+}
+
+  .s4l-navbar .col-lg-3{ overflow: hidden; } /* this helps us to ensure that logo doesn't overflow on smaller screens */
+
   .s4l-brand-text { font-weight: 900; color: var(--primary-color); letter-spacing: -1px; }
 
   /* keep menu clickable even if right side overlaps */

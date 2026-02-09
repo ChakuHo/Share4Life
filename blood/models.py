@@ -205,6 +205,9 @@ class BloodDonation(models.Model):
         Mark donation VERIFIED and update the linked request:
         - Request becomes FULFILLED only when total VERIFIED units >= units_needed
         - Otherwise keep request IN_PROGRESS
+
+        Gamification:
+          +150 base points + (20 × units) when donation becomes VERIFIED (only once)
         """
         if self.status == "VERIFIED":
             return
@@ -218,6 +221,20 @@ class BloodDonation(models.Model):
         self.save(update_fields=[
             "status", "verified_by", "verified_by_org", "verified_at", "rejection_reason"
         ])
+
+        # award points (only on first verification)
+        if self.donor_user_id:
+            try:
+                from django.apps import apps
+                from django.db.models import F
+                Profile = apps.get_model("accounts", "UserProfile")
+
+                units = int(self.units or 0)
+                add_points = 150 + (20 * units)
+
+                Profile.objects.filter(user_id=self.donor_user_id).update(points=F("points") + add_points)
+            except Exception:
+                pass
 
         if not self.request_id:
             return

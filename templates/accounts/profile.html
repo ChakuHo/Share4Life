@@ -84,7 +84,7 @@
         </div>
       </div>
 
-      <!-- Right: Progress + details -->
+      <!-- Right -->
       <div class="col-lg-8">
 
         <!-- Progress row -->
@@ -178,7 +178,51 @@
           </div>
         </div>
 
-        {# 90-DAY ELIGIBILITY CARD (NEW) #}
+        <!-- ✅ Social Impact + Certificate -->
+        {% if impact_stats %}
+          <div class="card shadow-sm mb-4">
+            <div class="card-body">
+              <h5 class="mb-2" style="color:#0a2558;">
+                <i class="fa fa-globe text-danger mr-2"></i> Social Impact
+              </h5>
+
+              <div class="row">
+                <div class="col-md-4 mb-3">
+                  <div class="text-muted small">Verified blood donations</div>
+                  <div class="h4 mb-0">{{ impact_stats.blood_verified_count }}</div>
+                </div>
+                <div class="col-md-4 mb-3">
+                  <div class="text-muted small">Verified blood units</div>
+                  <div class="h4 mb-0">{{ impact_stats.blood_verified_units }}</div>
+                </div>
+                <div class="col-md-4 mb-3">
+                  <div class="text-muted small">Verified organ pledges</div>
+                  <div class="h4 mb-0">{{ impact_stats.organ_verified_count }}</div>
+                </div>
+              </div>
+
+              <div class="text-muted small">
+                Crowdfunding contributed: <b>Rs. {{ impact_stats.crowdfunding_total }}</b>
+                • Points: <b>{{ impact_stats.points }}</b>
+                • Level: <b>{{ impact_stats.level }}</b>
+              </div>
+
+              <div class="mt-3">
+                {% if can_download_certificate %}
+                  <a href="{% url 'download_certificate_pdf' %}" class="btn btn-outline-primary btn-sm">
+                    <i class="fa fa-file-pdf mr-1"></i> Download Certificate (PDF)
+                  </a>
+                {% else %}
+                  <div class="alert alert-light mb-0" style="border-radius:12px;">
+                    Certificate will unlock after <b>KYC verification</b> or at least <b>1 verified donation</b>.
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% endif %}
+
+        {# 90-DAY ELIGIBILITY CARD #}
         {% if request.user.is_donor and donor_eligibility %}
           <div class="card shadow-sm mb-4">
             <div class="card-body">
@@ -254,7 +298,7 @@
           </div>
         {% endif %}
 
-        {# CROWDFUNDING CONTRIBUTIONS CARD (NEW on profile) #}
+        {# Crowdfunding contributions card (already) #}
         {% if crowdfunding_stats %}
           <div class="card shadow-sm mb-4">
             <div class="card-body">
@@ -276,29 +320,6 @@
             </div>
           </div>
         {% endif %}
-
-        <!-- Details -->
-        <div class="card shadow-sm mb-4">
-          <div class="card-body">
-            <h6 class="mb-3"><i class="fa fa-notes-medical text-primary"></i> Medical & Emergency</h6>
-
-            <div class="row">
-              <div class="col-md-6 mb-3">
-                <div class="text-muted small">Emergency contact</div>
-                <div class="font-weight-bold">{{ profile.emergency_contact_name|default:"—" }}</div>
-                <div class="text-muted small mt-2">Emergency phone</div>
-                <div class="font-weight-bold">{{ profile.emergency_contact_phone|default:"—" }}</div>
-              </div>
-
-              <div class="col-md-6 mb-3">
-                <div class="text-muted small">Medical history</div>
-                <div class="profile-box">
-                  {{ profile.medical_history|default:"No medical history added yet."|linebreaksbr }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
 
         <!-- Family summary -->
         <div class="card shadow-sm">
@@ -356,12 +377,6 @@
 
   </div>
 </section>
-
-<style>
-  .text-primary { color: #0a2558 !important; }
-  .btn-primary { background: linear-gradient(135deg, #0a2558 0%, #061838 100%); border: none; }
-  .profile-box { border: 1px solid #e9ecef; background: #fafbfc; padding: 12px; border-radius: 10px; }
-</style>
 
 <script>
 document.addEventListener("DOMContentLoaded", function(){

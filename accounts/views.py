@@ -16,6 +16,21 @@ from blood.eligibility import (
     ELIGIBILITY_DAYS,
 )
 
+import io
+from django.http import HttpResponse
+from django.db.models import Sum
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+from reportlab.lib.units import inch
+from reportlab.lib.colors import HexColor
+from django.shortcuts import redirect
+from accounts.models import UserProfile
+from core.models import SiteSetting
+
+from blood.models import BloodDonation
+from organ.models import OrganPledge
+
 from .forms import (
     RegistrationForm,
     FamilyMemberForm,
@@ -29,8 +44,7 @@ from .tokens import make_email_token, read_email_token
 
 from blood.models import PublicBloodRequest
 from crowdfunding.models import Campaign, Donation
-from django.db.models import Sum
-from crowdfunding.models import Donation
+
 
 
 User = get_user_model()
@@ -345,6 +359,7 @@ def profile_view(request):
         roles.append("Hospital Admin")
     if not roles:
         roles = ["User"]
+
     donor_eligibility = None
     if request.user.is_donor:
         last = last_verified_donation(request.user)
@@ -367,6 +382,8 @@ def profile_view(request):
             "progress_percent": progress_percent,
             "eligibility_days": ELIGIBILITY_DAYS,
         }
+
+    # Crowdfunding stats 
     don_total = (
         Donation.objects
         .filter(donor_user=request.user, status="SUCCESS")
@@ -385,6 +402,26 @@ def profile_view(request):
         "campaigns_supported": don_campaigns,
     }
 
+    # Social Impact stats
+    blood_verified_qs = BloodDonation.objects.filter(donor_user=request.user, status="VERIFIED")
+    blood_verified_count = blood_verified_qs.count()
+    blood_verified_units = blood_verified_qs.aggregate(s=Sum("units"))["s"] or 0
+
+    organ_verified_count = OrganPledge.objects.filter(donor=request.user, status="VERIFIED").count()
+
+    impact_stats = {
+        "blood_verified_count": blood_verified_count,
+        "blood_verified_units": blood_verified_units,
+        "organ_verified_count": organ_verified_count,
+        "crowdfunding_total": don_total,
+        "points": points,
+        "level": cur_level,
+    }
+
+    # Certificate rule (we can change this later to our pref but for now we are going with this simple logic to allow certificate download if user is KYC verified or has at least 1 verified blood donation):
+    # Allow certificate if KYC verified OR has at least 1 verified blood donation
+    can_download_certificate = bool(request.user.is_verified or blood_verified_count > 0 or organ_verified_count > 0)
+
     return render(request, "accounts/profile.html", {
         "profile": profile,
         "kyc": kyc,
@@ -401,6 +438,8 @@ def profile_view(request):
         "missing_fields": missing_fields,
         "donor_eligibility": donor_eligibility,
         "crowdfunding_stats": crowdfunding_stats,
+        "impact_stats": impact_stats,
+        "can_download_certificate": can_download_certificate,
     })
 
 
@@ -490,3 +529,328 @@ def kyc_submit(request):
         "profile_form": profile_form,
         "upload_form": upload_form,
     })
+
+
+@login_required
+def download_certificate_pdf(request):
+    """
+    Generates a PDF certificate with Share4Life logo and verification details.
+
+    Unlock rule (includes organ):
+      - KYC verified OR
+      - at least 1 VERIFIED blood donation OR
+      - at least 1 VERIFIED organ pledge
+    """
+
+    # ---------- helpers ----------
+    def fmt_dt(dt):
+        if not dt:
+            return "—"
+        try:
+            return timezone.localtime(dt).strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            return dt.strftime("%Y-%m-%d %H:%M")
+
+    def title_case_name(s: str) -> str:
+        s = (s or "").strip()
+        if not s:
+            return ""
+        return " ".join([w[:1].upper() + w[1:].lower() for w in s.split()])
+
+    def display_admin(u):
+        # "Share4Life Admin (Name)" style
+        if not u:
+            return "Share4Life Admin"
+        full = title_case_name((u.get_full_name() or "").strip())
+        if full:
+            return f"Share4Life Admin ({full})"
+        username = getattr(u, "username", "") or ""
+        return f"Share4Life Admin ({username})" if username else "Share4Life Admin"
+
+    def display_person(u):
+        if not u:
+            return "—"
+        if getattr(u, "is_superuser", False) or getattr(u, "is_staff", False):
+            return display_admin(u)
+        full = title_case_name((u.get_full_name() or "").strip())
+        if full:
+            return full
+        return getattr(u, "username", "—") or "—"
+
+    def get_logo_reader():
+        """
+        Load SiteSetting.site_logo safely (works with local disk and remote storage).
+        """
+        try:
+            ss = SiteSetting.objects.filter(pk=1).first()
+            if not ss or not ss.site_logo:
+                return None
+
+            ss.site_logo.open("rb")
+            data = ss.site_logo.read()
+            ss.site_logo.close()
+
+            if not data:
+                return None
+
+            return ImageReader(io.BytesIO(data))
+        except Exception:
+            return None
+
+    def draw_contain_image_in_box(c, img_reader, box_x, box_y, box_w, box_h, inner_pad=6):
+        """
+        Fit image inside box (NO zoom/crop). Keeps aspect ratio, centered.
+        """
+        if not img_reader:
+            return
+        try:
+            iw, ih = img_reader.getSize()
+            if not iw or not ih:
+                return
+
+            max_w = max(box_w - 2 * inner_pad, 1)
+            max_h = max(box_h - 2 * inner_pad, 1)
+
+            scale = min(max_w / float(iw), max_h / float(ih))
+            dw = iw * scale
+            dh = ih * scale
+
+            img_x = box_x + (box_w - dw) / 2
+            img_y = box_y + (box_h - dh) / 2
+            c.drawImage(img_reader, img_x, img_y, width=dw, height=dh, mask="auto")
+        except Exception:
+            pass
+
+    def draw_section_box(
+        c, title, lines, top_y, *,
+        box_h=140, fill_color=None,
+        left_pad=16, top_pad=16,
+        title_gap=26, line_gap=17
+    ):
+        """
+        Draw a section box with proper internal padding so headings/text never touch borders.
+        Returns bottom y of the box.
+        """
+        box_w = w - 2 * margin
+        box_x = margin
+        box_y = top_y - box_h
+
+        c.setStrokeColor(light_border)
+        c.setFillColor(fill_color if fill_color is not None else white)
+        c.rect(box_x, box_y, box_w, box_h, stroke=1, fill=1)
+
+        title_y = top_y - top_pad
+        c.setFillColor(navy)
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(box_x + left_pad, title_y, title)
+
+        yy = title_y - title_gap
+        c.setFillColor(dark)
+        c.setFont("Helvetica", 12)
+        for line in lines:
+            c.drawString(box_x + left_pad, yy, line)
+            yy -= line_gap
+
+        return box_y
+
+    # ---------------- Eligibility checking ----------------
+    blood_verified_qs = BloodDonation.objects.filter(donor_user=request.user, status="VERIFIED")
+    blood_verified_count = blood_verified_qs.count()
+
+    organ_verified_qs = OrganPledge.objects.filter(donor=request.user, status="VERIFIED")
+    organ_verified_count = organ_verified_qs.count()
+
+    if not (request.user.is_verified or blood_verified_count > 0 or organ_verified_count > 0):
+        messages.error(
+            request,
+            "Certificate unlocks after KYC verification or at least 1 verified blood donation / organ pledge."
+        )
+        return redirect("profile")
+
+    # ---------------- Stats ----------------
+    blood_verified_units = blood_verified_qs.aggregate(s=Sum("units"))["s"] or 0
+    cf_total = (
+        Donation.objects
+        .filter(donor_user=request.user, status="SUCCESS")
+        .aggregate(s=Sum("amount"))["s"] or 0
+    )
+
+    try:
+        profile_points = int(
+            UserProfile.objects.filter(user=request.user).values_list("points", flat=True).first() or 0
+        )
+    except Exception:
+        profile_points = int(getattr(getattr(request.user, "profile", None), "points", 0) or 0)
+
+    # ---------------- Verification details ----------------
+    kyc = getattr(request.user, "kyc", None)
+    kyc_is_approved = bool(kyc and getattr(kyc, "status", "") == "APPROVED")
+    kyc_verified_for_pdf = bool(request.user.is_verified or kyc_is_approved)
+
+    kyc_reviewer = display_person(getattr(kyc, "reviewed_by", None)) if kyc_is_approved else "—"
+    kyc_reviewed_at = fmt_dt(getattr(kyc, "reviewed_at", None)) if kyc_is_approved else "—"
+
+    last_blood = blood_verified_qs.order_by("-verified_at").select_related("verified_by", "verified_by_org").first()
+    blood_verified_by = display_person(getattr(last_blood, "verified_by", None)) if last_blood else "—"
+    blood_verified_org = (getattr(getattr(last_blood, "verified_by_org", None), "name", "") or "—") if last_blood else "—"
+    blood_verified_at = fmt_dt(getattr(last_blood, "verified_at", None)) if last_blood else "—"
+
+    last_pledge = organ_verified_qs.order_by("-verified_at").select_related("verified_by", "verified_by_org").first()
+    organ_verified_by = display_person(getattr(last_pledge, "verified_by", None)) if last_pledge else "—"
+    organ_verified_org = (getattr(getattr(last_pledge, "verified_by_org", None), "name", "") or "—") if last_pledge else "—"
+    organ_verified_at = fmt_dt(getattr(last_pledge, "verified_at", None)) if last_pledge else "—"
+
+    # ---------------- Certificate meta ----------------
+    base_name = (request.user.get_full_name() or request.user.username).strip()
+    full_name = title_case_name(base_name) or request.user.username
+    issued_date = timezone.localdate().strftime("%Y-%m-%d")
+    cert_id = f"S4L-{request.user.id:06d}-{timezone.localdate().strftime('%Y%m%d')}"
+
+    roles = []
+    if request.user.is_donor:
+        roles.append("Donor")
+    if request.user.is_recipient:
+        roles.append("Recipient")
+    if request.user.is_hospital_admin:
+        roles.append("Hospital Admin")
+    if not roles:
+        roles = ["User"]
+
+    # ---------------- PDF response ----------------
+    filename = f"Share4Life_Certificate_{request.user.username}.pdf"
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    c = canvas.Canvas(response, pagesize=A4)
+    w, h = A4
+
+    # Theme colors
+    navy = HexColor("#0a2558")
+    red = HexColor("#e63946")
+    white = HexColor("#ffffff")
+    dark = HexColor("#333333")
+    light_border = HexColor("#e6eaf2")
+    light_bg = HexColor("#f8f9fa")
+
+    margin = 36
+
+    # Outer frame
+    c.setStrokeColor(light_border)
+    c.setLineWidth(1)
+    c.rect(margin - 12, margin - 12, w - 2 * (margin - 12), h - 2 * (margin - 12), stroke=1, fill=0)
+
+    # ---------------- Header band  ----------------
+    header_y = h - 128
+    header_h = 98
+
+    band_left = margin - 12
+    band_width = w - 2 * (margin - 12)
+    band_right = band_left + band_width
+
+    c.setFillColor(navy)
+    c.rect(band_left, header_y, band_width, header_h, stroke=0, fill=1)
+
+    # inner padding INSIDE blue header (left/right/top/bottom)
+    inner_pad_x = 22
+    inner_pad_y = 12
+    inner_left = band_left + inner_pad_x
+    inner_right = band_right - inner_pad_x
+
+    # Logo box 
+    logo_reader = get_logo_reader()
+    box_w = 190
+    box_h = header_h - 2 * inner_pad_y
+    box_x = inner_left
+    box_y = header_y + inner_pad_y
+
+    if logo_reader:
+        c.setFillColor(white)
+        c.rect(box_x, box_y, box_w, box_h, stroke=0, fill=1)
+        draw_contain_image_in_box(c, logo_reader, box_x, box_y, box_w, box_h, inner_pad=6)
+
+    # Title with right padding + auto shrink so it never touches the right edge
+    title_text = "Share4Life Certificate"
+    title_x = box_x + box_w + 26
+    title_y = header_y + (header_h / 2) + 8
+    max_title_w = max(inner_right - title_x, 60)
+
+    font_size = 22
+    while font_size >= 14:
+        c.setFont("Helvetica-Bold", font_size)
+        if c.stringWidth(title_text, "Helvetica-Bold", font_size) <= max_title_w:
+            break
+        font_size -= 1
+
+    title_y = header_y + (header_h * 0.58)
+    subtitle_y = header_y + (header_h * 0.35)
+    title_font = 26
+    c.setFillColor(white)
+    c.setFont("Helvetica-Bold", title_font)
+    c.drawString(title_x, title_y, title_text)
+
+    c.setFillColor(white)
+    c.drawString(title_x, title_y, title_text)
+
+    c.setFont("Helvetica", 12)
+    c.setFillColor(HexColor("#dbe5ff"))
+    c.drawString(title_x, subtitle_y, "Certificate of Appreciation")
+
+    # ---------------- Meta row ----------------
+    y = header_y - 28
+    c.setFillColor(navy)
+    c.setFont("Helvetica", 11)
+    c.drawString(margin, y, f"Certificate ID: {cert_id}")
+    c.drawRightString(w - margin, y, f"Issued on: {issued_date}")
+
+    # Awarded to
+    y -= 45
+    c.setFont("Helvetica-Bold", 15)
+    c.drawString(margin, y, "Awarded to:")
+    y -= 30
+    c.setFont("Helvetica-Bold", 24)
+    c.setFillColor(red)
+    c.drawString(margin, y, full_name)
+
+    # Roles + KYC
+    y -= 34
+    c.setFillColor(navy)
+    c.setFont("Helvetica", 12)
+    c.drawString(margin, y, f"Role(s): {', '.join(roles)}")
+    y -= 18
+    c.drawString(margin, y, f"KYC Verified: {'YES' if kyc_verified_for_pdf else 'NO'}")
+
+    # ---------------- Social Impact Summary ----------------
+    y -= 46
+    impact_lines = [
+        f"Verified Blood Donations: {blood_verified_count}",
+        f"Verified Blood Units: {blood_verified_units}",
+        f"Verified Organ Pledges: {organ_verified_count}",
+        f"Crowdfunding Contributions (Successful): Rs. {cf_total}",
+        f"Profile Points: {profile_points}",
+    ]
+    bottom_y = draw_section_box(
+        c, "Social Impact Summary", impact_lines, y,
+        box_h=145, fill_color=light_bg
+    )
+
+    # ---------------- Verification Details ----------------
+    y = bottom_y - 64
+    ver_lines = [
+        f"KYC reviewed by: {kyc_reviewer}   at: {kyc_reviewed_at}",
+        f"Last blood verification: {blood_verified_org} / {blood_verified_by} at {blood_verified_at}",
+        f"Last organ pledge verification: {organ_verified_org} / {organ_verified_by} at {organ_verified_at}",
+    ]
+    draw_section_box(
+        c, "Verification Details", ver_lines, y,
+        box_h=145, fill_color=white
+    )
+
+    # Footer note
+    c.setFont("Helvetica-Oblique", 9)
+    c.setFillColor(dark)
+    c.drawString(margin, 62, "This certificate is generated digitally by Share4Life based on verified platform records.")
+    c.drawString(margin, 48, "For confirmation, match Certificate ID and verification details with admin records.")
+
+    c.showPage()
+    c.save()
+    return response

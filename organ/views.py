@@ -416,23 +416,26 @@ def organ_portal(request):
         "matches": matches,
     })
 
-
 @require_POST
 @org_member_required(roles=["ADMIN", "VERIFIER"])
 def org_verify_pledge(request, pledge_id):
     org = request.organization
     pledge = get_object_or_404(OrganPledge, id=pledge_id)
 
+    # only verify pending items
     if pledge.status != "UNDER_REVIEW":
         messages.info(request, "This pledge is not pending verification.")
         return redirect("organ_portal")
 
+    # city-scoped if org.city exists, else global fallback
     if not _org_can_verify_pledge(org, pledge):
         raise Http404()
 
     action = (request.POST.get("action") or "").strip()
 
     if action == "approve":
+        old_status = pledge.status
+
         pledge.status = "VERIFIED"
         pledge.verified_by = request.user
         pledge.verified_by_org = org
@@ -440,20 +443,21 @@ def org_verify_pledge(request, pledge_id):
         pledge.rejection_reason = ""
         pledge.save(update_fields=["status", "verified_by", "verified_by_org", "verified_at", "rejection_reason"])
 
+        # award points only when transitioning into VERIFIED
+        if old_status != "VERIFIED":
+            try:
+                from django.apps import apps
+                from django.db.models import F
+                Profile = apps.get_model("accounts", "UserProfile")
+                Profile.objects.filter(user_id=pledge.donor_id).update(points=F("points") + 150)
+            except Exception:
+                pass
+
         _notify_user(
             pledge.donor,
             "Organ pledge verified",
             f"{org.name} verified your organ pledge.",
             url=f"/organ/pledge/{pledge.id}/",
-            level="SUCCESS",
-        )
-
-        # - org internal notification
-        _notify_org_members(
-            org,
-            "Pledge verified",
-            f"Pledge #{pledge.id} verified by {request.user.username}.",
-            url="/organ/portal/",
             level="SUCCESS",
         )
 
@@ -476,21 +480,12 @@ def org_verify_pledge(request, pledge_id):
             url=f"/organ/pledge/{pledge.id}/",
             level="DANGER",
         )
-
-        # - org internal notification
-        _notify_org_members(
-            org,
-            "Pledge rejected",
-            f"Pledge #{pledge.id} rejected by {request.user.username}.",
-            url="/organ/portal/",
-            level="WARNING",
-        )
-
         messages.error(request, "Pledge rejected.")
         return redirect("organ_portal")
 
     messages.error(request, "Invalid action.")
     return redirect("organ_portal")
+
 
 @org_member_required(roles=["ADMIN", "VERIFIER", "STAFF"])
 def org_pledge_detail(request, pledge_id):
