@@ -138,14 +138,14 @@
               <h6 class="mb-2"><i class="fa fa-shield-alt text-primary"></i> Institution Verification</h6>
 
               {% if req.verification_status != "VERIFIED" %}
-                <form method="post" action="{% url 'org_verify_request' req.id %}" class="d-inline-block mr-2 mb-2">
+                <form method="post" action="{% url 'verify_request' req.id %}" class="d-inline-block mr-2 mb-2">
                   {% csrf_token %}
                   <button type="submit" name="action" value="approve" class="btn btn-sm btn-success">
                     Approve Request
                   </button>
                 </form>
 
-                <form method="post" action="{% url 'org_verify_request' req.id %}" class="d-inline-block mb-2">
+                <form method="post" action="{% url 'verify_request' req.id %}" class="d-inline-block mb-2">
                   {% csrf_token %}
                   <div class="d-flex flex-wrap align-items-center">
                     <input type="text" name="reason" class="form-control form-control-sm mr-2 mb-2"

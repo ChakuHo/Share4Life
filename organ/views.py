@@ -141,11 +141,17 @@ def pledge_list(request):
 
 
 @login_required
-def pledge_detail(request, pledge_id):
+def pledge_detail(request, pledge_id, slug=None):
     pledge = get_object_or_404(OrganPledge, id=pledge_id, donor=request.user)
+
+    # SEO redirect AFTER fetching pledge
+    if request.method == "GET":
+        canonical = pledge.get_absolute_url()
+        if slug != (pledge.slug or ""):
+            return redirect(canonical, permanent=True)
+
     doc_form = OrganPledgeDocumentForm()
     return render(request, "organ/pledge_detail.html", {"pledge": pledge, "doc_form": doc_form})
-
 
 @require_POST
 @login_required
@@ -283,8 +289,13 @@ def organ_request_list(request):
 
 
 @login_required
-def organ_request_detail(request, request_id):
+def organ_request_detail(request, request_id, slug=None):
     obj = get_object_or_404(OrganRequest, id=request_id)
+
+    if request.method == "GET":
+        canonical = obj.get_absolute_url()
+        if slug != (obj.slug or ""):
+            return redirect(canonical, permanent=True)
 
     doc_form = OrganRequestDocumentForm()
 

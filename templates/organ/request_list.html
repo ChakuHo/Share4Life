@@ -38,7 +38,7 @@
                 <td><span class="badge badge-light p-2">{{ r.get_status_display }}</span></td>
                 <td class="text-muted small">{{ r.created_at|date:"Y-m-d H:i" }}</td>
                 <td class="text-right">
-                  <a class="btn btn-sm btn-primary" href="{% url 'organ_request_detail' r.id %}">View</a>
+                  <a class="btn btn-sm btn-primary" href="{{ r.get_absolute_url }}">View</a>
                 </td>
               </tr>
             {% empty %}

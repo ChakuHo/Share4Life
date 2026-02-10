@@ -5,7 +5,7 @@ urlpatterns = [
     path('emergency-request/', views.emergency_request_view, name='emergency_request'),
     path('feed/', views.public_dashboard_view, name='public_dashboard'),
     path('donate-now/<int:request_id>/', views.guest_donate_view, name='guest_donate'),
-
+    path('request/<int:request_id>-<slug:slug>/', views.request_detail_view, name='blood_request_detail_slug'),
     path('request/<int:request_id>/', views.request_detail_view, name='blood_request_detail'),
     path('request/<int:request_id>/respond/', views.donor_respond_view, name='donor_respond'),
     path('request/<int:request_id>/donation/', views.donation_create_view, name='donation_create'),
@@ -14,7 +14,8 @@ urlpatterns = [
     path('donor/history/', views.donor_history_view, name='donor_history'),
     path('donation/<int:donation_id>/report/upload/', views.donation_report_upload_view, name='donation_report_upload'),
     path('report/<int:report_id>/download/', views.donation_report_download_view, name='donation_report_download'),
-
+    path("donation/<int:donation_id>/verify/", views.verify_donation_view, name="org_verify_donation"),
+    
     # donor verify request and manage
     path("request/new/", views.recipient_request_view, name="recipient_request"),
     path("my/requests/", views.my_blood_requests_view, name="my_blood_requests"),

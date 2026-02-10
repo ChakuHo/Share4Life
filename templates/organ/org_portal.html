@@ -47,15 +47,11 @@
                       <br>
                       Submitted: {{ p.submitted_at|date:"Y-m-d H:i" }}
                     </div>
+
                     <div class="mt-2">
-                      {# If you added org_pledge_detail view, this is the correct link #}
-                      {% if org_pledge_detail_url %}
-                        <a class="btn btn-sm btn-outline-primary" href="{{ org_pledge_detail_url }}">View & Review</a>
-                      {% else %}
-                        <a class="btn btn-sm btn-outline-primary" href="{% url 'org_pledge_detail' p.id %}">
-                          View & Review
-                        </a>
-                      {% endif %}
+                      <a class="btn btn-sm btn-outline-primary" href="{% url 'org_pledge_detail' p.id %}">
+                        View & Review
+                      </a>
                     </div>
                   </div>
 
@@ -108,7 +104,7 @@
                       {{ r.hospital_name }} • {{ r.city }} • {{ r.contact_phone }}
                     </div>
                     <div class="mt-2">
-                      <a class="btn btn-sm btn-outline-primary" href="{% url 'organ_request_detail' r.id %}">
+                      <a class="btn btn-sm btn-outline-primary" href="{{ r.get_absolute_url }}">
                         View
                       </a>
                     </div>
@@ -171,11 +167,10 @@
                 </div>
 
                 <div class="mt-2 d-flex flex-wrap">
-                  <a class="btn btn-sm btn-outline-primary mr-2 mb-2" href="{% url 'organ_request_detail' r.id %}">
+                  <a class="btn btn-sm btn-outline-primary mr-2 mb-2" href="{{ r.get_absolute_url }}">
                     View
                   </a>
 
-                  <!-- ✅ FIX HERE: correct URL name is organ_match_create -->
                   <a class="btn btn-sm btn-danger mb-2" href="{% url 'organ_match_create' r.id %}">
                     <i class="fa fa-link"></i> Create Match
                   </a>

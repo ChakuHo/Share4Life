@@ -252,7 +252,7 @@
                 </div>
               </div>
 
-              <a href="{% url 'blood_request_detail' r.id %}" class="btn btn-block btn-primary btn-sm">
+              <a href="{{ r.get_absolute_url }}" class="btn btn-block btn-primary btn-sm">
                 View Details
               </a>
             </div>

@@ -30,7 +30,7 @@
               <tr>
                 <td class="text-muted small">{{ d.created_at|date:"Y-m-d H:i" }}</td>
                 <td>
-                  <a href="{% url 'campaign_detail' d.campaign_id %}">{{ d.campaign.title }}</a>
+                  <a href="{{ d.campaign.get_absolute_url }}">{{ d.campaign.title }}</a>
                 </td>
                 <td>{{ d.gateway }}</td>
                 <td>

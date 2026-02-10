@@ -51,9 +51,7 @@
                   <td>
                     <div class="font-weight-bold">{{ d.hospital_name|default:"—"|title }}</div>
                     {% if d.request %}
-                      <div class="text-muted small">
-                        Linked request: <a href="{% url 'blood_request_detail' d.request.id %}">#{{ d.request.id }}</a>
-                      </div>
+                      <a href="{{ d.request.get_absolute_url }}">#{{ d.request.id }}</a>
                     {% endif %}
                   </td>
 

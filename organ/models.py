@@ -4,7 +4,9 @@ import uuid
 from django.conf import settings
 from django.core.validators import FileExtensionValidator
 from django.db import models
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import slugify
 
 
 # ---------- Upload paths ----------
@@ -56,6 +58,8 @@ class OrganPledge(models.Model):
         related_name="organ_pledges",
     )
 
+    slug = models.SlugField(max_length=220, blank=True, db_index=True)
+
     pledge_type = models.CharField(max_length=10, choices=PLEDGE_TYPE)
     organs = models.JSONField(default=list, help_text="List of organ codes from ORGANS choices")
 
@@ -101,10 +105,6 @@ class OrganPledge(models.Model):
 
     @property
     def organ_names(self):
-        """
-        Human readable organ names for templates.
-        FIXED: this property must be inside the model.
-        """
         m = dict(self.ORGANS)
         return [m.get(code, code) for code in (self.organs or [])]
 
@@ -119,6 +119,33 @@ class OrganPledge(models.Model):
         self.status = "REVOKED"
         self.revoked_at = timezone.now()
         self.save(update_fields=["status", "revoked_at"])
+
+    def get_absolute_url(self):
+        safe_slug = self.slug or (f"organ-pledge-{self.pk}" if self.pk else "pledge")
+        return reverse("organ_pledge_detail_slug", kwargs={"pledge_id": self.id, "slug": safe_slug})
+
+    def save(self, *args, **kwargs):
+        """
+        FIXED slug save:
+        - generate only if missing
+        - include pk suffix so it won't collide
+        """
+        super().save(*args, **kwargs)
+
+        if self.slug:
+            return
+
+        organs_part = "-".join(self.organs or [])
+        base = slugify(f"{self.donor.username} {self.pledge_type} {organs_part}").strip("-")
+        if not base:
+            base = "organ-pledge"
+
+        suffix = f"-{self.pk}"
+        max_len = self._meta.get_field("slug").max_length - len(suffix)
+        base = base[:max_len].strip("-")
+
+        self.slug = f"{base}{suffix}"
+        super().save(update_fields=["slug"])
 
 
 class OrganPledgeDocument(models.Model):
@@ -186,6 +213,8 @@ class OrganRequest(models.Model):
 
     status = models.CharField(max_length=20, choices=STATUS, default="SUBMITTED")
 
+    slug = models.SlugField(max_length=220, blank=True, db_index=True)
+
     # org handling
     target_organization = models.ForeignKey(
         "hospitals.Organization",
@@ -220,6 +249,32 @@ class OrganRequest(models.Model):
 
     def __str__(self):
         return f"OrganRequest#{self.id} {self.organ_needed} ({self.city})"
+
+    def get_absolute_url(self):
+        safe_slug = self.slug or (f"organ-request-{self.pk}" if self.pk else "request")
+        return reverse("organ_request_detail_slug", kwargs={"request_id": self.id, "slug": safe_slug})
+
+    def save(self, *args, **kwargs):
+        """
+        FIXED slug save:
+        - fixes your indentation bug
+        - includes pk suffix to avoid collisions
+        """
+        super().save(*args, **kwargs)
+
+        if self.slug:
+            return
+
+        base = slugify(f"{self.patient_name} {self.organ_needed} {self.city} {self.hospital_name}").strip("-")
+        if not base:
+            base = "organ-request"
+
+        suffix = f"-{self.pk}"
+        max_len = self._meta.get_field("slug").max_length - len(suffix)
+        base = base[:max_len].strip("-")
+
+        self.slug = f"{base}{suffix}"
+        super().save(update_fields=["slug"])
 
 
 class OrganRequestDocument(models.Model):
@@ -283,7 +338,6 @@ class OrganMatch(models.Model):
         indexes = [
             models.Index(fields=["status", "updated_at"]),
         ]
-        # Prevent duplicate matches for same pledge + request
         constraints = [
             models.UniqueConstraint(fields=["request", "pledge"], name="uniq_match_per_request_pledge"),
         ]

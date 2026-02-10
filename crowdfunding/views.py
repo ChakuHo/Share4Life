@@ -67,18 +67,21 @@ def campaign_list(request):
     return render(request, "crowdfunding/campaign_list.html", {"items": qs})
 
 
-def campaign_detail(request, pk):
+def campaign_detail(request, pk, slug=None):
     camp = get_object_or_404(Campaign, pk=pk)
 
-    # Allow public viewing for APPROVED/COMPLETED/ARCHIVED
     public_ok = camp.status in ("APPROVED", "COMPLETED", "ARCHIVED")
-
     if not public_ok:
-        # Only staff or owner can view non-public statuses (PENDING/REJECTED)
         if not (request.user.is_authenticated and (request.user.is_staff or camp.owner_id == request.user.id)):
             raise Http404()
 
     _auto_update_campaign(camp)
+
+    # SEO redirect
+    if request.method == "GET":
+        canonical = camp.get_absolute_url()
+        if slug != (camp.slug or ""):
+            return redirect(canonical, permanent=True)
 
     is_owner = bool(request.user.is_authenticated and camp.owner_id == request.user.id)
 
@@ -105,6 +108,7 @@ def campaign_detail(request, pk):
         "needs_disbursement_proof": needs_disbursement_proof,
         "disbursed_total": disbursed_total,
     })
+
 
 @login_required
 def campaign_create(request):

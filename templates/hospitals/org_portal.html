@@ -67,8 +67,7 @@
                   </div>
 
                   <div class="mt-2 mt-md-0 text-md-right">
-                    <a class="btn btn-sm btn-outline-primary mb-2"
-                       href="{% url 'blood_request_detail' r.id %}">
+                    <a class="btn btn-sm btn-outline-primary mb-2" href="{{ r.get_absolute_url }}">
                       View
                     </a>
 
@@ -149,7 +148,7 @@
                 <div class="mt-2 d-flex flex-wrap align-items-center">
                   {% if d.request %}
                     <a class="btn btn-sm btn-outline-primary mr-2 mb-2"
-                       href="{% url 'blood_request_detail' d.request.id %}">
+                       href="{{ d.request.get_absolute_url }}">
                       View Request
                     </a>
                   {% endif %}

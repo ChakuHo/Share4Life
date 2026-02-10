@@ -9,7 +9,7 @@
         <h3 class="mb-1">Edit Blood Request</h3>
         <div class="text-muted">Update request details and proof if needed.</div>
       </div>
-      <a href="{% url 'blood_request_detail' req.id %}" class="btn btn-outline-secondary">
+      <a href="{{ req.get_absolute_url }}" class="btn btn-outline-secondary">
         <i class="fa fa-arrow-left"></i> Back
       </a>
     </div>

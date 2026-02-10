@@ -27,8 +27,11 @@ def push_ping_to_donors(req):
             "city": req.location_city,
             "hospital": req.hospital_name,
             "is_emergency": bool(req.is_emergency),
-            "detail_url": f"/blood/request/{req.id}/",
-            "distance_km": dist, 
+
+            # slug URL (canonical)
+            "detail_url": req.get_absolute_url(),
+
+            "distance_km": dist,
         }
 
         async_to_sync(channel_layer.group_send)(
@@ -37,6 +40,7 @@ def push_ping_to_donors(req):
         )
 
     return len(donors)
+
 
 def push_request_event(request_id: int, data: dict):
     channel_layer = get_channel_layer()

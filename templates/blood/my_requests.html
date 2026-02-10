@@ -34,7 +34,6 @@
 
             <tbody>
               {% for r in items %}
-                {% url 'blood_request_detail' r.id as view_url %}
                 {% url 'blood_request_edit' r.id as edit_url %}
                 {% url 'blood_request_cancel' r.id as cancel_url %}
 
@@ -43,22 +42,16 @@
 
                   <td class="font-weight-bold">
                     {{ r.patient_name|title }}
-                    <div class="text-muted small">
-                      {{ r.location_city|title }}
-                    </div>
+                    <div class="text-muted small">{{ r.location_city|title }}</div>
                   </td>
 
                   <td>
-                    <span class="s4l-badge s4l-badge-soft">
-                      {{ r.blood_group }}
-                    </span>
+                    <span class="s4l-badge s4l-badge-soft">{{ r.blood_group }}</span>
                   </td>
 
                   <td>{{ r.units_needed }}</td>
 
-                  <td>
-                    {{ r.hospital_name|title }}
-                  </td>
+                  <td>{{ r.hospital_name|title }}</td>
 
                   <td>
                     {% if r.verification_status == "VERIFIED" %}
@@ -81,31 +74,22 @@
                   </td>
 
                   <td>
-                    <span class="s4l-badge s4l-badge-soft">
-                      {{ r.get_status_display }}
-                    </span>
-
+                    <span class="s4l-badge s4l-badge-soft">{{ r.get_status_display }}</span>
                     {% if not r.is_active or r.status == "FULFILLED" or r.status == "CANCELLED" %}
                       <div class="text-muted small mt-1">Closed</div>
                     {% endif %}
                   </td>
 
                   <td class="text-right">
-                    <a href="{{ view_url|default:'#' }}" class="btn btn-sm btn-primary">
-                      View
-                    </a>
+                    <a href="{{ r.get_absolute_url }}" class="btn btn-sm btn-primary">View</a>
 
                     {% if r.is_active and r.status != "FULFILLED" and r.status != "CANCELLED" %}
-                      <a href="{{ edit_url|default:'#' }}" class="btn btn-sm btn-outline-secondary ml-2">
-                        Edit
-                      </a>
+                      <a href="{{ edit_url|default:'#' }}" class="btn btn-sm btn-outline-secondary ml-2">Edit</a>
 
                       <form method="post" action="{{ cancel_url|default:'#' }}" class="d-inline-block ml-2"
                             onsubmit="return confirm('Cancel this request?');">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                          Cancel
-                        </button>
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Cancel</button>
                       </form>
                     {% endif %}
                   </td>

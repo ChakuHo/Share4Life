@@ -174,6 +174,21 @@ CHANNEL_LAYERS = {
     }
 }
 
+# Guest emergency anti-spam limits
+S4L_GUEST_EMERGENCY_MIN_INTERVAL_SECONDS = 600   # 10 minutes per phone
+S4L_GUEST_EMERGENCY_MAX_PER_HOUR_IP = 5          # per IP per hour
+S4L_GUEST_EMERGENCY_MAX_PER_HOUR_PHONE = 3       # per phone per hour
+
+# --- reCAPTCHA (Google) ---
+RECAPTCHA_SITE_KEY = os.environ.get("RECAPTCHA_SITE_KEY", "")
+RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", "")
+
+# test keys only for local development if real keys are not provided
+if DEBUG and (not RECAPTCHA_SITE_KEY or not RECAPTCHA_SECRET_KEY):
+    RECAPTCHA_SITE_KEY = "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"
+    RECAPTCHA_SECRET_KEY = "6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe"
+
+RECAPTCHA_ENABLED = bool(RECAPTCHA_SITE_KEY and RECAPTCHA_SECRET_KEY)
 
 # --- Khalti (Sandbox) ---
 KHALTI_PUBLIC_KEY = os.environ.get("KHALTI_PUBLIC_KEY", "")

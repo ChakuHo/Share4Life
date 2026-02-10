@@ -100,7 +100,7 @@
             <div class="h3 mb-0">{{ cf.active_campaigns }}</div>
           </div>
           <div class="col-md-3 mb-3">
-            <div class="text-muted small">Completed Campaigns</div>
+            <div class="text-muted small">Completed / Archived</div>
             <div class="h3 mb-0">{{ cf.completed_campaigns }}</div>
           </div>
           <div class="col-md-3 mb-3">
@@ -118,6 +118,9 @@
             Avg time to complete: <b>{{ cf.avg_days_to_complete }}</b> days •
           {% endif %}
           Pending disbursement proof: <b>{{ cf.pending_disbursement_proof }}</b>
+          {% if cf.archived_campaigns is not None %}
+            • Archived: <b>{{ cf.archived_campaigns }}</b>
+          {% endif %}
         </div>
 
         {% if top_contributors %}

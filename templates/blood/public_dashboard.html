@@ -16,7 +16,7 @@
       </a>
     </div>
 
-    {# show donor eligibility once (not inside every card) #}
+    {# show donor eligibility once #}
     {% if user.is_authenticated and user.is_donor and donor_eligible == False and donor_next_eligible %}
       <div class="alert alert-warning">
         <strong>Not eligible to donate right now.</strong>

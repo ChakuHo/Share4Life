@@ -33,7 +33,7 @@
                 <td>Rs. {{ c.target_amount }}</td>
                 <td>Rs. {{ c.raised_amount }}</td>
                 <td class="text-right">
-                  <a class="btn btn-sm btn-primary" href="{% url 'campaign_detail' c.id %}">Open</a>
+                  <a class="btn btn-sm btn-primary" href="{{ c.get_absolute_url }}">Open</a>
                 </td>
               </tr>
             {% empty %}

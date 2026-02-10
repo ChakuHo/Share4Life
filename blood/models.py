@@ -6,7 +6,8 @@ from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.db.models import Q, Sum
 from django.utils import timezone
-
+from django.urls import reverse
+from django.utils.text import slugify
 
 class PublicBloodRequest(models.Model):
     """
@@ -46,6 +47,8 @@ class PublicBloodRequest(models.Model):
     # workflow fields
     status = models.CharField(max_length=12, choices=STATUS, default="OPEN")
     fulfilled_at = models.DateTimeField(null=True, blank=True)
+
+    slug = models.SlugField(max_length=220, blank=True, db_index=True)
 
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -93,6 +96,23 @@ class PublicBloodRequest(models.Model):
 
     def __str__(self):
         return f"Need {self.blood_group} at {self.location_city}"
+    
+    def get_absolute_url(self):
+        return reverse(
+            "blood_request_detail_slug",
+            kwargs={"request_id": self.id, "slug": self.slug or "request"}
+        )
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+    # generate slug ONCE 
+        if not self.slug:
+            base = slugify(f"{self.patient_name}-{self.blood_group}-{self.location_city}-{self.hospital_name}")[:200]
+            if not base:
+                base = f"blood-request-{self.pk}"
+            self.slug = base
+            super().save(update_fields=["slug"])
 
 
 class GuestResponse(models.Model):

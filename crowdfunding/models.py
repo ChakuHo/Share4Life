@@ -1,9 +1,11 @@
 from decimal import Decimal
+
 from django.conf import settings
 from django.db import models
 from django.db.models import Sum
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import slugify
 
 
 class Campaign(models.Model):
@@ -55,11 +57,15 @@ class Campaign(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
     archived_at = models.DateTimeField(null=True, blank=True)
 
+    slug = models.SlugField(max_length=220, blank=True, db_index=True)
+
     def __str__(self):
         return self.title
 
     def get_absolute_url(self):
-        return reverse("campaign_detail", args=[self.id])
+        # Canonical slug URL (still keeps legacy /campaign/<id>/ working via redirect logic in view)
+        safe_slug = self.slug or (f"campaign-{self.pk}" if self.pk else "campaign")
+        return reverse("campaign_detail_slug", kwargs={"pk": self.id, "slug": safe_slug})
 
     def raised_total(self):
         return (
@@ -104,6 +110,28 @@ class Campaign(models.Model):
         self.status = "ARCHIVED"
         self.archived_at = timezone.now()
         self.save(update_fields=["status", "archived_at"])
+
+    def save(self, *args, **kwargs):
+        """
+        FIXED slug save:
+        - generate only if missing (doesn't change existing URLs)
+        - includes pk suffix to avoid collisions
+        """
+        super().save(*args, **kwargs)
+
+        if self.slug:
+            return
+
+        base = slugify(f"{self.title} {self.patient_name} {self.hospital_city}").strip("-")
+        if not base:
+            base = "campaign"
+
+        suffix = f"-{self.pk}"
+        max_len = self._meta.get_field("slug").max_length - len(suffix)
+        base = base[:max_len].strip("-")
+
+        self.slug = f"{base}{suffix}"
+        super().save(update_fields=["slug"])
 
 
 class CampaignDocument(models.Model):

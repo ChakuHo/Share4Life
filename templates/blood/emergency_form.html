@@ -85,6 +85,17 @@
             </div>
           </div>
 
+          {% if recaptcha_enabled %}
+            <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+
+            <div class="form-group mt-3">
+              <div class="g-recaptcha" data-sitekey="{{ recaptcha_site_key }}"></div>
+              <div class="text-muted small mt-2">
+                Please complete the captcha to prevent spam.
+              </div>
+            </div>
+          {% endif %}
+
           <button class="btn btn-danger btn-lg btn-block" type="submit" id="submit-btn">
             <i class="fa fa-bullhorn"></i> Post Emergency Request
           </button>

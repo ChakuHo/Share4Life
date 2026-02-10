@@ -10,7 +10,7 @@
         <h3 class="mb-1">Respond as Donor</h3>
         <div class="text-muted">Accept / Decline / Delay this request.</div>
       </div>
-      <a href="{{ detail_url|default:'#' }}" class="btn btn-outline-secondary">
+      <a href="{{ req.get_absolute_url }}" class="btn btn-outline-secondary">
         <i class="fa fa-arrow-left"></i> Back
       </a>
     </div>

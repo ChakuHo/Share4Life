@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path("", views.campaign_list, name="campaign_list"),
     path("campaign/new/", views.campaign_create, name="campaign_create"),
+    path("campaign/<int:pk>-<slug:slug>/", views.campaign_detail, name="campaign_detail_slug"),
     path("campaign/<int:pk>/", views.campaign_detail, name="campaign_detail"),
 
     path("campaign/<int:pk>/donate/", views.donate_start, name="donate_start"),

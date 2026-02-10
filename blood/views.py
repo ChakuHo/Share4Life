@@ -1,6 +1,10 @@
 # imports-------------------------------------------------------------------------------------------
 import os
-
+import requests
+from typing import Tuple
+from datetime import timedelta
+from django.core.cache import cache
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction, IntegrityError
@@ -39,6 +43,114 @@ def _notify_user(user, title, body="", url="", level="INFO"):
         return
     Notification.objects.create(user=user, title=title, body=body, url=url, level=level)
 
+def _client_ip(request):
+    # supports proxies if configured
+    xff = request.META.get("HTTP_X_FORWARDED_FOR")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR", "") or ""
+
+def verify_recaptcha(request) -> Tuple[bool, str]:
+    """
+    Returns (ok: bool, error_message: str)
+    Never raises exceptions (so it won't crash your site).
+    """
+    if not getattr(settings, "RECAPTCHA_ENABLED", False):
+        return True, ""
+
+    token = (request.POST.get("g-recaptcha-response") or "").strip()
+    if not token:
+        return False, "Please complete the captcha."
+
+    try:
+        resp = requests.post(
+            "https://www.google.com/recaptcha/api/siteverify",
+            data={
+                "secret": settings.RECAPTCHA_SECRET_KEY,
+                "response": token,
+                "remoteip": _client_ip(request),
+            },
+            timeout=6,
+        )
+        data = resp.json()
+    except Exception:
+        return False, "Captcha verification failed due to network error. Please try again."
+
+    if data.get("success") is True:
+        return True, ""
+
+    return False, "Captcha failed/expired. Please try again."
+
+def _throttle_key(prefix: str, value: str) -> str:
+    value = (value or "").strip().lower()
+    return f"s4l:{prefix}:{value}"
+
+
+def _cache_incr(key: str, ttl_seconds: int) -> int:
+    """
+    Increment a counter in cache with a TTL.
+    Works even if cache backend doesn't support atomic incr.
+    """
+    try:
+        # If key doesn't exist, add it
+        added = cache.add(key, 1, timeout=ttl_seconds)
+        if added:
+            return 1
+        # Otherwise increment (some backends)
+        val = cache.incr(key)
+        return int(val)
+    except Exception:
+        # fallback for non-incr backends
+        val = int(cache.get(key, 0) or 0) + 1
+        cache.set(key, val, timeout=ttl_seconds)
+        return val
+
+
+def allow_guest_emergency_post(phone: str, ip: str) -> Tuple[bool, str]:
+    """
+    Returns (allowed, reason).
+    Blocks:
+      - too frequent posts by same phone (min interval)
+      - too many per hour per IP
+      - too many per hour per phone
+      - duplicate DB posts in last few minutes (safety even if cache resets)
+    """
+    phone = (phone or "").strip()
+    ip = (ip or "").strip()
+
+    min_interval = int(getattr(settings, "S4L_GUEST_EMERGENCY_MIN_INTERVAL_SECONDS", 300))
+    max_ip = int(getattr(settings, "S4L_GUEST_EMERGENCY_MAX_PER_HOUR_IP", 5))
+    max_phone = int(getattr(settings, "S4L_GUEST_EMERGENCY_MAX_PER_HOUR_PHONE", 3))
+
+    # DB duplicate protection (works even if cache is cleared)
+    recent_cutoff = timezone.now() - timedelta(seconds=min_interval)
+    if phone:
+        exists = PublicBloodRequest.objects.filter(
+            created_by__isnull=True,
+            contact_phone=phone,
+            created_at__gte=recent_cutoff,
+        ).exists()
+        if exists:
+            return (False, f"Too many requests from this phone. Try again after {min_interval // 60} minutes.")
+
+    # Cache-based hourly throttles
+    hour_ttl = 3600
+
+    if ip:
+        ip_key = _throttle_key("guest_emergency_ip_hour", ip)
+        ip_count = _cache_incr(ip_key, hour_ttl)
+        if ip_count > max_ip:
+            return (False, "Too many emergency requests from your network. Please try again later.")
+
+    if phone:
+        phone_key = _throttle_key("guest_emergency_phone_hour", phone)
+        phone_count = _cache_incr(phone_key, hour_ttl)
+        if phone_count > max_phone:
+            return (False, "Too many emergency requests from this phone number. Please try again later.")
+
+    return (True, "")
+
+
 def _notify_org_members(org, title, body="", url="", level="INFO"):
     if not org:
         return
@@ -54,28 +166,61 @@ def _notify_org_members(org, title, body="", url="", level="INFO"):
 
 # Guest emergency request
 def emergency_request_view(request):
+    """
+    Guest emergency blood request:
+    - Proof required (handled by form)
+    - Anti-spam: 10-minute cooldown per phone (and hourly limits via cache helper)
+    - reCAPTCHA: enabled when RECAPTCHA_ENABLED=True
+    """
     if request.method == "POST":
         form = EmergencyRequestForm(request.POST, request.FILES)
         if form.is_valid():
+            phone = (form.cleaned_data.get("contact_phone") or "").strip()
+            ip = _client_ip(request)
+
+            # 1) Anti-spam throttle FIRST (so user doesn't redo captcha just to be throttled)
+            ok_th, reason = allow_guest_emergency_post(phone=phone, ip=ip)
+            if not ok_th:
+                messages.error(request, reason)
+                return render(request, "blood/emergency_form.html", {
+                    "form": form,
+                    "recaptcha_enabled": getattr(settings, "RECAPTCHA_ENABLED", False),
+                    "recaptcha_site_key": getattr(settings, "RECAPTCHA_SITE_KEY", ""),
+                })
+
+            # 2) Captcha check
+            ok_cap, err = verify_recaptcha(request)
+            if not ok_cap:
+                messages.error(request, err)
+                return render(request, "blood/emergency_form.html", {
+                    "form": form,
+                    "recaptcha_enabled": getattr(settings, "RECAPTCHA_ENABLED", False),
+                    "recaptcha_site_key": getattr(settings, "RECAPTCHA_SITE_KEY", ""),
+                })
+
+            # 3) Save request
             obj = form.save(commit=False)
             obj.created_by = None
             obj.is_emergency = True
             obj.status = "OPEN"
             obj.is_active = True
-
-            # Proof is mandatory
             obj.verification_status = "PENDING"
             obj.save()
 
-            # Notify all active users
+            # 4) Ping donors after commit
             transaction.on_commit(lambda: push_ping_to_donors(obj))
 
             messages.success(request, "Emergency posted. Proof attached and visible to donors.")
             return redirect("public_dashboard")
+
     else:
         form = EmergencyRequestForm()
 
-    return render(request, "blood/emergency_form.html", {"form": form})
+    return render(request, "blood/emergency_form.html", {
+        "form": form,
+        "recaptcha_enabled": getattr(settings, "RECAPTCHA_ENABLED", False),
+        "recaptcha_site_key": getattr(settings, "RECAPTCHA_SITE_KEY", ""),
+    })
 
 
 # Logged-in recipient request
@@ -109,8 +254,8 @@ def recipient_request_view(request):
                 users_qs = CustomUser.objects.filter(is_active=True)
 
                 title = "URGENT Blood Request"
-                url = f"/blood/request/{obj.id}/"
-                abs_url = request.build_absolute_uri(url)
+                url = obj.get_absolute_url()
+                abs_url = request.build_absolute_uri(obj.get_absolute_url())
 
                 body = (
                     f"Urgent need: {obj.blood_group} in {obj.location_city}. "
@@ -185,17 +330,21 @@ def public_dashboard_view(request):
 
 
 # Request detail - public
-def request_detail_view(request, request_id):
+def request_detail_view(request, request_id, slug=None):
     blood_req = get_object_or_404(PublicBloodRequest, id=request_id)
+
+    # SEO: redirect legacy URL -> canonical slug URL (GET only)
+    if request.method == "GET":
+        canonical = blood_req.get_absolute_url()
+        if slug != (blood_req.slug or ""):
+            return redirect(canonical, permanent=True)
 
     guest_responses = blood_req.responses.order_by("-responded_at")
     donor_responses = blood_req.donor_responses.select_related("donor").order_by("-responded_at", "-created_at")
     donations = blood_req.donations.select_related("donor_user").order_by("-donated_at")
 
-    # lifecycle state
     is_active_request = bool(blood_req.is_active and blood_req.status in ("OPEN", "IN_PROGRESS"))
 
-    # Organization/institution scope for this request
     org_membership_req = None
     org_can_verify = False
 
@@ -231,9 +380,9 @@ def request_detail_view(request, request_id):
         blood_req.proof_document and (
             (request.user.is_authenticated and (
                 request.user.is_staff
-                or getattr(request.user, "is_hospital_admin", False)  
+                or getattr(request.user, "is_hospital_admin", False)
                 or (blood_req.created_by_id == request.user.id)
-                or (org_membership_req is not None)  # org member in scope
+                or (org_membership_req is not None)
             ))
         )
     )
@@ -246,7 +395,6 @@ def request_detail_view(request, request_id):
         )
     )
 
-    # Donor state
     eligible_info = None
     my_response = None
     my_donation = None
@@ -265,7 +413,6 @@ def request_detail_view(request, request_id):
 
         can_respond = is_active_request
 
-        # donation only after ACCEPTED + eligible + no existing donation
         can_mark_donation = (
             is_active_request
             and eligible
@@ -274,22 +421,15 @@ def request_detail_view(request, request_id):
             and my_response.status == "ACCEPTED"
         )
 
-        
-
     return render(request, "blood/request_detail.html", {
         "req": blood_req,
         "guest_responses": guest_responses,
         "donor_responses": donor_responses,
         "donations": donations,
-
         "is_active_request": is_active_request,
         "can_view_proof": can_view_proof,
-
-        # org context for this request
         "org_membership_req": org_membership_req,
         "org_can_verify": org_can_verify,
-
-        # donor context
         "eligible_info": eligible_info,
         "my_response": my_response,
         "my_donation": my_donation,
@@ -664,6 +804,84 @@ def verify_request_view(request, request_id):
     messages.error(request, "Invalid action.")
     return redirect("blood_request_detail", request_id=req.id)
 
+@require_POST
+@login_required
+def verify_donation_view(request, donation_id):
+    donation = get_object_or_404(
+        BloodDonation.objects.select_related("request", "request__target_organization", "donor_user"),
+        id=donation_id
+    )
+
+    if not donation.request_id:
+        raise Http404()
+
+    req = donation.request
+
+    # Staff / hospital admin always allowed
+    if request.user.is_staff or getattr(request.user, "is_hospital_admin", False):
+        allowed_org = req.target_organization if req.target_organization_id else None
+    else:
+        # Org members (ADMIN/VERIFIER) allowed only in scope (target org OR city match)
+        memberships = (
+            OrganizationMembership.objects
+            .filter(user=request.user, is_active=True, organization__status="APPROVED")
+            .select_related("organization")
+            .order_by("-added_at")
+        )
+
+        req_city = (req.location_city or "").strip().lower()
+        target_org_id = req.target_organization_id
+
+        allowed_org = None
+        ok = False
+
+        for m in memberships:
+            if m.role not in ("ADMIN", "VERIFIER"):
+                continue
+            org = m.organization
+            org_city = (org.city or "").strip().lower()
+
+            if target_org_id:
+                if org.id == target_org_id:
+                    ok = True
+                    allowed_org = org
+                    break
+            else:
+                if req_city and org_city and req_city == org_city:
+                    ok = True
+                    allowed_org = org
+                    break
+
+        if not ok:
+            raise Http404()
+
+    # Verify (idempotent)
+    before = donation.status
+    donation.mark_verified(request.user, verified_org=allowed_org)
+
+    # Notifications
+    if before != "VERIFIED":
+        if donation.donor_user_id:
+            _notify_user(
+                donation.donor_user,
+                "Blood donation verified",
+                f"Your donation for request #{req.id} was verified.",
+                url=req.get_absolute_url(),
+                level="SUCCESS",
+            )
+        if req.created_by_id:
+            _notify_user(
+                req.created_by,
+                "Donation verified",
+                f"A donation was verified for your request #{req.id}.",
+                url=req.get_absolute_url(),
+                level="SUCCESS",
+            )
+
+    messages.success(request, "Donation verified.")
+    return redirect(req.get_absolute_url())
+
+
 # showing feed proof document
 def request_proof_view(request, request_id):
     req = get_object_or_404(PublicBloodRequest, id=request_id)
@@ -772,7 +990,7 @@ def quick_respond_view(request, request_id):
             "ok": True,
             "request_id": blood_req.id,
             "status": status,
-            "redirect_url": f"/blood/request/{blood_req.id}/",
+            "redirect_url": blood_req.get_absolute_url(),
         })
 
     messages.success(request, "Response sent.")
