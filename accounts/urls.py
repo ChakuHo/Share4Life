@@ -61,6 +61,7 @@ urlpatterns = [
     path("profile/edit/", views.profile_edit, name="profile_edit"),
 
     path("profile/certificate/pdf/", views.download_certificate_pdf, name="download_certificate_pdf"),
+    path("donors/", views.public_donor_directory, name="public_donor_directory"),
 ]
 
 

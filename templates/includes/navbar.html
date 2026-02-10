@@ -10,6 +10,9 @@
 {% url 'kyc_submit' as kyc_submit_url %}
 {% url 'family_add' as family_add_url %}
 
+{# Public donor directory #}
+{% url 'public_donor_directory' as donor_directory_url %}
+
 {# Blood links #}
 {% url 'public_dashboard' as blood_feed_url %}
 {% url 'emergency_request' as emergency_request_url %}
@@ -20,6 +23,7 @@
 
 {# Communication inbox #}
 {% url 'inbox' as inbox_url %}
+{% url 'chat_threads' as chat_threads_url %}
 
 {# Organization (Institutions) links #}
 {% url 'institutions_home' as institutions_home_url %}
@@ -34,7 +38,7 @@
 {% url 'organ_request_create' as organ_request_create_url %}
 {% url 'organ_portal' as organ_portal_url %}
 
-{# Crowdfunding links#}
+{# Crowdfunding links #}
 {% url 'campaign_list' as campaign_list_url %}
 {% url 'my_donations' as my_donations_url %}
 
@@ -101,7 +105,6 @@
               <a class="nav-link" href="#">Organ</a>
             {% endif %}
           {% else %}
-            {# Not logged in → send to login #}
             <a class="nav-link" href="{{ login_url }}">Organ</a>
           {% endif %}
 
@@ -122,6 +125,8 @@
 
           {% url 'about' as about_url %}
           <a class="nav-link" href="{{ about_url|default:'#' }}">About</a>
+
+          {# Donor Directory intentionally not on main navbar #}
         </nav>
       </div>
 
@@ -172,6 +177,25 @@
                 <i class="fa fa-tint mr-2 text-primary"></i> Blood Feed
               </a>
 
+              {# Chats (badge) #}
+              {% if chat_threads_url %}
+                <a class="dropdown-item d-flex justify-content-between align-items-center" href="{{ chat_threads_url }}">
+                  <span><i class="fa fa-comments mr-2 text-primary"></i> Chats</span>
+                  {% if unread_chat_count|default:0 %}
+                    <span class="badge badge-danger" style="border-radius:999px; min-width:22px;">
+                      {{ unread_chat_count }}
+                    </span>
+                  {% endif %}
+                </a>
+              {% endif %}
+
+              {# Donor Directory (only after login, dropdown only) #}
+              {% if donor_directory_url %}
+                <a class="dropdown-item" href="{{ donor_directory_url }}">
+                  <i class="fa fa-users mr-2 text-primary"></i> Donor Directory
+                </a>
+              {% endif %}
+
               {% if user.is_recipient %}
                 <a class="dropdown-item" href="{{ my_requests_url }}">
                   <i class="fa fa-clipboard-list mr-2 text-primary"></i> My Blood Requests
@@ -190,7 +214,6 @@
                 </a>
               {% endif %}
 
-              {# Organ links #}
               <div class="dropdown-divider"></div>
 
               {% if organ_pledge_list_url %}
@@ -222,7 +245,6 @@
                 </a>
               {% endif %}
 
-              <!-- Institution -->
               <div class="dropdown-divider"></div>
 
               {% if org_membership %}
@@ -323,6 +345,23 @@
       <a href="{{ blood_campaigns_url }}" class="d-block py-2 text-dark border-bottom">Donation Camps</a>
       <a href="{{ campaign_list_url|default:'#' }}" class="d-block py-2 text-dark border-bottom">Crowdfunding</a>
 
+      {# Keep donor directory hidden from guests; show only when logged in (mobile) #}
+      {% if user.is_authenticated and donor_directory_url %}
+        <a href="{{ donor_directory_url }}" class="d-block py-2 text-dark border-bottom">Donor Directory</a>
+      {% endif %}
+
+      {# Chats link for mobile (logged in only) #}
+      {% if user.is_authenticated and chat_threads_url %}
+        <a href="{{ chat_threads_url }}" class="d-flex justify-content-between align-items-center py-2 text-dark border-bottom">
+          <span>Chats</span>
+          {% if unread_chat_count|default:0 %}
+            <span class="badge badge-danger" style="border-radius:999px; min-width:22px;">
+              {{ unread_chat_count }}
+            </span>
+          {% endif %}
+        </a>
+      {% endif %}
+
       {# Organ links #}
       {% if user.is_authenticated %}
         {% if user.is_donor and organ_pledge_list_url %}
@@ -395,46 +434,30 @@
 
   .s4l-navbar { position: sticky; top: 0; z-index: 1000; }
   .s4l-logo{
-  height: 56px;
-  max-height: 56px;
-
-  width: auto;
-  max-width: 180px;      /* This helps in preventing overlapping */
-  object-fit: contain;
-  display: block;
-}
-
-@media (max-width: 1199.98px){
-  .s4l-logo{ max-width: 160px; }
-}
-@media (max-width: 991.98px){
-  .s4l-logo{
-    height: 48px;
-    max-height: 48px;
-    max-width: 150px;
+    height: 56px;
+    max-height: 56px;
+    width: auto;
+    max-width: 180px;
+    object-fit: contain;
+    display: block;
   }
-}
-@media (max-width: 575.98px){
-  .s4l-logo{
-    height: 42px;
-    max-height: 42px;
-    max-width: 130px;
+
+  @media (max-width: 1199.98px){ .s4l-logo{ max-width: 160px; } }
+  @media (max-width: 991.98px){
+    .s4l-logo{ height: 48px; max-height: 48px; max-width: 150px; }
   }
-}
+  @media (max-width: 575.98px){
+    .s4l-logo{ height: 42px; max-height: 42px; max-width: 130px; }
+  }
 
-  .s4l-navbar .col-lg-3{ overflow: hidden; } /* this helps us to ensure that logo doesn't overflow on smaller screens */
-
+  .s4l-navbar .col-lg-3{ overflow: hidden; }
   .s4l-brand-text { font-weight: 900; color: var(--primary-color); letter-spacing: -1px; }
 
-  /* keep menu clickable even if right side overlaps */
   .s4l-center-col { position: relative; z-index: 3; }
   .s4l-menu { position: relative; z-index: 3; }
   .s4l-right-col { position: relative; z-index: 2; }
 
-  /* Shift right items a bit left on desktop */
-  @media (min-width: 992px){
-    .s4l-right-col { padding-right: 26px; }
-  }
+  @media (min-width: 992px){ .s4l-right-col { padding-right: 26px; } }
 
   .s4l-menu .nav-link { color:#444; font-weight:700; font-size:15px; padding:0.35rem 0.9rem; }
   .s4l-menu .nav-link:hover { color: var(--primary-color); }
@@ -464,8 +487,6 @@
     border-radius:999px;
     border:2px solid rgba(230,57,70,0.35);
     animation: s4lPulse 1.8s infinite;
-
-    /* do not steal clicks from About/other links */
     pointer-events: none;
   }
   @keyframes s4lPulse {

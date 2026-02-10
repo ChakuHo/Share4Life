@@ -16,7 +16,9 @@ from blood.eligibility import (
     last_verified_donation,
     ELIGIBILITY_DAYS,
 )
-
+from django.core.paginator import Paginator
+from django.db.models import Max
+from blood.matching import city_aliases
 import io
 from django.http import HttpResponse
 from django.db.models import Sum
@@ -114,7 +116,7 @@ def home(request):
     )
 
     if ongoing_cf:
-        # Use raised_total() for accurate amount (raised_amount field might be stale)
+        # Use raised_total() for accurate amount 
         raised = ongoing_cf.raised_total()
         target = ongoing_cf.target_amount
         pct = ongoing_cf.get_percentage()
@@ -133,7 +135,7 @@ def home(request):
             "deadline": ongoing_cf.deadline.strftime("%Y-%m-%d") if ongoing_cf.deadline else "",
         }
 
-    # ---------- 2) Blood campaign popup fallback (safe) ----------
+    # ---------- 2) Blood campaign popup fallback ----------
     if not home_popup:
         BloodCampaign = None
         try:
@@ -189,6 +191,87 @@ def home(request):
         "home_popup": home_popup,  # NEW
     }
     return render(request, "core/home.html", context)
+
+def public_donor_directory(request):
+    """
+    Public Donor Directory (No login required)
+    Rules:
+      - Only KYC verified donors
+      - Only ELIGIBLE donors (90-day rule)
+      - No phone number, no exact location (city only)
+    Filters:
+      - blood_group
+      - city (with aliases/normalization)
+      - search (username/first/last)
+    """
+    # --- Filters ---
+    blood_group = (request.GET.get("blood_group") or "").strip().upper()
+    city = (request.GET.get("city") or "").strip()
+    q = (request.GET.get("q") or "").strip()
+    page = request.GET.get("page") or "1"
+
+    # --- Eligibility cutoff ---
+    cutoff = timezone.now() - timedelta(days=ELIGIBILITY_DAYS)
+
+    # --- Base queryset: KYC verified + donors + active ---
+    qs = (
+        CustomUser.objects
+        .filter(is_active=True, is_donor=True)
+        .select_related("profile", "kyc")
+        .filter(Q(is_verified=True) | Q(kyc__status="APPROVED"))
+        .annotate(
+            last_verified_donation_at=Max(
+                "blood_donations__donated_at",
+                filter=Q(blood_donations__status="VERIFIED"),
+            )
+        )
+        # eligible only: never donated OR last verified donation <= cutoff
+        .filter(Q(last_verified_donation_at__isnull=True) | Q(last_verified_donation_at__lte=cutoff))
+        # require donor has blood group and city set for directory usefulness
+        .exclude(profile__blood_group="")
+        .exclude(profile__city="")
+    )
+
+    # --- Blood group filter ---
+    allowed_groups = {bg for bg, _ in UserProfile.BLOOD_GROUPS}
+    if blood_group:
+        if blood_group in allowed_groups:
+            qs = qs.filter(profile__blood_group=blood_group)
+        else:
+            messages.error(request, "Invalid blood group filter.")
+            return redirect("public_donor_directory")
+
+    # --- City filter (aliases) ---
+    if city:
+        aliases = city_aliases(city)
+        city_q = Q()
+        for a in aliases:
+            city_q |= Q(profile__city__iexact=a)
+        qs = qs.filter(city_q)
+
+    # --- Search filter ---
+    if q:
+        qs = qs.filter(
+            Q(username__icontains=q) |
+            Q(first_name__icontains=q) |
+            Q(last_name__icontains=q)
+        )
+
+    # --- Ordering: highest points first (gamification), then newest users ---
+    qs = qs.order_by("-profile__points", "-date_joined")
+
+    # --- Pagination ---
+    paginator = Paginator(qs, 24)  # 24 donors per page
+    page_obj = paginator.get_page(page)
+
+    return render(request, "accounts/public_donor_directory.html", {
+        "page_obj": page_obj,
+        "blood_groups": UserProfile.BLOOD_GROUPS,
+        "selected_blood_group": blood_group,
+        "selected_city": city,
+        "q": q,
+        "eligibility_days": ELIGIBILITY_DAYS,
+    })
 
 
 @login_required

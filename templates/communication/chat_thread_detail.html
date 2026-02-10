@@ -1,0 +1,197 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 980px;">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Chat</h3>
+        <div class="text-muted small">
+          Request #{{ thread.request_id }} • {{ thread.request.blood_group }} • {{ thread.request.location_city|title }}
+        </div>
+      </div>
+      <a href="{{ thread.request.get_absolute_url }}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Back to Request
+      </a>
+    </div>
+
+    <div id="chatMeta"
+         data-ws-path="/ws/chat/thread/{{ thread.id }}/"
+         data-my-user-id="{{ request.user.id }}">
+    </div>
+
+    <div class="card shadow-sm s4l-chat-card">
+      <div class="card-header d-flex justify-content-between align-items-center bg-white">
+        <div class="text-muted small">
+          Real-time chat • Opens only after donor accepts
+        </div>
+        <span class="badge badge-light" id="chatStatus">Connecting…</span>
+      </div>
+
+      <div class="card-body s4l-chat-body" id="chatBox">
+        {% for m in messages %}
+          <div class="s4l-msg-row {% if m.sender_id == request.user.id %}me{% else %}other{% endif %}">
+            <div class="s4l-bubble">
+              <div class="s4l-bubble-meta">
+                <b>{{ m.sender.get_full_name|default:m.sender.username }}</b>
+                <span class="mx-1">•</span>
+                <span>{{ m.created_at|date:"Y-m-d H:i" }}</span>
+              </div>
+              <div class="s4l-bubble-text">{{ m.body }}</div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="card-footer bg-white">
+        <form id="chatForm" autocomplete="off">
+          <div class="input-group">
+            <input type="text"
+                   class="form-control"
+                   id="chatInput"
+                   placeholder="Type a message…"
+                   maxlength="2000"
+                   required>
+            <div class="input-group-append">
+              <button class="btn btn-primary" type="submit" id="sendBtn">
+                <i class="fa fa-paper-plane"></i> Send
+              </button>
+            </div>
+          </div>
+          <div class="text-muted small mt-2">
+            Tip: Confirm with hospital before traveling.
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<style>
+  .s4l-chat-card{ border-radius:14px; overflow:hidden; }
+  .s4l-chat-body{
+    height: 60vh;
+    overflow:auto;
+    background: linear-gradient(180deg, #fbfcff 0%, #f7f9fc 100%);
+  }
+  .s4l-msg-row{ display:flex; margin: 10px 0; }
+  .s4l-msg-row.me{ justify-content:flex-end; }
+  .s4l-msg-row.other{ justify-content:flex-start; }
+
+  .s4l-bubble{
+    max-width: 78%;
+    border-radius: 14px;
+    padding: 10px 12px;
+    border: 1px solid rgba(0,0,0,0.06);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.04);
+    background: #ffffff;
+  }
+  .s4l-msg-row.me .s4l-bubble{
+    background: #0a2558;
+    border-color: rgba(10,37,88,0.25);
+    color: #fff;
+  }
+  .s4l-bubble-meta{
+    font-size: 12px;
+    opacity: 0.75;
+    margin-bottom: 6px;
+  }
+  .s4l-msg-row.me .s4l-bubble-meta{ opacity: 0.85; }
+  .s4l-bubble-text{ white-space: pre-wrap; font-size: 14px; line-height: 1.35; }
+</style>
+
+<script>
+(function () {
+  const meta = document.getElementById("chatMeta");
+  const box = document.getElementById("chatBox");
+  const form = document.getElementById("chatForm");
+  const input = document.getElementById("chatInput");
+  const sendBtn = document.getElementById("sendBtn");
+  const statusEl = document.getElementById("chatStatus");
+
+  if (!meta || !box || !form || !input || !sendBtn || !statusEl) return;
+
+  const wsPath = meta.getAttribute("data-ws-path") || "";
+  const myUserId = parseInt(meta.getAttribute("data-my-user-id") || "0", 10);
+
+  function scrollBottom() {
+    box.scrollTop = box.scrollHeight + 9999;
+  }
+  scrollBottom();
+
+  const wsScheme = (window.location.protocol === "https:") ? "wss" : "ws";
+  const socketUrl = wsScheme + "://" + window.location.host + wsPath;
+
+  let socket = null;
+
+  function setStatus(txt, cls){
+    statusEl.textContent = txt;
+    statusEl.className = "badge " + cls;
+  }
+
+  function connect() {
+    setStatus("Connecting…", "badge-light");
+    socket = new WebSocket(socketUrl);
+
+    socket.onopen = function(){
+      setStatus("Connected", "badge-success");
+    };
+
+    socket.onmessage = function (e) {
+      let data = {};
+      try { data = JSON.parse(e.data || "{}"); } catch (err) { return; }
+      if (data.type !== "MESSAGE") return;
+
+      const row = document.createElement("div");
+      const isMe = (parseInt(data.sender_id || "0", 10) === myUserId);
+      row.className = "s4l-msg-row " + (isMe ? "me" : "other");
+
+      const bubble = document.createElement("div");
+      bubble.className = "s4l-bubble";
+
+      const metaLine = document.createElement("div");
+      metaLine.className = "s4l-bubble-meta";
+      metaLine.innerHTML = "<b>" + (data.sender_name || "User") + "</b> • now";
+
+      const body = document.createElement("div");
+      body.className = "s4l-bubble-text";
+      body.textContent = data.body || "";
+
+      bubble.appendChild(metaLine);
+      bubble.appendChild(body);
+      row.appendChild(bubble);
+
+      box.appendChild(row);
+      scrollBottom();
+    };
+
+    socket.onclose = function () {
+      setStatus("Reconnecting…", "badge-warning");
+      setTimeout(connect, 2000);
+    };
+  }
+
+  connect();
+
+  form.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    const text = (input.value || "").trim();
+    if (!text) return;
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+
+    sendBtn.disabled = true;
+    try {
+      socket.send(JSON.stringify({ type: "SEND", body: text }));
+      input.value = "";
+      input.focus();
+    } finally {
+      sendBtn.disabled = false;
+    }
+  });
+})();
+</script>
+
+{% endblock %}

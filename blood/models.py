@@ -6,6 +6,7 @@ from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.db.models import Q, Sum
 from django.utils import timezone
+from datetime import timedelta
 from django.urls import reverse
 from django.utils.text import slugify
 
@@ -303,3 +304,55 @@ class DonationMedicalReport(models.Model):
         related_name="donation_reports_uploaded",
     )
     uploaded_at = models.DateTimeField(auto_now_add=True)
+
+class BloodEscalationState(models.Model):
+    STAGES = [
+        ("CITY", "City"),
+        ("RADIUS_5", "Radius 5km"),
+        ("RADIUS_10", "Radius 10km"),
+        ("ORG", "Notify Organizations"),
+        ("DONE", "Done"),
+    ]
+
+    request = models.OneToOneField(
+        "blood.PublicBloodRequest",
+        on_delete=models.CASCADE,
+        related_name="escalation_state",
+    )
+
+    stage = models.CharField(max_length=12, choices=STAGES, default="CITY")
+    next_run_at = models.DateTimeField(null=True, blank=True)
+    last_run_at = models.DateTimeField(null=True, blank=True)
+    is_done = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def schedule_next(self, minutes: int = 1):
+        self.next_run_at = timezone.now() + timedelta(minutes=minutes)
+
+
+class BloodDonorPingLog(models.Model):
+    """
+    Prevent duplicate pings per (request, donor).
+    Audit trail for escalation routing.
+    """
+    STAGES = BloodEscalationState.STAGES
+
+    request = models.ForeignKey(
+        "blood.PublicBloodRequest",
+        on_delete=models.CASCADE,
+        related_name="ping_logs",
+    )
+    donor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="blood_ping_logs",
+    )
+    stage = models.CharField(max_length=12, choices=STAGES)
+    pinged_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["request", "donor"], name="uniq_ping_request_donor")
+        ]

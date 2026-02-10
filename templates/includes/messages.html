@@ -3,7 +3,10 @@
 
   {% if messages|length > 2 %}
     <div class="text-right mb-2">
-      <button type="button" class="btn btn-sm btn-outline-danger clear-all-messages" onclick="clearAllMessages()">
+      <button type="button"
+              class="btn btn-sm btn-outline-danger clear-all-messages"
+              id="clearAllBtn"
+              onclick="clearAllMessages()">
         <i class="fa fa-trash mr-1"></i>Clear All ({{ messages|length }})
       </button>
     </div>
@@ -11,9 +14,7 @@
 
   {% for message in messages %}
 
-    {# Decide Bootstrap tag without using {% with %} #}
     {% if "error" in message.tags or "danger" in message.tags %}
-      {% comment %} danger {% endcomment %}
       <div class="alert alert-danger alert-dismissible fade show message-item"
            role="alert" data-autodismiss="0">
         <i class="fa fa-exclamation-triangle mr-2"></i>
@@ -78,6 +79,13 @@
   overflow: hidden;
 }
 
+/* makes manual fade look smooth even when we remove elements */
+.message-item.fade { transition: opacity .22s ease, transform .22s ease; }
+.message-item.fading-out { opacity: 0; transform: translateX(8px); }
+
+.messages-container.fade-out { transition: opacity .22s ease; }
+.messages-container.fading-out { opacity: 0; }
+
 .message-timer {
   position: absolute;
   bottom: 0; left: 0; right: 0;
@@ -107,7 +115,6 @@
 <script>
 (function () {
   function computeToastTop() {
-    // Works with your navbar: .s4l-topbar and .s4l-navbar
     const topbar = document.querySelector('.s4l-topbar');
     const navbar = document.querySelector('.s4l-navbar');
 
@@ -116,6 +123,19 @@
 
     const top = Math.round(topbarH + navbarH + 12);
     document.documentElement.style.setProperty('--s4l-toast-top', top + 'px');
+  }
+
+  function fadeRemove(el, ms){
+    ms = ms || 220;
+    if (!el) return;
+    el.classList.add("fade");
+    // next tick so transition applies
+    setTimeout(function(){
+      el.classList.add("fading-out");
+    }, 10);
+    setTimeout(function(){
+      try { el.remove(); } catch(e) {}
+    }, ms + 30);
   }
 
   document.addEventListener('DOMContentLoaded', function() {
@@ -133,12 +153,34 @@
       timer.style.display = 'block';
       timerBar.style.transition = 'width 5s linear';
       setTimeout(() => { timerBar.style.width = '100%'; }, 100);
-      setTimeout(() => { message.remove(); }, 5000);
+
+      setTimeout(() => { fadeRemove(message, 220); }, 5000);
     });
   });
 
   window.clearAllMessages = function () {
-    document.querySelectorAll('.message-item').forEach(el => el.remove());
+    const container = document.getElementById("messages-container");
+    const btn = document.getElementById("clearAllBtn");
+
+    if (btn) {
+      btn.disabled = true;
+      btn.style.opacity = "0.7";
+      btn.innerHTML = '<i class="fa fa-spinner fa-spin mr-1"></i>Clearing...';
+    }
+
+    // fade each message
+    document.querySelectorAll('.message-item').forEach(el => fadeRemove(el, 220));
+
+    // fade container then remove
+    if (container) {
+      container.classList.add("fade-out");
+      setTimeout(function(){
+        container.classList.add("fading-out");
+      }, 10);
+      setTimeout(function(){
+        try { container.remove(); } catch(e) {}
+      }, 260);
+    }
   };
 })();
 </script>

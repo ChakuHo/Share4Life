@@ -123,6 +123,14 @@
                       Respond as Donor
                     </a>
                   {% endif %}
+
+                  {# Chat button: only after ACCEPTED, and only if request has a real owner #}
+                  {% if my_response and my_response.status == "ACCEPTED" and req.created_by_id %}
+                    <a href="{% url 'chat_start_blood' req.id user.id %}" class="btn btn-outline-primary mr-2 mb-2">
+                      <i class="fa fa-comments"></i> Chat
+                    </a>
+                  {% endif %}
+
                   {% if can_mark_donation %}
                     <a href="{{ donation_create_url|default:'#' }}" class="btn btn-danger mb-2">
                       Mark Donation Completed
@@ -244,6 +252,17 @@
                   {% if dr.message %}
                     <div class="mt-2">{{ dr.message }}</div>
                   {% endif %}
+
+                  {# Requester chat button: only if requester is logged in and this donor ACCEPTED #}
+                  {% if user.is_authenticated and req.created_by_id == user.id and dr.status == "ACCEPTED" and req.created_by_id %}
+                    <div class="mt-2">
+                      <a class="btn btn-sm btn-outline-primary"
+                         href="{% url 'chat_start_blood' req.id dr.donor_id %}">
+                        <i class="fa fa-comments"></i> Chat
+                      </a>
+                    </div>
+                  {% endif %}
+
                 </div>
               </div>
             {% empty %}

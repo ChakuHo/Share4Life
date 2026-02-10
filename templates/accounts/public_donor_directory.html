@@ -1,0 +1,139 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1" style="font-weight:900;color:#0a2558;">Public Donor Directory</h3>
+        <div class="text-muted">
+          Showing only <b>KYC verified</b> and <b>eligible</b> donors ({{ eligibility_days }}-day rule which is standard pratice (3 Months)).
+        </div>
+      </div>
+      <a href="{% url 'public_dashboard' %}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Back to Blood Feed
+      </a>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <form method="get" class="form-row align-items-end">
+
+          <div class="form-group col-md-3">
+            <label class="font-weight-bold">Blood Group</label>
+            <select name="blood_group" class="form-control">
+              <option value="">All</option>
+              {% for bg, bg_label in blood_groups %}
+                <option value="{{ bg }}" {% if selected_blood_group == bg %}selected{% endif %}>{{ bg_label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group col-md-3">
+            <label class="font-weight-bold">City</label>
+            <input type="text" name="city" value="{{ selected_city }}" class="form-control" placeholder="e.g. Kathmandu / ktm">
+          </div>
+
+          <div class="form-group col-md-4">
+            <label class="font-weight-bold">Search</label>
+            <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="username / name">
+          </div>
+
+          <div class="form-group col-md-2">
+            <button class="btn btn-primary btn-block" type="submit">
+              <i class="fa fa-search"></i> Find
+            </button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+
+    <div class="row">
+      {% for u in page_obj.object_list %}
+        <div class="col-md-6 col-lg-4 mb-3">
+          <div class="card shadow-sm h-100">
+            <div class="card-body">
+
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="badge badge-danger p-2">{{ u.profile.blood_group }}</span>
+                <span class="badge badge-primary p-2"><i class="fa fa-shield-alt"></i> Verified</span>
+              </div>
+
+              <div class="h5 mb-1">
+                {% if u.first_name or u.last_name %}
+                  {{ u.first_name|default:"" }} {{ u.last_name|default:"" }}
+                {% else %}
+                  {{ u.username }}
+                {% endif %}
+              </div>
+
+              <div class="text-muted small">
+                City: <b>{{ u.profile.city|default:"—"|title }}</b>
+              </div>
+
+              <div class="text-muted small mt-2">
+                Points: <b>{{ u.profile.points|default:0 }}</b>
+              </div>
+
+              <div class="alert alert-success mt-3 mb-0" style="border-radius:12px;">
+                <b>Eligible now</b>
+              </div>
+
+              <div class="text-muted small mt-2">
+                Contact details are protected. Use the blood request flow to connect safely.
+              </div>
+
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <div class="col-12">
+          <div class="alert alert-secondary">
+            No eligible verified donors found for your filters.
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+      <nav class="mt-3">
+        <ul class="pagination justify-content-center">
+
+          {% if page_obj.has_previous %}
+            <li class="page-item">
+              <a class="page-link"
+                 href="?page={{ page_obj.previous_page_number }}&blood_group={{ selected_blood_group }}&city={{ selected_city|urlencode }}&q={{ q|urlencode }}">
+                Previous
+              </a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">Previous</span></li>
+          {% endif %}
+
+          <li class="page-item disabled">
+            <span class="page-link">
+              Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+          </li>
+
+          {% if page_obj.has_next %}
+            <li class="page-item">
+              <a class="page-link"
+                 href="?page={{ page_obj.next_page_number }}&blood_group={{ selected_blood_group }}&city={{ selected_city|urlencode }}&q={{ q|urlencode }}">
+                Next
+              </a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">Next</span></li>
+          {% endif %}
+
+        </ul>
+      </nav>
+    {% endif %}
+
+  </div>
+</section>
+
+{% endblock %}

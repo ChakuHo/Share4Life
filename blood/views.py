@@ -31,10 +31,11 @@ from .forms import (
 )
 from .models import (
     PublicBloodRequest, GuestResponse, DonorResponse,
-    BloodDonation, DonationMedicalReport
+    BloodDonation, DonationMedicalReport, BloodEscalationState,
 )
 from .matching import city_aliases
-from .realtime import push_request_event, push_ping_to_donors
+from .realtime import push_request_event, push_ping_to_donors, push_ping_stage
+
 #------------------------------------------------------------------------------------------------
 
 
@@ -167,10 +168,11 @@ def _notify_org_members(org, title, body="", url="", level="INFO"):
 # Guest emergency request
 def emergency_request_view(request):
     """
-    Guest emergency blood request:
-    - Proof required (handled by form)
-    - Anti-spam: 10-minute cooldown per phone (and hourly limits via cache helper)
-    - reCAPTCHA: enabled when RECAPTCHA_ENABLED=True
+    Guest emergency request:
+    - Proof required (form)
+    - Throttle + captcha
+    - CITY ping instantly
+    - Escalation schedule: 1 min per stage via management command
     """
     if request.method == "POST":
         form = EmergencyRequestForm(request.POST, request.FILES)
@@ -178,7 +180,6 @@ def emergency_request_view(request):
             phone = (form.cleaned_data.get("contact_phone") or "").strip()
             ip = _client_ip(request)
 
-            # 1) Anti-spam throttle FIRST (so user doesn't redo captcha just to be throttled)
             ok_th, reason = allow_guest_emergency_post(phone=phone, ip=ip)
             if not ok_th:
                 messages.error(request, reason)
@@ -188,7 +189,6 @@ def emergency_request_view(request):
                     "recaptcha_site_key": getattr(settings, "RECAPTCHA_SITE_KEY", ""),
                 })
 
-            # 2) Captcha check
             ok_cap, err = verify_recaptcha(request)
             if not ok_cap:
                 messages.error(request, err)
@@ -198,7 +198,6 @@ def emergency_request_view(request):
                     "recaptcha_site_key": getattr(settings, "RECAPTCHA_SITE_KEY", ""),
                 })
 
-            # 3) Save request
             obj = form.save(commit=False)
             obj.created_by = None
             obj.is_emergency = True
@@ -207,12 +206,19 @@ def emergency_request_view(request):
             obj.verification_status = "PENDING"
             obj.save()
 
-            # 4) Ping donors after commit
-            transaction.on_commit(lambda: push_ping_to_donors(obj))
+            # CITY ping immediately
+            transaction.on_commit(lambda: push_ping_stage(obj, "CITY"))
+
+            # schedule escalation after 1 minute
+            st, created = BloodEscalationState.objects.get_or_create(request=obj)
+            st.stage = "CITY"
+            st.is_done = False
+            st.last_run_at = None
+            st.schedule_next(minutes=1)
+            st.save(update_fields=["stage", "is_done", "last_run_at", "next_run_at", "updated_at"])
 
             messages.success(request, "Emergency posted. Proof attached and visible to donors.")
             return redirect("public_dashboard")
-
     else:
         form = EmergencyRequestForm()
 
@@ -247,7 +253,17 @@ def recipient_request_view(request):
             obj.verification_status = "VERIFIED" if request.user.is_verified else "PENDING"
             obj.save()
             
-            transaction.on_commit(lambda: push_ping_to_donors(obj))
+            if obj.is_emergency:
+                transaction.on_commit(lambda: push_ping_stage(obj, "CITY"))
+
+                st, _ = BloodEscalationState.objects.get_or_create(request=obj)
+                st.stage = "CITY"
+                st.is_done = False
+                st.last_run_at = None
+                st.schedule_next(minutes=1)
+                st.save(update_fields=["stage", "is_done", "last_run_at", "next_run_at", "updated_at"])
+            else:
+                transaction.on_commit(lambda: push_ping_to_donors(obj))
 
             # If emergency, broadcast notification + email to all active users
             if obj.is_emergency:
