@@ -13,6 +13,7 @@ from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_POST
+from accounts.models import FamilyMember
 
 from accounts.models import CustomUser
 from accounts.permissions import donor_required, recipient_required
@@ -235,11 +236,36 @@ def emergency_request_view(request):
 def recipient_request_view(request):
     require_proof = not request.user.is_verified  # KYC verified => no proof required
 
+    # ---- prefill from FamilyMember ----
+    family_id = (request.GET.get("family_id") or request.POST.get("family_id") or "").strip()
+    family_member = None
+    if family_id:
+        family_member = get_object_or_404(FamilyMember, id=family_id, primary_user=request.user)
+
     initial = {
         "patient_name": (request.user.get_full_name().strip() or request.user.username),
         "contact_phone": (request.user.phone_number or ""),
         "location_city": (getattr(request.user, "profile", None).city or "") if getattr(request.user, "profile", None) else "",
     }
+
+    # override initial if requesting for family member
+    if family_member:
+        if family_member.name:
+            initial["patient_name"] = family_member.name
+        if family_member.blood_group:
+            initial["blood_group"] = family_member.blood_group
+        if family_member.city:
+            initial["location_city"] = family_member.city
+
+        # If you want to use family member phone when available, else user's phone
+        if family_member.phone_number:
+            initial["contact_phone"] = family_member.phone_number
+
+        # GPS prefill
+        if family_member.latitude is not None:
+            initial["latitude"] = family_member.latitude
+        if family_member.longitude is not None:
+            initial["longitude"] = family_member.longitude
 
     if request.method == "POST":
         form = RecipientRequestForm(request.POST, request.FILES, require_proof=require_proof)
@@ -252,7 +278,8 @@ def recipient_request_view(request):
             # Blood: KYC verified users are auto-verified
             obj.verification_status = "VERIFIED" if request.user.is_verified else "PENDING"
             obj.save()
-            
+
+            # Emergency escalation only for emergency requests
             if obj.is_emergency:
                 transaction.on_commit(lambda: push_ping_stage(obj, "CITY"))
 
@@ -288,6 +315,7 @@ def recipient_request_view(request):
                     email_subject=title,
                     email_body=email_body,
                 )
+
             messages.success(request, "Request created successfully.")
             return redirect("my_blood_requests")
 
@@ -298,6 +326,8 @@ def recipient_request_view(request):
     return render(request, "blood/recipient_request.html", {
         "form": form,
         "require_proof": require_proof,
+        "family_member": family_member,
+        "family_id": family_id,
     })
 
 

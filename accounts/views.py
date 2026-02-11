@@ -16,6 +16,7 @@ from blood.eligibility import (
     last_verified_donation,
     ELIGIBILITY_DAYS,
 )
+from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from django.db.models import Max
 from blood.matching import city_aliases
@@ -188,7 +189,7 @@ def home(request):
         "urgent_requests": all_requests[:5],
         "recent_requests": all_requests[:4],
         "featured_campaign": featured_campaign,
-        "home_popup": home_popup,  # NEW
+        "home_popup": home_popup, 
     }
     return render(request, "core/home.html", context)
 
@@ -674,6 +675,63 @@ def family_add(request):
         form = FamilyMemberForm()
 
     return render(request, "accounts/family_add.html", {"form": form})
+
+@login_required
+def family_edit(request, pk):
+    fm = get_object_or_404(FamilyMember, pk=pk, primary_user=request.user)
+
+    if request.method == "POST":
+        form = FamilyMemberForm(request.POST, instance=fm)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.primary_user = request.user  # safety
+            obj.save()
+            messages.success(request, "Family member updated successfully.")
+            return redirect("profile")
+        messages.error(request, "Please fix the errors and try again.")
+    else:
+        form = FamilyMemberForm(instance=fm)
+
+    return render(request, "accounts/family_edit.html", {
+        "form": form,
+        "fm": fm,
+    })
+
+@require_POST
+@login_required
+def family_delete(request, pk):
+    fm = get_object_or_404(FamilyMember, pk=pk, primary_user=request.user)
+    name = fm.name
+    fm.delete()
+    messages.success(request, f"Family member '{name}' deleted.")
+    return redirect("profile")
+
+@login_required
+def emergency_profiles_list(request):
+    """
+    Lists only FamilyMember entries marked as is_emergency_profile=True
+    for the logged-in user.
+
+    Includes:
+      - search by name/relationship/city
+      - actions: Edit / Delete
+      - one-click Request Blood (only if user is recipient + blood_group + city exist)
+    """
+    qtxt = (request.GET.get("q") or "").strip()
+
+    qs = FamilyMember.objects.filter(primary_user=request.user, is_emergency_profile=True).order_by("-id")
+
+    if qtxt:
+        qs = qs.filter(
+            Q(name__icontains=qtxt) |
+            Q(relationship__icontains=qtxt) |
+            Q(city__icontains=qtxt)
+        )
+
+    return render(request, "accounts/emergency_profiles_list.html", {
+        "items": qs[:200],
+        "q": qtxt,
+    })
 
 
 @login_required

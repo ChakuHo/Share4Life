@@ -6,12 +6,25 @@
 
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div>
-        <h3 class="mb-1">Add Family Member</h3>
-        <div class="text-muted">Create family profiles. Mark emergency profiles to enable quick blood requests.</div>
+        <h3 class="mb-1">Edit Family Member</h3>
+        <div class="text-muted">Update emergency profile settings and details.</div>
       </div>
-      <a href="{% url 'profile' %}" class="btn btn-outline-secondary">
-        <i class="fa fa-arrow-left"></i> Back
-      </a>
+
+      <div class="d-flex align-items-center" style="gap:.5rem;">
+        <a href="{% url 'profile' %}" class="btn btn-outline-secondary">
+          <i class="fa fa-arrow-left"></i> Back
+        </a>
+
+        <form method="post"
+              action="{% url 'family_delete' fm.id %}"
+              class="m-0"
+              onsubmit="return confirm('Delete {{ fm.name|escapejs }}? This cannot be undone.');">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-danger" id="del-btn">
+            <i class="fa fa-trash"></i> Delete
+          </button>
+        </form>
+      </div>
     </div>
 
     <div class="card shadow-sm">
@@ -50,17 +63,14 @@
 
           <h5 class="mb-2"><i class="fa fa-ambulance text-danger"></i> Emergency Profile</h5>
           <div class="text-muted small mb-3">
-            If enabled, you can request blood faster for this person (prefilled name/blood group/city).
+            Emergency profiles can be used for one-click prefilled blood requests.
           </div>
 
           <div class="custom-control custom-checkbox mb-3">
             {{ form.is_emergency_profile }}
             <label class="custom-control-label" for="{{ form.is_emergency_profile.id_for_label }}">
-              <b>{{ form.is_emergency_profile.label }}</b>
+              <b>Mark as Emergency Profile</b>
             </label>
-            {% if form.is_emergency_profile.help_text %}
-              <div class="text-muted small mt-1">{{ form.is_emergency_profile.help_text }}</div>
-            {% endif %}
             {% for e in form.is_emergency_profile.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
           </div>
 
@@ -109,8 +119,8 @@
             </div>
           </div>
 
-          <button class="btn btn-danger btn-lg btn-block" type="submit" id="save-btn">
-            <i class="fa fa-save"></i> Save Family Member
+          <button class="btn btn-primary btn-lg btn-block" type="submit" id="save-btn">
+            <i class="fa fa-save"></i> Save Changes
           </button>
 
         </form>

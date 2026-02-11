@@ -57,8 +57,12 @@ urlpatterns = [
     # URLs for profile, KYC, and family members
     path("profile/", views.profile_view, name="profile"),
     path("kyc/submit/", views.kyc_submit, name="kyc_submit"),
-    path("family/add/", views.family_add, name="family_add"),
     path("profile/edit/", views.profile_edit, name="profile_edit"),
+    path("family/add/", views.family_add, name="family_add"),
+    path("family/<int:pk>/edit/", views.family_edit, name="family_edit"),
+    path("family/<int:pk>/delete/", views.family_delete, name="family_delete"),
+    path("family/emergency/", views.emergency_profiles_list, name="emergency_profiles_list"),
+    
 
     path("profile/certificate/pdf/", views.download_certificate_pdf, name="download_certificate_pdf"),
     path("donors/", views.public_donor_directory, name="public_donor_directory"),

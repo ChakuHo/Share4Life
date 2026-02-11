@@ -1,0 +1,115 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 980px;">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Emergency Profiles</h3>
+        <div class="text-muted">Only family members marked as Emergency Profile appear here.</div>
+      </div>
+
+      <div class="d-flex flex-wrap" style="gap:.5rem;">
+        <a href="{% url 'family_add' %}" class="btn btn-danger">
+          <i class="fa fa-user-plus"></i> Add Family
+        </a>
+        <a href="{% url 'profile' %}" class="btn btn-outline-secondary">
+          <i class="fa fa-arrow-left"></i> Back
+        </a>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <form method="get" class="form-row align-items-end">
+          <div class="form-group col-md-10 mb-2">
+            <label class="font-weight-bold">Search</label>
+            <input type="text" name="q" value="{{ q }}" class="form-control"
+                   placeholder="Search by name, relationship, city...">
+          </div>
+          <div class="form-group col-md-2 mb-2">
+            <button type="submit" class="btn btn-primary btn-block">
+              <i class="fa fa-search"></i> Search
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body table-responsive">
+        <table class="table mb-0 align-middle">
+          <thead>
+            <tr class="text-muted">
+              <th>Name</th>
+              <th>Relation</th>
+              <th>Blood</th>
+              <th>City</th>
+              <th>Phone</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for fm in items %}
+              <tr>
+                <td class="font-weight-bold">{{ fm.name }}</td>
+                <td>{{ fm.relationship|default:"—" }}</td>
+                <td>{{ fm.blood_group|default:"—" }}</td>
+                <td>{{ fm.city|default:"—" }}</td>
+                <td>{{ fm.phone_number|default:"—" }}</td>
+
+                <td class="text-right">
+                  <a class="btn btn-sm btn-outline-secondary mr-2"
+                     href="{% url 'family_edit' fm.id %}">
+                    <i class="fa fa-edit"></i> Edit
+                  </a>
+
+                  <form method="post"
+                        action="{% url 'family_delete' fm.id %}"
+                        class="d-inline-block mr-2"
+                        onsubmit="return confirm('Delete {{ fm.name|escapejs }}?');">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-danger" type="submit">
+                      <i class="fa fa-trash"></i>
+                    </button>
+                  </form>
+
+                  {% if user.is_recipient %}
+                    {% if fm.blood_group and fm.city %}
+                      <a class="btn btn-sm btn-outline-danger"
+                         href="{% url 'recipient_request' %}?family_id={{ fm.id }}">
+                        <i class="fa fa-tint"></i> Request Blood
+                      </a>
+                    {% else %}
+                      <button class="btn btn-sm btn-outline-secondary" disabled
+                              title="Add blood group and city to use quick request">
+                        Missing info
+                      </button>
+                    {% endif %}
+                  {% else %}
+                    <a class="btn btn-sm btn-outline-secondary"
+                       href="{% url 'profile_edit' %}">
+                      Enable Recipient Role
+                    </a>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="6" class="text-muted">
+                  No emergency profiles yet. Add a family member and enable “Emergency Profile”.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+
+        </table>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

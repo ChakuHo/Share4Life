@@ -62,34 +62,69 @@ class BootstrapSetPasswordForm(SetPasswordForm):
     
 
 class FamilyMemberForm(forms.ModelForm):
+    # give blood group a dropdown
+    blood_group = forms.ChoiceField(
+        choices=[("", "— Select —")] + list(UserProfile.BLOOD_GROUPS),
+        required=False,
+    )
+
     class Meta:
         model = FamilyMember
         fields = [
-            "name", "relationship", "phone_number",
-            "blood_group", "date_of_birth", "medical_history",
-            "city", "latitude", "longitude",
+            "name",
+            "relationship",
+            "phone_number",
+
             "is_emergency_profile",
+
+            "blood_group",
+            "date_of_birth",
+            "medical_history",
+
+            "city",
+            "latitude",
+            "longitude",
         ]
         widgets = {
-            "name": forms.TextInput(attrs={"class": "form-control"}),
-            "relationship": forms.TextInput(attrs={"class": "form-control"}),
-            "phone_number": forms.TextInput(attrs={"class": "form-control"}),
-
-            "blood_group": forms.TextInput(attrs={"class": "form-control"}),
-            "date_of_birth": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
-            "medical_history": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
-
-            "city": forms.TextInput(attrs={"class": "form-control"}),
-            "latitude": forms.NumberInput(attrs={"class": "form-control"}),
-            "longitude": forms.NumberInput(attrs={"class": "form-control"}),
+            "date_of_birth": forms.DateInput(attrs={"type": "date"}),
+            "medical_history": forms.Textarea(attrs={"rows": 3}),
+            "latitude": forms.NumberInput(attrs={"step": "0.000001"}),
+            "longitude": forms.NumberInput(attrs={"step": "0.000001"}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Checkbox styling for Bootstrap 4 custom-control
-        self.fields["is_emergency_profile"].widget.attrs.update({
-            "class": "custom-control-input"
-        })
+
+        # Bootstrap classes
+        for k, f in self.fields.items():
+            if isinstance(f.widget, forms.CheckboxInput):
+                f.widget.attrs.setdefault("class", "custom-control-input")
+            elif isinstance(f.widget, (forms.FileInput,)):
+                f.widget.attrs.setdefault("class", "form-control-file")
+            else:
+                f.widget.attrs.setdefault("class", "form-control")
+
+        self.fields["is_emergency_profile"].label = "Mark as Emergency Profile"
+        self.fields["is_emergency_profile"].help_text = (
+            "Emergency profiles can be used for one-click emergency blood requests."
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        is_em = bool(cleaned.get("is_emergency_profile"))
+
+        # Only enforcing these fields when user wants emergency profile
+        if is_em:
+            bg = (cleaned.get("blood_group") or "").strip()
+            city = (cleaned.get("city") or "").strip()
+
+            if not bg:
+                self.add_error("blood_group", "Blood group is required for an emergency profile.")
+            if not city:
+                self.add_error("city", "City is required for an emergency profile.")
+
+        return cleaned
+    
 
 class UserBasicsForm(forms.ModelForm):
     class Meta:
