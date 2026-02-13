@@ -18,6 +18,7 @@ from blood.models import PublicBloodRequest, BloodDonation
 
 from django.views.decorators.http import require_POST
 from django.http import Http404
+from blood.matching import city_aliases, canonical_city
 
 @login_required
 @transaction.atomic
@@ -96,34 +97,63 @@ def org_portal(request):
     memberships = org.memberships.select_related("user").order_by("-added_at")
     campaigns = org.campaigns.all().order_by("-date", "-created_at")
 
-    # Pending blood requests for this org:
-    # - if target_organization is set, match exactly
-    # - else fallback by same city (so portal is not empty)
+    org_city_raw = (org.city or "").strip()
+    aliases = city_aliases(org_city_raw) if org_city_raw else set()
+
+    # Canonical value (works even if org.city_canon isn't set yet)
+    org_canon = (getattr(org, "city_canon", "") or "").strip() or canonical_city(org_city_raw)
+
+    # Fallback tolerant matching for raw city field
+    q_city_req = Q()
+    for a in aliases:
+        a = (a or "").strip()
+        if a:
+            q_city_req |= Q(location_city__iexact=a) | Q(location_city__icontains=a)
+
+    q_city_don = Q()
+    for a in aliases:
+        a = (a or "").strip()
+        if a:
+            q_city_don |= Q(request__location_city__iexact=a) | Q(request__location_city__icontains=a)
+
+    # Canonical DB matching (only if your new canon fields exist)
+    q_canon_req = Q()
+    q_canon_don = Q()
+    if org_canon:
+        # These fields must exist in DB, otherwise Django will error.
+        q_canon_req = Q(location_city_canon=org_canon)
+        q_canon_don = Q(request__location_city_canon=org_canon)
+
     pending_requests = (
         PublicBloodRequest.objects
-        .filter(is_active=True, status__in=["OPEN", "IN_PROGRESS"])
-        .filter(verification_status__in=["PENDING", "UNVERIFIED"])
+        .filter(
+            is_active=True,
+            status__in=["OPEN", "IN_PROGRESS"],
+            verification_status__in=["PENDING", "UNVERIFIED"],
+        )
         .filter(
             Q(target_organization=org) |
-            Q(target_organization__isnull=True, location_city__iexact=(org.city or ""))
+            (Q(target_organization__isnull=True) & (q_canon_req | q_city_req))
         )
         .order_by("-is_emergency", "-created_at")
     )
 
-    # Pending donations: donor marked COMPLETED, now hospital/org should verify
     pending_donations = (
         BloodDonation.objects
         .filter(status="COMPLETED", request__isnull=False)
         .filter(
             Q(request__target_organization=org) |
-            Q(request__target_organization__isnull=True, request__location_city__iexact=(org.city or ""))
+            (Q(request__target_organization__isnull=True) & (q_canon_don | q_city_don))
         )
         .select_related("donor_user", "request")
         .order_by("-donated_at")
     )
 
+    org_city_display = org_canon or org_city_raw
+
     return render(request, "hospitals/org_portal.html", {
         "org": org,
+        "org_city_display": org_city_display,
         "memberships": memberships,
         "campaigns": campaigns[:5],
         "pending_requests": pending_requests[:10],

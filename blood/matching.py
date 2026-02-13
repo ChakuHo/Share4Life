@@ -1,4 +1,5 @@
 import math
+from django.db.models import Q
 from accounts.models import CustomUser
 from blood.eligibility import is_eligible
 
@@ -39,9 +40,49 @@ CANON_ALIASES = {
 
 
 def canonical_city(value: str) -> str:
-    v = (value or "").strip().lower()
-    v = " ".join(v.split())
-    return CITY_CANON.get(v, v)
+    """
+    Normalize city input. Supports:
+      - "Lalitpur"
+      - "Mangalbazar, Lalitpur"  -> "lalitpur"
+      - "Asan, Kathmandu"        -> "kathmandu"
+      - "KTM"                    -> "kathmandu"
+      - "Kathmandu Valley"       -> "kathmandu"
+    """
+    raw = (value or "").strip().lower()
+    if not raw:
+        return ""
+
+    raw = " ".join(raw.split())
+    raw = raw.replace("|", ",").replace("/", ",").replace(";", ",")
+
+    # Try exact mapping first (works for "ktm", "lalitpur city", etc.)
+    if raw in CITY_CANON:
+        return CITY_CANON[raw]
+
+    # If contains comma, last part is usually the main city
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+
+    # Prefer a part that matches CITY_CANON (scan from end)
+    for p in reversed(parts):
+        if p in CITY_CANON:
+            return CITY_CANON[p]
+
+        # also check last word of that part (handles "asan kathmandu")
+        toks = p.split()
+        if toks:
+            last = toks[-1]
+            if last in CITY_CANON:
+                return CITY_CANON[last]
+
+    # If no comma match, check last token of the whole string
+    toks = raw.split()
+    if toks:
+        last = toks[-1]
+        if last in CITY_CANON:
+            return CITY_CANON[last]
+
+    # fallback: return raw
+    return CITY_CANON.get(raw, raw)
 
 
 def city_aliases(value: str):
@@ -81,18 +122,23 @@ def match_city(req):
     if not req_city:
         return []
 
-    aliases = city_aliases(req_city)
+    aliases = city_aliases(req_city)  # now handles "area, city"
+    target_canon = {canonical_city(a) for a in aliases}
 
-    # pull a reasonable donor set by city aliases (DB filter), then validate in python
-    qs = eligible_donors_queryset().filter(profile__city__isnull=False)
-    qs = qs.filter(profile__city__iregex=r".*")  # keeps qs chain safe
+    qs = eligible_donors_queryset().filter(profile__city__isnull=False).exclude(profile__city="")
 
-    # we can’t easily OR iexact many times without Q-building; simplest: python filter
+    # DB prefilter by common alias strings (reduces python loop)
+    q = Q()
+    for a in aliases:
+        if a:
+            q |= Q(profile__city__iexact=a)
+    if q:
+        qs = qs.filter(q)
+
     donors = []
     for u in qs:
         u_city = canonical_city(getattr(u.profile, "city", "") or "")
-        if u_city in {canonical_city(a) for a in aliases}:
-            # eligibility + blood compatibility
+        if u_city in target_canon:
             if is_eligible(u) and blood_group_allowed(req.blood_group, getattr(u.profile, "blood_group", "")):
                 donors.append(u)
 

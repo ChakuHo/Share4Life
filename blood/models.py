@@ -1,14 +1,15 @@
 import os
 import uuid
+from datetime import timedelta
 
 from django.conf import settings
 from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.db.models import Q, Sum
-from django.utils import timezone
-from datetime import timedelta
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.text import slugify
+
 
 class PublicBloodRequest(models.Model):
     """
@@ -32,6 +33,8 @@ class PublicBloodRequest(models.Model):
     blood_group = models.CharField(max_length=5, choices=BLOOD_GROUPS)
 
     location_city = models.CharField(max_length=100)
+    location_city_canon = models.CharField(max_length=100, blank=True, db_index=True)
+
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
     hospital_name = models.CharField(max_length=150)
@@ -97,7 +100,7 @@ class PublicBloodRequest(models.Model):
 
     def __str__(self):
         return f"Need {self.blood_group} at {self.location_city}"
-    
+
     def get_absolute_url(self):
         return reverse(
             "blood_request_detail_slug",
@@ -105,11 +108,29 @@ class PublicBloodRequest(models.Model):
         )
 
     def save(self, *args, **kwargs):
+        """
+        - Avoid circular import by importing canonical_city inside save().
+        - Always maintain location_city_canon.
+        - Keep your existing "generate slug ONCE" behavior.
+        """
+        # Import here to avoid circular import at module load time
+        from .matching import canonical_city
+
+        # Always keep canon updated
+        self.location_city_canon = canonical_city(self.location_city)
+
+        # If update_fields is used, ensure canon is included
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None:
+            kwargs["update_fields"] = list(set(update_fields) | {"location_city_canon"})
+
         super().save(*args, **kwargs)
 
-    # generate slug ONCE 
+        # generate slug ONCE
         if not self.slug:
-            base = slugify(f"{self.patient_name}-{self.blood_group}-{self.location_city}-{self.hospital_name}")[:200]
+            base = slugify(
+                f"{self.patient_name}-{self.blood_group}-{self.location_city}-{self.hospital_name}"
+            )[:200]
             if not base:
                 base = f"blood-request-{self.pk}"
             self.slug = base
@@ -226,9 +247,6 @@ class BloodDonation(models.Model):
         Mark donation VERIFIED and update the linked request:
         - Request becomes FULFILLED only when total VERIFIED units >= units_needed
         - Otherwise keep request IN_PROGRESS
-
-        Gamification:
-          +150 base points + (20 × units) when donation becomes VERIFIED (only once)
         """
         if self.status == "VERIFIED":
             return
@@ -305,6 +323,7 @@ class DonationMedicalReport(models.Model):
     )
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
+
 class BloodEscalationState(models.Model):
     STAGES = [
         ("CITY", "City"),
@@ -334,8 +353,14 @@ class BloodEscalationState(models.Model):
 
 class BloodDonorPingLog(models.Model):
     """
-    Prevent duplicate pings per (request, donor).
-    Audit trail for escalation routing.
+    Ping audit + reping control.
+
+    One row per (request, donor). We reping ignored donors by updating:
+      - last_ping_at
+      - ping_count
+
+    Donors who RESPOND (Accept/Decline/Delay) should stop receiving pings
+    (enforced in realtime.py).
     """
     STAGES = BloodEscalationState.STAGES
 
@@ -350,7 +375,13 @@ class BloodDonorPingLog(models.Model):
         related_name="blood_ping_logs",
     )
     stage = models.CharField(max_length=12, choices=STAGES)
+
+    # First ever ping timestamp 
     pinged_at = models.DateTimeField(auto_now_add=True)
+
+    # reping support
+    last_ping_at = models.DateTimeField(default=timezone.now)
+    ping_count = models.PositiveIntegerField(default=1)
 
     class Meta:
         constraints = [

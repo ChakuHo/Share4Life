@@ -6,13 +6,24 @@
 
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div>
-        <h3 class="mb-1">Verified Blood Request</h3>
-        <div class="text-muted">Upload proof so an institution/admin can verify your request.</div>
+        {% if emergency_mode %}
+          <h3 class="mb-1">Emergency Blood Request (Logged-in)</h3>
+          <div class="text-muted">This will appear in My Requests so you can track/edit/cancel.</div>
+        {% else %}
+          <h3 class="mb-1">Verified Blood Request</h3>
+          <div class="text-muted">Upload proof so an institution/admin can verify your request.</div>
+        {% endif %}
       </div>
       <a href="{% url 'my_blood_requests' %}" class="btn btn-outline-secondary">
         <i class="fa fa-arrow-left"></i> Back
       </a>
     </div>
+
+    {% if emergency_mode %}
+      <div class="alert alert-danger" style="border-radius:12px;">
+        <b>Emergency Mode:</b> Donors will be alerted faster (city + radius escalation). Please keep phone reachable.
+      </div>
+    {% endif %}
 
     {% if family_member %}
       <div class="alert alert-info" style="border-radius:12px;">
@@ -34,6 +45,10 @@
 
         <form method="post" enctype="multipart/form-data" novalidate id="recipient-form">
           {% csrf_token %}
+
+          {% if emergency_mode %}
+            <input type="hidden" name="emergency" value="1">
+          {% endif %}
 
           {% if family_id %}
             <input type="hidden" name="family_id" value="{{ family_id }}">
@@ -96,7 +111,11 @@
           </div>
 
           <button class="btn btn-danger btn-lg btn-block" type="submit" id="submit-btn">
-            <i class="fa fa-paper-plane"></i> Submit for Verification
+            {% if emergency_mode %}
+              <i class="fa fa-bullhorn"></i> Post Emergency Request
+            {% else %}
+              <i class="fa fa-paper-plane"></i> Submit for Verification
+            {% endif %}
           </button>
         </form>
 

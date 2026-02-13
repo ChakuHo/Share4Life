@@ -13,9 +13,8 @@ from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_POST
-from accounts.models import FamilyMember
-
-from accounts.models import CustomUser
+from accounts.models import FamilyMember, CustomUser
+from django.urls import reverse
 from accounts.permissions import donor_required, recipient_required
 
 from communication.models import Notification
@@ -37,7 +36,44 @@ from .models import (
 from .matching import city_aliases
 from .realtime import push_request_event, push_ping_to_donors, push_ping_stage
 
+import re
+from urllib.parse import quote
 #------------------------------------------------------------------------------------------------
+
+def _wa_number(phone: str) -> str:
+    """
+    Normalize phone for WhatsApp wa.me links.
+    Returns digits only with country code (no '+').
+    Handles your DB reality:
+      - '98XXXXXXXX' (Nepal local 10 digits) -> '97798XXXXXXXX'
+      - '+97798XXXXXXXX' -> '97798XXXXXXXX'
+      - '00977...' -> '977...'
+    Returns "" if it can't confidently normalize.
+    """
+    phone = (phone or "").strip()
+    if not phone:
+        return ""
+
+    digits = re.sub(r"\D+", "", phone)
+
+    if digits.startswith("00"):
+        digits = digits[2:]
+
+    cc = str(getattr(settings, "S4L_DEFAULT_WHATSAPP_CC", "") or "").strip()
+
+    # already NP E.164 digits without '+'
+    if cc and digits.startswith(cc) and len(digits) == (len(cc) + 10):
+        return digits
+
+    # NP local mobile 10 digits
+    if cc and len(digits) == 10 and digits.startswith("9"):
+        return cc + digits
+
+    # any other full international number typed with '+'
+    if phone.startswith("+") and len(digits) >= 11:
+        return digits
+
+    return ""
 
 
 def _notify_user(user, title, body="", url="", level="INFO"):
@@ -133,7 +169,7 @@ def allow_guest_emergency_post(phone: str, ip: str) -> Tuple[bool, str]:
             created_at__gte=recent_cutoff,
         ).exists()
         if exists:
-            return (False, f"Too many requests from this phone. Try again after {min_interval // 60} minutes.")
+            return (False, f"Too many requests from this machine. Try again after {min_interval // 60} minutes.")
 
     # Cache-based hourly throttles
     hour_ttl = 3600
@@ -156,7 +192,6 @@ def allow_guest_emergency_post(phone: str, ip: str) -> Tuple[bool, str]:
 def _notify_org_members(org, title, body="", url="", level="INFO"):
     if not org:
         return
-    from hospitals.models import OrganizationMembership
     members = (
         OrganizationMembership.objects
         .filter(organization=org, is_active=True, role__in=["ADMIN", "VERIFIER"])
@@ -165,6 +200,41 @@ def _notify_org_members(org, title, body="", url="", level="INFO"):
     for m in members:
         _notify_user(m.user, title, body, url=url, level=level)
 
+def _notify_orgs_in_city_blood(city: str, title: str, body: str, url: str = "", level: str = "INFO"):
+    """
+    Notify ALL approved organizations in a city (ADMIN/VERIFIER/STAFF).
+    Uses city aliases to match Kathmandu/ktm etc.
+    """
+    from hospitals.models import Organization, OrganizationMembership
+
+    city = (city or "").strip()
+    if not city:
+        return 0
+
+    aliases = city_aliases(city)  # reuse your normalization aliases
+    q = Q()
+    for a in aliases:
+        q |= Q(city__iexact=a)
+
+    orgs = Organization.objects.filter(status="APPROVED").filter(q)
+    if not orgs.exists():
+        return 0
+
+    members = (
+        OrganizationMembership.objects
+        .filter(
+            organization__in=orgs,
+            is_active=True,
+            role__in=["ADMIN", "VERIFIER", "STAFF"],
+        )
+        .select_related("user")
+    )
+
+    sent = 0
+    for m in members:
+        _notify_user(m.user, title, body, url=url, level=level)
+        sent += 1
+    return sent
 
 # Guest emergency request
 def emergency_request_view(request):
@@ -175,6 +245,18 @@ def emergency_request_view(request):
     - CITY ping instantly
     - Escalation schedule: 1 min per stage via management command
     """
+
+    if request.user.is_authenticated:
+        if getattr(request.user, "is_recipient", False):
+            messages.info(
+                request,
+                "You are logged in. Please use the normal request form so you can track/edit/cancel the request."
+            )
+            return redirect(f"{reverse('recipient_request')}?emergency=1")
+
+        messages.info(request, "Enable Recipient role in your profile to post requests while logged in.")
+        return redirect("profile_edit")
+
     if request.method == "POST":
         form = EmergencyRequestForm(request.POST, request.FILES)
         if form.is_valid():
@@ -235,6 +317,7 @@ def emergency_request_view(request):
 @recipient_required
 def recipient_request_view(request):
     require_proof = not request.user.is_verified  # KYC verified => no proof required
+    emergency_mode = (request.GET.get("emergency") or request.POST.get("emergency") or "").strip().lower() in ("1", "true", "yes", "on")
 
     # ---- prefill from FamilyMember ----
     family_id = (request.GET.get("family_id") or request.POST.get("family_id") or "").strip()
@@ -246,6 +329,7 @@ def recipient_request_view(request):
         "patient_name": (request.user.get_full_name().strip() or request.user.username),
         "contact_phone": (request.user.phone_number or ""),
         "location_city": (getattr(request.user, "profile", None).city or "") if getattr(request.user, "profile", None) else "",
+        "is_emergency": emergency_mode,
     }
 
     # override initial if requesting for family member
@@ -274,6 +358,8 @@ def recipient_request_view(request):
             obj.created_by = request.user
             obj.status = "OPEN"
             obj.is_active = True
+            if emergency_mode:
+                obj.is_emergency = True
 
             # Blood: KYC verified users are auto-verified
             obj.verification_status = "VERIFIED" if request.user.is_verified else "PENDING"
@@ -328,6 +414,7 @@ def recipient_request_view(request):
         "require_proof": require_proof,
         "family_member": family_member,
         "family_id": family_id,
+        "emergency_mode": emergency_mode,
     })
 
 
@@ -349,6 +436,15 @@ def public_dashboard_view(request):
         .exclude(verification_status__in=["REJECTED", "UNVERIFIED"])
     )
 
+    # show only last N days on public feed
+    max_days = int(getattr(settings, "S4L_PUBLIC_FEED_MAX_DAYS", 7))
+    show = (request.GET.get("show") or "").strip().lower()
+
+    if not (show == "all" and request.user.is_authenticated and request.user.is_staff):
+        cutoff = timezone.now() - timedelta(days=max_days)
+        qs = qs.filter(created_at__gte=cutoff)
+
+    # filters
     blood_group = (request.GET.get("blood_group") or "").strip()
     city = (request.GET.get("city") or "").strip()
 
@@ -356,7 +452,7 @@ def public_dashboard_view(request):
         qs = qs.filter(blood_group=blood_group)
 
     if city:
-        aliases = city_aliases(city)  # {"ktm","kathmandu",...} etc
+        aliases = city_aliases(city)
         q = Q()
         for a in aliases:
             q |= Q(location_city__iexact=a)
@@ -372,6 +468,8 @@ def public_dashboard_view(request):
         "requests": qs,
         "donor_eligible": donor_eligible,
         "donor_next_eligible": donor_next_eligible,
+        "feed_max_days": max_days,
+        "feed_show_all": (show == "all"),
     })
 
 
@@ -467,6 +565,54 @@ def request_detail_view(request, request_id, slug=None):
             and my_response.status == "ACCEPTED"
         )
 
+    # Emergency Network UI (only for request owner)
+    emergency_contact = None
+    emergency_profiles = []
+    sos_recent = False
+
+    if request.user.is_authenticated and blood_req.created_by_id == request.user.id:
+        prof = getattr(request.user, "profile", None)
+        emergency_contact = {
+            "name": getattr(prof, "emergency_contact_name", "") if prof else "",
+            "phone": getattr(prof, "emergency_contact_phone", "") if prof else "",
+        }
+
+        emergency_profiles = (
+            FamilyMember.objects
+            .filter(primary_user=request.user, is_emergency_profile=True)
+            .order_by("-id")[:10]
+        )
+
+        cooldown = int(getattr(settings, "S4L_SOS_COOLDOWN_SECONDS", 600))
+        sos_recent = bool(cache.get(f"s4l:sos:{blood_req.id}:{request.user.id}"))
+
+    # SOS share text (only for request owner)
+    sos_share_text = ""
+    whatsapp_share_url = ""
+    whatsapp_emergency_url = ""
+
+    if request.user.is_authenticated and blood_req.created_by_id == request.user.id:
+        abs_url = request.build_absolute_uri(blood_req.get_absolute_url())
+        sos_share_text = (
+            f"URGENT BLOOD NEEDED\n"
+            f"Patient: {blood_req.patient_name}\n"
+            f"Blood Group: {blood_req.blood_group}\n"
+            f"Units: {blood_req.units_needed}\n"
+            f"Hospital: {blood_req.hospital_name}\n"
+            f"City: {blood_req.location_city}\n"
+            f"Contact: {blood_req.contact_phone}\n"
+            f"Open: {abs_url}"
+        )
+
+        # Share to any WhatsApp chat
+        whatsapp_share_url = "https://wa.me/?text=" + quote(sos_share_text)
+
+        # Direct WhatsApp to emergency contact (only if number looks valid)
+        ec_phone = (emergency_contact or {}).get("phone") if emergency_contact else ""
+        wa_num = _wa_number(ec_phone)
+        if wa_num:
+            whatsapp_emergency_url = f"https://wa.me/{wa_num}?text=" + quote(sos_share_text)
+
     return render(request, "blood/request_detail.html", {
         "req": blood_req,
         "guest_responses": guest_responses,
@@ -482,7 +628,58 @@ def request_detail_view(request, request_id, slug=None):
         "can_mark_donation": can_mark_donation,
         "can_respond": can_respond,
         "can_view_donor_contact": can_view_donor_contact,
+        "emergency_contact": emergency_contact,
+        "emergency_profiles": emergency_profiles,
+        "sos_recent": sos_recent,
+        "sos_cooldown_minutes": int(getattr(settings, "S4L_SOS_COOLDOWN_SECONDS", 600) // 60),
+        "sos_share_text": sos_share_text,
+        "whatsapp_share_url": whatsapp_share_url,
+        "whatsapp_emergency_url": whatsapp_emergency_url,
     })
+
+@require_POST
+@login_required
+def blood_sos_broadcast_view(request, request_id):
+    """
+    Request owner can send SOS broadcast to institutions in the same city.
+    Cooldown protected using cache.
+    """
+    req = get_object_or_404(PublicBloodRequest, id=request_id)
+
+    # Only the request owner can broadcast SOS (logged-in requests only)
+    if not req.created_by_id or req.created_by_id != request.user.id:
+        raise Http404()
+
+    # only allow SOS on active requests
+    if not req.is_active or req.status in ("FULFILLED", "CANCELLED"):
+        messages.info(request, "This request is closed. SOS is not available.")
+        return redirect(req.get_absolute_url())
+
+    cooldown = int(getattr(settings, "S4L_SOS_COOLDOWN_SECONDS", 600))
+    key = f"s4l:sos:{req.id}:{request.user.id}"
+
+    if cache.get(key):
+        messages.warning(request, "SOS already sent recently. Please wait before sending again.")
+        return redirect(req.get_absolute_url())
+
+    cache.set(key, True, timeout=cooldown)
+
+    title = "SOS: Emergency blood request"
+    body = (
+        f"Emergency request #{req.id}: {req.blood_group} • Units {req.units_needed} • "
+        f"{req.hospital_name} • {req.location_city}. Contact: {req.contact_phone}"
+    )
+
+    sent = _notify_orgs_in_city_blood(
+        req.location_city,
+        title,
+        body,
+        url=req.get_absolute_url(),
+        level="DANGER",
+    )
+
+    messages.success(request, f"SOS broadcast sent to institutions in {req.location_city}. Notified members: {sent}.")
+    return redirect(req.get_absolute_url())
 
 # Guest donate and notify recipient if possible
 def guest_donate_view(request, request_id):

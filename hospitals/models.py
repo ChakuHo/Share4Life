@@ -2,6 +2,7 @@ from django.conf import settings
 from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.utils import timezone
+from blood.matching import canonical_city
 
 
 class Organization(models.Model):
@@ -26,6 +27,7 @@ class Organization(models.Model):
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=30, blank=True)
 
+    city_canon = models.CharField(max_length=100, blank=True, db_index=True)
     address = models.CharField(max_length=255, blank=True)
     city = models.CharField(max_length=100, blank=True)
 
@@ -50,6 +52,10 @@ class Organization(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.get_org_type_display()})"
+    
+    def save(self, *args, **kwargs):
+        self.city_canon = canonical_city(self.city)
+        super().save(*args, **kwargs)
 
 
 class OrganizationMembership(models.Model):

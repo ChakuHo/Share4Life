@@ -30,7 +30,7 @@
 
             {% url 'blood_request_proof' req.id as proof_url %}
             <div class="mt-2 d-flex flex-wrap">
-              <a class="btn btn-outline-primary btn-sm mr-2 mb-2" target="_blank"
+              <a class="btn btn-outline-primary btn-sm mr-2 mb-2" target="_blank" rel="noopener noreferrer"
                  href="https://www.google.com/maps/search/?api=1&query={{ req.hospital_name|urlencode }}%20{{ req.location_city|urlencode }}">
                 <i class="fa fa-map-marker-alt"></i> Open in Maps
               </a>
@@ -41,7 +41,7 @@
               </a>
 
               {% if req.proof_document and can_view_proof %}
-                <a class="btn btn-outline-danger btn-sm mb-2" target="_blank" href="{{ proof_url }}">
+                <a class="btn btn-outline-danger btn-sm mb-2" target="_blank" rel="noopener noreferrer" href="{{ proof_url }}">
                   <i class="fa fa-file-medical"></i> View Proof
                 </a>
               {% endif %}
@@ -103,6 +103,158 @@
               </form>
             </div>
 
+            {# ---------------- EMERGENCY NETWORK ---------------- #}
+            <div class="card mt-3" style="border-radius:14px;">
+              <div class="card-body">
+
+                <div class="d-flex flex-wrap justify-content-between align-items-center">
+                  <div>
+                    <h6 class="mb-1" style="font-weight:800;">
+                      <i class="fa fa-ambulance text-danger"></i> Emergency Network
+                    </h6>
+                    <div class="text-muted small">
+                      Quick-call your emergency contact and emergency family profiles. You can also broadcast SOS to institutions.
+                    </div>
+                  </div>
+
+                  {% url 'blood_sos_broadcast' req.id as sos_url %}
+                  <form method="post" action="{{ sos_url }}" class="mt-2 mt-md-0"
+                        onsubmit="return confirm('Send SOS broadcast to institutions in your city?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger"
+                            {% if sos_recent %}disabled{% endif %}>
+                      <i class="fa fa-bullhorn"></i>
+                      {% if sos_recent %}
+                        SOS Sent (wait {{ sos_cooldown_minutes }}m)
+                      {% else %}
+                        Send SOS to Institutions
+                      {% endif %}
+                    </button>
+                  </form>
+                </div>
+
+                {% if sos_share_text %}
+                  <div class="mt-3 d-flex flex-wrap" style="gap:.5rem;">
+                    {% if whatsapp_share_url %}
+                      <a class="btn btn-outline-success"
+                         target="_blank" rel="noopener noreferrer"
+                         href="{{ whatsapp_share_url }}">
+                        <i class="fab fa-whatsapp"></i> Share via WhatsApp
+                      </a>
+                    {% endif %}
+
+                    {% if whatsapp_emergency_url %}
+                      <a class="btn btn-success"
+                         target="_blank" rel="noopener noreferrer"
+                         href="{{ whatsapp_emergency_url }}">
+                        <i class="fab fa-whatsapp"></i> WhatsApp Emergency Contact
+                      </a>
+                    {% endif %}
+
+                    <button type="button" class="btn btn-outline-secondary" id="copy-sos-btn">
+                      <i class="fa fa-copy"></i> Copy SOS Message
+                    </button>
+                  </div>
+
+                  <textarea id="sosText" class="form-control mt-2" rows="5" readonly style="font-size:13px;">{{ sos_share_text }}</textarea>
+
+                  <script>
+                  (function(){
+                    const btn = document.getElementById("copy-sos-btn");
+                    const ta  = document.getElementById("sosText");
+                    if (!btn || !ta) return;
+
+                    async function copyText(text) {
+                      // Works on HTTPS + localhost
+                      if (navigator.clipboard && window.isSecureContext) {
+                        return navigator.clipboard.writeText(text);
+                      }
+                      // Fallback for HTTP / older browsers
+                      const tmp = document.createElement("textarea");
+                      tmp.value = text;
+                      tmp.setAttribute("readonly", "");
+                      tmp.style.position = "fixed";
+                      tmp.style.left = "-9999px";
+                      tmp.style.top = "0";
+                      document.body.appendChild(tmp);
+                      tmp.focus();
+                      tmp.select();
+                      const ok = document.execCommand("copy");
+                      document.body.removeChild(tmp);
+                      if (!ok) throw new Error("Copy failed");
+                    }
+
+                    btn.addEventListener("click", async function(){
+                      try {
+                        await copyText(ta.value);
+                        const old = btn.innerHTML;
+                        btn.innerHTML = '<i class="fa fa-check"></i> Copied';
+                        setTimeout(() => btn.innerHTML = old, 1200);
+                      } catch(e) {
+                        alert("Copy failed. Please select the text and copy manually.");
+                      }
+                    });
+                  })();
+                  </script>
+                {% endif %}
+
+                <hr>
+
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <div class="text-muted small">Emergency Contact</div>
+                    {% if emergency_contact and emergency_contact.phone %}
+                      <div class="font-weight-bold">{{ emergency_contact.name|default:"Emergency Contact" }}</div>
+                      <div class="mt-2">
+                        <a class="btn btn-outline-secondary btn-sm" href="tel:{{ emergency_contact.phone }}">
+                          <i class="fa fa-phone"></i> Call {{ emergency_contact.phone }}
+                        </a>
+                      </div>
+                    {% else %}
+                      <div class="text-muted small">
+                        No emergency contact set. Add it in <a href="{% url 'profile_edit' %}">Edit Profile</a>.
+                      </div>
+                    {% endif %}
+                  </div>
+
+                  <div class="col-md-6 mb-3">
+                    <div class="text-muted small">Emergency Profiles</div>
+
+                    {% if emergency_profiles %}
+                      {% for fm in emergency_profiles %}
+                        <div class="border rounded p-2 mb-2 bg-light">
+                          <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                              <div class="font-weight-bold">
+                                {{ fm.name }}{% if fm.relationship %} ({{ fm.relationship }}){% endif %}
+                              </div>
+                              <div class="text-muted small">
+                                {{ fm.blood_group|default:"—" }} • {{ fm.city|default:"—" }}
+                              </div>
+                            </div>
+                            {% if fm.phone_number %}
+                              <a class="btn btn-sm btn-outline-secondary" href="tel:{{ fm.phone_number }}">
+                                Call
+                              </a>
+                            {% endif %}
+                          </div>
+                        </div>
+                      {% endfor %}
+                      <div class="text-muted small">
+                        Manage emergency profiles in <a href="{% url 'emergency_profiles_list' %}">Emergency Profiles</a>.
+                      </div>
+                    {% else %}
+                      <div class="text-muted small">
+                        No emergency profiles added. Add one in <a href="{% url 'family_add' %}">Add Family</a> and enable “Emergency Profile”.
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+            {# ---------------- END EMERGENCY NETWORK ---------------- #}
+
           {% else %}
             <div class="d-flex flex-wrap align-items-center">
 
@@ -123,14 +275,6 @@
                       Respond as Donor
                     </a>
                   {% endif %}
-
-                  {# Chat button: only after ACCEPTED, and only if request has a real owner #}
-                  {% if my_response and my_response.status == "ACCEPTED" and req.created_by_id %}
-                    <a href="{% url 'chat_start_blood' req.id user.id %}" class="btn btn-outline-primary mr-2 mb-2">
-                      <i class="fa fa-comments"></i> Chat
-                    </a>
-                  {% endif %}
-
                   {% if can_mark_donation %}
                     <a href="{{ donation_create_url|default:'#' }}" class="btn btn-danger mb-2">
                       Mark Donation Completed
@@ -252,17 +396,6 @@
                   {% if dr.message %}
                     <div class="mt-2">{{ dr.message }}</div>
                   {% endif %}
-
-                  {# Requester chat button: only if requester is logged in and this donor ACCEPTED #}
-                  {% if user.is_authenticated and req.created_by_id == user.id and dr.status == "ACCEPTED" and req.created_by_id %}
-                    <div class="mt-2">
-                      <a class="btn btn-sm btn-outline-primary"
-                         href="{% url 'chat_start_blood' req.id dr.donor_id %}">
-                        <i class="fa fa-comments"></i> Chat
-                      </a>
-                    </div>
-                  {% endif %}
-
                 </div>
               </div>
             {% empty %}

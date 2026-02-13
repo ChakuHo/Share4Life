@@ -27,4 +27,6 @@ urlpatterns = [
     path("request/<int:request_id>/cancel/", views.blood_request_cancel_view, name="blood_request_cancel"),
     path("campaigns/", views.blood_campaigns_view, name="blood_campaigns"),
     path("request/<int:request_id>/quick-respond/", views.quick_respond_view, name="quick_respond"),
+
+    path("request/<int:request_id>/sos/", views.blood_sos_broadcast_view, name="blood_sos_broadcast"),
 ]

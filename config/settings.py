@@ -170,7 +170,8 @@ ASGI_APPLICATION = "config.asgi.application"
 
 CHANNEL_LAYERS = {
     "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",  # dev
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {"hosts": [("127.0.0.1", 6379)]},
     }
 }
 
@@ -213,3 +214,18 @@ CAMPAIGN_ARCHIVE_AFTER_DAYS = int(os.environ.get("CAMPAIGN_ARCHIVE_AFTER_DAYS", 
 # reminder for disbursement proof upload (if campaign has raised money but no disbursement record)
 DISBURSEMENT_PROOF_REMINDER_DAYS = 3
 DISBURSEMENT_PROOF_REMINDER_COOLDOWN_HOURS = 24
+
+# Public feed visibility window (days)
+S4L_PUBLIC_FEED_MAX_DAYS = 7
+
+# SOS cooldown so users can't spam institutions
+S4L_SOS_COOLDOWN_SECONDS = 600  # 10 minutes
+
+# WhatsApp: default country code for local numbers (Nepal)
+S4L_DEFAULT_WHATSAPP_CC = "977"
+
+# Donor reping limits
+S4L_EMERGENCY_ESCALATION_MAX_MINUTES = 60   # stop repinging after 60 minutes
+S4L_EMERGENCY_REPING_INTERVAL_MINUTES = 1  # how often LOOP runs
+S4L_DONOR_REPING_COOLDOWN_SECONDS = 10   # reping after 3 minutes if ignored(need to make change i made it to 10sec to testing )
+S4L_DONOR_MAX_REPINGS_PER_REQUEST = 5     # max repings per donor per request

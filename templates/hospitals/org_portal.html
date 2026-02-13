@@ -9,7 +9,7 @@
       <div>
         <h3 class="mb-1">Institution Portal</h3>
         <div class="text-muted">
-          {{ org.name }} • {{ org.get_org_type_display }}{% if org.city %} • {{ org.city }}{% endif %}
+          {{ org.name }} • {{ org.get_org_type_display }}{% if org_city_display %} • {{ org_city_display|title }}{% endif %}
         </div>
       </div>
 
