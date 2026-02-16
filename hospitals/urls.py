@@ -6,6 +6,7 @@ urlpatterns = [
     path("register/", views.organization_register, name="org_register"),
     path("pending/", views.org_pending, name="org_pending"),
     path("portal/", views.org_portal, name="org_portal"),
+    path("directory/", views.institutions_directory, name="institutions_directory"),
     path("portal/members/", views.org_members, name="org_members"),
     path("portal/campaigns/", views.org_campaign_list, name="org_campaign_list"),
     path("portal/campaigns/new/", views.org_campaign_create, name="org_campaign_create"),

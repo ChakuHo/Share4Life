@@ -229,3 +229,10 @@ S4L_EMERGENCY_ESCALATION_MAX_MINUTES = 60   # stop repinging after 60 minutes
 S4L_EMERGENCY_REPING_INTERVAL_MINUTES = 1  # how often LOOP runs
 S4L_DONOR_REPING_COOLDOWN_SECONDS = 10   # reping after 3 minutes if ignored(need to make change i made it to 10sec to testing )
 S4L_DONOR_MAX_REPINGS_PER_REQUEST = 5     # max repings per donor per request
+
+
+S4L_ELIGIBILITY_REMIND_DAYS_BEFORE = 0   # 0 = remind on the day they become eligible
+S4L_ELIGIBILITY_REMIND_REPEAT_DAYS = 7  # don’t remind again for same user for 7 days
+
+S4L_CAMPAIGN_REMIND_DAYS_BEFORE = 2     # remind 2 days before camp date
+S4L_CAMPAIGN_REMIND_REPEAT_DAYS = 7

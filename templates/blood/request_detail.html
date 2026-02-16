@@ -36,6 +36,11 @@
               </a>
 
               <a class="btn btn-outline-secondary btn-sm mr-2 mb-2"
+                 href="{% url 'institutions_directory' %}?city={{ req.location_city|urlencode }}">
+                <i class="fa fa-hospital"></i> Nearby Institutions
+              </a>
+
+              <a class="btn btn-outline-secondary btn-sm mr-2 mb-2"
                  href="tel:{{ req.contact_phone }}">
                 <i class="fa fa-phone"></i> Call
               </a>

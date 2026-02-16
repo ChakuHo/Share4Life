@@ -9,7 +9,8 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.utils.http import url_has_allowed_host_and_scheme
 
-from .models import Notification, ChatThread, ChatMessage
+from .models import Notification, ChatThread, ChatMessage, NotificationPreference
+from .forms import NotificationPreferenceForm
 from blood.models import PublicBloodRequest, DonorResponse
 from django.urls import reverse
 
@@ -92,7 +93,7 @@ def chat_thread_detail(request, thread_id):
     thread_url = reverse("chat_thread_detail", args=[thread.id])
     request.user.notifications.filter(
         read_at__isnull=True,
-        title="New chat message",
+        category="CHAT",
         url=thread_url
     ).update(read_at=timezone.now())
 
@@ -147,3 +148,19 @@ def start_blood_chat(request, request_id, donor_id):
     )
 
     return redirect("chat_thread_detail", thread_id=thread.id)
+
+@login_required
+def notification_settings_view(request):
+    pref, _ = NotificationPreference.objects.get_or_create(user=request.user)
+
+    if request.method == "POST":
+        form = NotificationPreferenceForm(request.POST, instance=pref)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Notification settings saved.")
+            return redirect("notification_settings")
+        messages.error(request, "Please fix the errors.")
+    else:
+        form = NotificationPreferenceForm(instance=pref)
+
+    return render(request, "communication/notification_settings.html", {"form": form})

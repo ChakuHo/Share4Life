@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.mail import send_mail
 from django.db import transaction
 from django.shortcuts import render, redirect, get_object_or_404
-
+import math
 from django.utils import timezone
 
 from accounts.models import CustomUser
@@ -116,11 +116,10 @@ def org_portal(request):
         if a:
             q_city_don |= Q(request__location_city__iexact=a) | Q(request__location_city__icontains=a)
 
-    # Canonical DB matching (only if your new canon fields exist)
+    # Canonical DB matching (only if new canon fields exist)
     q_canon_req = Q()
     q_canon_don = Q()
     if org_canon:
-        # These fields must exist in DB, otherwise Django will error.
         q_canon_req = Q(location_city_canon=org_canon)
         q_canon_don = Q(request__location_city_canon=org_canon)
 
@@ -459,3 +458,108 @@ def institutions_home(request):
         return redirect("org_register")
 
     return render(request, "hospitals/institutions_home.html")
+
+def _haversine_km(lat1, lon1, lat2, lon2):
+    R = 6371.0
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+
+    a = (math.sin(dlat / 2) ** 2) + math.cos(p1) * math.cos(p2) * (math.sin(dlon / 2) ** 2)
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
+
+
+from django.db.models import Q
+import math
+
+def _haversine_km(lat1, lon1, lat2, lon2):
+    R = 6371.0
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+
+    a = (math.sin(dlat / 2) ** 2) + math.cos(p1) * math.cos(p2) * (math.sin(dlon / 2) ** 2)
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
+
+
+def institutions_directory(request):
+    """
+    Public institutions directory:
+      - shows approved organizations
+      - filters: org_type + city aliases + free text search q
+      - optional: lat/lng -> sort nearest + show distance
+      - campaigns visible WITHOUT needing institution portal access
+    """
+    qs = (
+        Organization.objects
+        .filter(status="APPROVED")
+        .prefetch_related("campaigns") 
+    )
+
+    org_type = (request.GET.get("type") or "").strip().upper()
+    city = (request.GET.get("city") or "").strip()
+    search_q = (request.GET.get("q") or "").strip()
+
+    # Filter by type
+    if org_type:
+        qs = qs.filter(org_type=org_type)
+
+    # Filter by city (aliases + tolerant match)
+    if city:
+        aliases = city_aliases(city)
+        city_q = Q()
+        for a in aliases:
+            a = (a or "").strip()
+            if a:
+                city_q |= Q(city__iexact=a) | Q(city__icontains=a)
+        qs = qs.filter(city_q)
+
+    # Free text search (name/phone/email/address/city)
+    if search_q:
+        qs = qs.filter(
+            Q(name__icontains=search_q) |
+            Q(phone__icontains=search_q) |
+            Q(email__icontains=search_q) |
+            Q(address__icontains=search_q) |
+            Q(city__icontains=search_q)
+        )
+
+    # Make list AFTER all filters
+    orgs = list(qs.order_by("name"))
+
+    # user location
+    lat = request.GET.get("lat")
+    lng = request.GET.get("lng")
+    user_lat = user_lng = None
+    try:
+        if lat and lng:
+            user_lat = float(lat)
+            user_lng = float(lng)
+    except Exception:
+        user_lat = user_lng = None
+
+    # attach distance and sort if we have user coords
+    if user_lat is not None and user_lng is not None:
+        for o in orgs:
+            o.distance_km = None
+            if o.latitude is not None and o.longitude is not None:
+                try:
+                    o.distance_km = round(_haversine_km(user_lat, user_lng, o.latitude, o.longitude), 2)
+                except Exception:
+                    o.distance_km = None
+
+        orgs.sort(key=lambda x: (x.distance_km is None, x.distance_km or 10**9, x.name.lower()))
+
+    return render(request, "hospitals/directory.html", {
+        "orgs": orgs,
+        "city": city,
+        "org_type": org_type,
+        "q": search_q,          
+        "user_lat": user_lat,
+        "user_lng": user_lng,
+        "ORG_TYPES": Organization.TYPE,
+    })

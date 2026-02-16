@@ -932,6 +932,62 @@ def blood_request_cancel_view(request, request_id):
     messages.success(request, "Request cancelled.")
     return redirect("my_blood_requests")
 
+@require_POST
+@login_required
+@recipient_required
+def blood_request_make_emergency_view(request, request_id):
+    """
+    Upgrade an existing logged-in request to emergency:
+      - Only request owner
+      - Only OPEN / IN_PROGRESS and active
+      - Only once (if already emergency -> blocked)
+      - Immediately CITY ping + start escalation
+      - Immediately notify institutions in the same city (your choice #5 = B)
+    """
+    req = get_object_or_404(PublicBloodRequest, id=request_id, created_by=request.user)
+
+    # must be active/open
+    if (not req.is_active) or (req.status in ("FULFILLED", "CANCELLED")):
+        messages.error(request, "This request is closed. You cannot mark it as emergency.")
+        return redirect("my_blood_requests")
+
+    if req.is_emergency:
+        messages.info(request, "This request is already marked as emergency.")
+        return redirect("my_blood_requests")
+
+    # upgrade
+    req.is_emergency = True
+    req.save(update_fields=["is_emergency"])
+
+    # immediate CITY ping
+    transaction.on_commit(lambda: push_ping_stage(req, "CITY"))
+
+    # reset/start escalation state
+    st, _ = BloodEscalationState.objects.get_or_create(request=req)
+    st.stage = "CITY"
+    st.is_done = False
+    st.last_run_at = None
+    st.schedule_next(minutes=1)
+    st.save(update_fields=["stage", "is_done", "last_run_at", "next_run_at", "updated_at"])
+
+    # notify institutions immediately   
+    title = "SOS: Blood request upgraded to EMERGENCY"
+    body = (
+        f"Request #{req.id}: Need {req.blood_group} • Units {req.units_needed} • "
+        f"{req.hospital_name} • {req.location_city}. Contact: {req.contact_phone}"
+    )
+    sent = _notify_orgs_in_city_blood(
+        req.location_city,
+        title,
+        body,
+        url=req.get_absolute_url(),
+        level="DANGER",
+    )
+
+    messages.success(request, f"Request upgraded to EMERGENCY. Institutions notified: {sent}.")
+    return redirect("my_blood_requests")
+
+
 # Upload medical report
 @login_required
 def donation_report_upload_view(request, donation_id):

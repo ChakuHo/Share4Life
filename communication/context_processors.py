@@ -21,7 +21,7 @@ def unread_notifications(request):
     unread_qs = request.user.notifications.filter(created_at__gte=cutoff, read_at__isnull=True)
     unread_count = unread_qs.count()
 
-    unread_chat_count = unread_qs.filter(title="New chat message").count()
+    unread_chat_count = unread_qs.filter(category="CHAT").count()
 
     return {
         "unread_notifications_count": unread_count,

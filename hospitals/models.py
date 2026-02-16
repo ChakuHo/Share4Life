@@ -50,6 +50,9 @@ class Organization(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+
     def __str__(self):
         return f"{self.name} ({self.get_org_type_display()})"
     

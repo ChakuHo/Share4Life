@@ -28,7 +28,7 @@
                 <th style="min-width:180px;">Hospital</th>
                 <th>Verification</th>
                 <th>Status</th>
-                <th class="text-right" style="min-width:220px;"></th>
+                <th class="text-right" style="min-width:320px;"></th>
               </tr>
             </thead>
 
@@ -36,6 +36,7 @@
               {% for r in items %}
                 {% url 'blood_request_edit' r.id as edit_url %}
                 {% url 'blood_request_cancel' r.id as cancel_url %}
+                {% url 'blood_request_make_emergency' r.id as make_emergency_url %}
 
                 <tr>
                   <td class="text-muted small">{{ r.created_at|date:"Y-m-d H:i" }}</td>
@@ -75,6 +76,13 @@
 
                   <td>
                     <span class="s4l-badge s4l-badge-soft">{{ r.get_status_display }}</span>
+
+                    {% if r.is_emergency %}
+                      <div class="mt-1">
+                        <span class="badge badge-danger">EMERGENCY</span>
+                      </div>
+                    {% endif %}
+
                     {% if not r.is_active or r.status == "FULFILLED" or r.status == "CANCELLED" %}
                       <div class="text-muted small mt-1">Closed</div>
                     {% endif %}
@@ -91,6 +99,16 @@
                         {% csrf_token %}
                         <button type="submit" class="btn btn-sm btn-outline-danger">Cancel</button>
                       </form>
+
+                      {% if not r.is_emergency %}
+                        <form method="post" action="{{ make_emergency_url }}" class="d-inline-block ml-2"
+                              onsubmit="return confirm('Upgrade to EMERGENCY? This will notify donors immediately and alert institutions in your city.');">
+                          {% csrf_token %}
+                          <button type="submit" class="btn btn-sm btn-danger">
+                            <i class="fa fa-bullhorn"></i> Make Emergency
+                          </button>
+                        </form>
+                      {% endif %}
                     {% endif %}
                   </td>
                 </tr>

@@ -4,8 +4,8 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.cache import cache
 from django.urls import reverse
 from django.utils import timezone
-
-from .models import ChatThread, ChatMessage, Notification
+from django.db.models import Q
+from .models import ChatThread, ChatMessage, Notification, NotificationPreference
 
 
 class ChatConsumer(AsyncJsonWebsocketConsumer):
@@ -70,9 +70,11 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
     # ---------- DB helpers ----------
     @database_sync_to_async
     def _user_in_thread(self, thread_id: int, user_id: int) -> bool:
-        return ChatThread.objects.filter(id=thread_id).filter(
-            requester_id=user_id
-        ).exists() or ChatThread.objects.filter(id=thread_id, donor_id=user_id).exists()
+        return ChatThread.objects.filter(
+            id=thread_id
+        ).filter(
+            Q(requester_id=user_id) | Q(donor_id=user_id)
+        ).exists()
 
     @database_sync_to_async
     def _create_message_and_notify(self, thread_id: int, sender_id: int, body: str) -> dict:
@@ -91,19 +93,23 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         thread.last_message_at = timezone.now()
         thread.save(update_fields=["last_message_at", "updated_at"])
 
-        # notify the other participant (throttle to avoid spam notifications every second)
+        # notify the other participant (throttle to avoid spam notifications every second)  
         receiver_id = thread.donor_id if sender_id == thread.requester_id else thread.requester_id
         notif_key = f"s4l:chat_notif:{thread_id}:{receiver_id}"
-        # create max 1 notification per 30 seconds per thread per receiver
+
         if cache.add(notif_key, 1, timeout=30):
-            url = reverse("chat_thread_detail", args=[thread_id])
-            Notification.objects.create(
-                user_id=receiver_id,
-                title="New chat message",
-                body=f"New message on blood request #{thread.request_id}.",
-                url=url,
-                level="INFO",
-            )
+            # respect mute settings
+            pref = NotificationPreference.objects.filter(user_id=receiver_id).first()
+            if not (pref and pref.is_muted("CHAT")):
+                url = reverse("chat_thread_detail", args=[thread_id])
+                Notification.objects.create(
+                    user_id=receiver_id,
+                    category="CHAT", 
+                    title="New chat message",
+                    body=f"New message on blood request #{thread.request_id}.",
+                    url=url,
+                    level="INFO",
+                )
 
         return {
             "id": m.id,

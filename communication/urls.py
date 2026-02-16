@@ -8,6 +8,7 @@ urlpatterns = [
     path("open/<int:pk>/", views.open_notification, name="notification_open"),
     path("read-all/", views.mark_all_read, name="notification_read_all"),
     path("clear-all/", views.clear_all, name="notification_clear_all"),
+    path("settings/", views.notification_settings_view, name="notification_settings"),
 
     # chat
     path("chat/", views.chat_threads, name="chat_threads"),
