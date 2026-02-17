@@ -36,6 +36,10 @@ class SiteSetting(models.Model):
         default="• Request created with proof\n• Donors receive notifications\n• Donor responds and donates at hospital\n• Institution verifies donation\n• Eligibility & history updated"
     )
 
+    privacy_policy = models.TextField(blank=True)
+    terms_of_service = models.TextField(blank=True)
+    footer_faq = models.TextField(blank=True, help_text="FAQ text shown in footer modal (optional).")
+
     def save(self, *args, **kwargs):
         self.pk = 1
         super(SiteSetting, self).save(*args, **kwargs)

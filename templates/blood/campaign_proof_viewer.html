@@ -1,0 +1,77 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container" style="max-width: 980px;">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1">Campaign Proof</h3>
+        <div class="text-muted">
+          {{ camp.title }} • {{ camp.organization.name }} • {{ camp.date|date:"Y-m-d" }}
+        </div>
+      </div>
+
+      <div class="d-flex flex-wrap" style="gap:.5rem;">
+        <a href="{% url 'blood_campaigns' %}" class="btn btn-outline-secondary">
+          <i class="fa fa-arrow-left"></i> Back to Campaigns
+        </a>
+        <a href="{{ camp.completion_report.url }}" class="btn btn-outline-primary" download>
+          Download
+        </a>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+
+        {% if kind == "image" %}
+          <div class="proof-box">
+            <img src="{{ camp.completion_report.url }}" alt="Proof image" class="proof-img">
+          </div>
+
+        {% elif kind == "pdf" %}
+          <div class="proof-box">
+            <iframe class="proof-frame" src="{{ camp.completion_report.url }}"></iframe>
+          </div>
+
+        {% else %}
+          <div class="alert alert-info mb-0">
+            Preview not available for this file type.
+            <a href="{{ camp.completion_report.url }}" download>Download</a>
+          </div>
+        {% endif %}
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<style>
+  .proof-box{
+    width: 100%;
+    height: 75vh;           
+    background: #f8f9fa;
+    border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 12px;
+    overflow: hidden;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .proof-img{
+    width: 100%;
+    height: 100%;
+    object-fit: contain;       
+    background: #fff;
+  }
+  .proof-frame{
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #fff;
+  }
+</style>
+
+{% endblock %}

@@ -1,25 +1,29 @@
+import math
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.mail import send_mail
 from django.db import transaction
+from django.db.models import Q, Prefetch
+from django.http import Http404
 from django.shortcuts import render, redirect, get_object_or_404
-import math
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from accounts.models import CustomUser
+from blood.matching import city_aliases, canonical_city
+from blood.models import PublicBloodRequest, BloodDonation
 from communication.services import broadcast_after_commit
+
 from .forms import OrganizationRegisterForm, AddOrgMemberForm, BloodCampaignForm
 from .models import Organization, OrganizationMembership, BloodCampaign
 from .permissions import org_member_required
 
-from django.db.models import Q
-from blood.models import PublicBloodRequest, BloodDonation
 
-from django.views.decorators.http import require_POST
-from django.http import Http404
-from blood.matching import city_aliases, canonical_city
-
+# ----------------------------
+# Organization registration
+# ----------------------------
 @login_required
 @transaction.atomic
 def organization_register(request):
@@ -31,6 +35,7 @@ def organization_register(request):
         form = OrganizationRegisterForm(request.POST, request.FILES)
         if form.is_valid():
             org = form.save(commit=False)
+
             # fill missing details from user profile
             if not org.email:
                 org.email = request.user.email
@@ -70,6 +75,7 @@ def organization_register(request):
 
             messages.success(request, "Organization registered. Awaiting admin approval.")
             return redirect("org_pending")
+
         messages.error(request, "Please fix the errors and try again.")
     else:
         profile = getattr(request.user, "profile", None)
@@ -91,6 +97,9 @@ def org_pending(request):
     return render(request, "hospitals/org_pending.html", {"memberships": memberships})
 
 
+# ----------------------------
+# Institution Portal
+# ----------------------------
 @org_member_required(roles=["ADMIN", "VERIFIER", "STAFF"])
 def org_portal(request):
     org = request.organization
@@ -116,7 +125,7 @@ def org_portal(request):
         if a:
             q_city_don |= Q(request__location_city__iexact=a) | Q(request__location_city__icontains=a)
 
-    # Canonical DB matching (only if new canon fields exist)
+    # Canonical DB matching
     q_canon_req = Q()
     q_canon_don = Q()
     if org_canon:
@@ -125,11 +134,8 @@ def org_portal(request):
 
     pending_requests = (
         PublicBloodRequest.objects
-        .filter(
-            is_active=True,
-            status__in=["OPEN", "IN_PROGRESS"],
-            verification_status__in=["PENDING", "UNVERIFIED"],
-        )
+        .filter(is_active=True, status__in=["OPEN", "IN_PROGRESS"])
+        .filter(verification_status__in=["PENDING", "UNVERIFIED"])
         .filter(
             Q(target_organization=org) |
             (Q(target_organization__isnull=True) & (q_canon_req | q_city_req))
@@ -194,6 +200,7 @@ def org_members(request):
 
             messages.success(request, "Member updated.")
             return redirect("org_members")
+
         messages.error(request, "Please fix the errors and try again.")
     else:
         form = AddOrgMemberForm()
@@ -206,11 +213,11 @@ def org_members(request):
     })
 
 
+# ----------------------------
+# Campaigns (Portal)
+# ----------------------------
 @org_member_required(roles=["ADMIN", "VERIFIER", "STAFF"])
 def org_campaign_list(request):
-    """
-    List all campaigns for this organization.
-    """
     org = request.organization
     campaigns = org.campaigns.all().order_by("-date", "-created_at")
     return render(request, "hospitals/org_campaign_list.html", {
@@ -221,31 +228,29 @@ def org_campaign_list(request):
 
 @org_member_required(roles=["ADMIN"])
 def org_campaign_create(request):
-    """
-    Create a new blood donation campaign.
-    """
     org = request.organization
 
     if request.method == "POST":
-        form = BloodCampaignForm(request.POST)
+        form = BloodCampaignForm(request.POST, request.FILES, instance=camp)
         if form.is_valid():
             camp = form.save(commit=False)
             camp.organization = org
             camp.save()
 
-            # Notify users in the same city
-
+            # Notify users in same city (use aliases so Patan->Lalitpur works)
             city = (camp.city or org.city or "").strip()
 
             users_qs = CustomUser.objects.filter(is_active=True).select_related("profile")
-
             if city:
-                users_qs = users_qs.filter(
-                    Q(profile__city__iexact=city) | Q(profile__city__isnull=True) | Q(profile__city__exact="")
-                )
+                aliases = city_aliases(city)
+                q = Q()
+                for a in aliases:
+                    a = (a or "").strip()
+                    if a:
+                        q |= Q(profile__city__iexact=a) | Q(profile__city__icontains=a)
+                users_qs = users_qs.filter(q | Q(profile__city__isnull=True) | Q(profile__city__exact=""))
             else:
-                # if campaign city is missing, notify only blank-city users
-                users_qs = users_qs.filter(Q(profile__city__isnull=True) | Q(profile__city__exact=""))  
+                users_qs = users_qs.filter(Q(profile__city__isnull=True) | Q(profile__city__exact=""))
 
             title = "New Blood Donation Camp"
             body = f"{org.name} created a camp: {camp.title} on {camp.date}. Venue: {camp.venue_name} ({camp.city or org.city})"
@@ -260,9 +265,12 @@ def org_campaign_create(request):
                 level="INFO",
                 email_subject=title,
                 email_body=email_body,
-            )   
+                category="CAMPAIGN",
+            )
+
             messages.success(request, "Campaign created.")
             return redirect("org_campaign_list")
+
         messages.error(request, "Please fix the errors.")
     else:
         form = BloodCampaignForm(initial={"city": org.city})
@@ -279,7 +287,7 @@ def org_campaign_edit(request, campaign_id):
     camp = get_object_or_404(BloodCampaign, id=campaign_id, organization=org)
 
     if request.method == "POST":
-        form = BloodCampaignForm(request.POST, instance=camp)
+        form = BloodCampaignForm(request.POST, request.FILES, instance=camp)
         if form.is_valid():
             form.save()
             messages.success(request, "Campaign updated.")
@@ -301,14 +309,15 @@ def org_campaign_edit(request, campaign_id):
 def org_campaign_delete(request, campaign_id):
     org = request.organization
     camp = get_object_or_404(BloodCampaign, id=campaign_id, organization=org)
-
     camp.delete()
     messages.success(request, "Campaign deleted.")
     return redirect("org_campaign_list")
 
 
+# ----------------------------
+# Request / Donation verification (Portal)
+# ----------------------------
 def _notify_user(user, title, body="", url="", level="INFO"):
-    # safe import so hospitals app won't crash if communication changes
     try:
         from communication.models import Notification
     except Exception:
@@ -324,11 +333,10 @@ def org_verify_request(request, request_id):
     org = request.organization
     req = get_object_or_404(PublicBloodRequest, id=request_id)
 
-    # Scope check: this org can verify only its own city or explicitly targeted requests
+    # Scope check: target org OR canonical city match
     allowed = (req.target_organization_id == org.id) or (
         req.target_organization_id is None
-        and org.city
-        and req.location_city.strip().lower() == org.city.strip().lower()
+        and canonical_city(req.location_city) == canonical_city(org.city)
     )
     if not allowed:
         raise Http404()
@@ -341,7 +349,6 @@ def org_verify_request(request, request_id):
         req.verified_at = timezone.now()
         req.rejection_reason = ""
 
-        # bind target org if not already set
         if req.target_organization_id is None:
             req.target_organization = org
 
@@ -370,7 +377,6 @@ def org_verify_request(request, request_id):
         req.verified_at = timezone.now()
         req.rejection_reason = reason or "Rejected by institution."
 
-        # Close it so it disappears from public + can't be interacted with
         req.status = "CANCELLED"
         req.is_active = False
 
@@ -397,11 +403,15 @@ def org_verify_request(request, request_id):
     messages.error(request, "Invalid action.")
     return redirect("org_portal")
 
+
 @require_POST
 @org_member_required(roles=["ADMIN", "VERIFIER"])
 def org_verify_donation(request, donation_id):
     org = request.organization
-    donation = get_object_or_404(BloodDonation.objects.select_related("request", "donor_user"), id=donation_id)
+    donation = get_object_or_404(
+        BloodDonation.objects.select_related("request", "donor_user"),
+        id=donation_id
+    )
 
     if donation.status != "COMPLETED":
         messages.info(request, "This donation is not pending verification.")
@@ -412,28 +422,39 @@ def org_verify_donation(request, donation_id):
         raise Http404()
 
     allowed = (req.target_organization_id == org.id) or (
-        req.target_organization_id is None and org.city and req.location_city.strip().lower() == org.city.strip().lower()
+        req.target_organization_id is None
+        and canonical_city(req.location_city) == canonical_city(org.city)
     )
     if not allowed:
         raise Http404()
 
     donation.mark_verified(request.user, verified_org=org)
 
-    # Notify donor + requester (if exists)
     if donation.donor_user_id:
-        _notify_user(donation.donor_user, "Donation verified",
-                     f"{org.name} verified your blood donation.",
-                     url="/blood/donor/history/", level="SUCCESS")
+        _notify_user(
+            donation.donor_user,
+            "Donation verified",
+            f"{org.name} verified your blood donation.",
+            url="/blood/donor/history/",
+            level="SUCCESS"
+        )
     if req.created_by_id:
-        _notify_user(req.created_by, "Donation verified",
-                     f"{org.name} verified a donation for your request.",
-                     url=f"/blood/request/{req.id}/", level="SUCCESS")
+        _notify_user(
+            req.created_by,
+            "Donation verified",
+            f"{org.name} verified a donation for your request.",
+            url=f"/blood/request/{req.id}/",
+            level="SUCCESS"
+        )
 
     messages.success(request, "Donation verified successfully.")
     return redirect("org_portal")
 
+
+# ----------------------------
+# Institutions Home routing
+# ----------------------------
 def institutions_home(request):
-    # If logged in, send them to the correct place automatically
     if request.user.is_authenticated:
         approved = (
             OrganizationMembership.objects
@@ -459,6 +480,10 @@ def institutions_home(request):
 
     return render(request, "hospitals/institutions_home.html")
 
+
+# ----------------------------
+# Public Directory helpers + view
+# ----------------------------
 def _haversine_km(lat1, lon1, lat2, lon2):
     R = 6371.0
     p1 = math.radians(lat1)
@@ -471,67 +496,67 @@ def _haversine_km(lat1, lon1, lat2, lon2):
     return R * c
 
 
-from django.db.models import Q
-import math
-
-def _haversine_km(lat1, lon1, lat2, lon2):
-    R = 6371.0
-    p1 = math.radians(lat1)
-    p2 = math.radians(lat2)
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-
-    a = (math.sin(dlat / 2) ** 2) + math.cos(p1) * math.cos(p2) * (math.sin(dlon / 2) ** 2)
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return R * c
+def _tokens(q: str):
+    q = (q or "").strip().lower()
+    return [t for t in q.replace(",", " ").split() if t]
 
 
 def institutions_directory(request):
     """
     Public institutions directory:
-      - shows approved organizations
-      - filters: org_type + city aliases + free text search q
-      - optional: lat/lng -> sort nearest + show distance
-      - campaigns visible WITHOUT needing institution portal access
+      - filters: type + city aliases + token search
+      - optional: lat/lng -> nearest sort + distance
+      - campaigns shown inline (active + past) WITHOUT org portal access
     """
+    active_campaigns = (
+        BloodCampaign.objects
+        .filter(status__in=["UPCOMING", "ONGOING"])
+        .order_by("date", "start_time")
+    )
+    past_campaigns = (
+        BloodCampaign.objects
+        .filter(status__in=["COMPLETED", "CANCELLED"])
+        .order_by("-date", "-created_at")
+    )
+
     qs = (
         Organization.objects
         .filter(status="APPROVED")
-        .prefetch_related("campaigns") 
+        .prefetch_related(
+            Prefetch("campaigns", queryset=active_campaigns, to_attr="active_campaigns"),
+            Prefetch("campaigns", queryset=past_campaigns, to_attr="past_campaigns"),
+        )
     )
 
     org_type = (request.GET.get("type") or "").strip().upper()
     city = (request.GET.get("city") or "").strip()
-    search_q = (request.GET.get("q") or "").strip()
+    q_raw = (request.GET.get("q") or "").strip()
+    toks = _tokens(q_raw)
 
-    # Filter by type
     if org_type:
         qs = qs.filter(org_type=org_type)
 
-    # Filter by city (aliases + tolerant match)
     if city:
         aliases = city_aliases(city)
-        city_q = Q()
+        q_city = Q()
         for a in aliases:
             a = (a or "").strip()
             if a:
-                city_q |= Q(city__iexact=a) | Q(city__icontains=a)
-        qs = qs.filter(city_q)
+                q_city |= Q(city__iexact=a) | Q(city__icontains=a)
+        qs = qs.filter(q_city)
 
-    # Free text search (name/phone/email/address/city)
-    if search_q:
-        qs = qs.filter(
-            Q(name__icontains=search_q) |
-            Q(phone__icontains=search_q) |
-            Q(email__icontains=search_q) |
-            Q(address__icontains=search_q) |
-            Q(city__icontains=search_q)
-        )
+    if toks:
+        for t in toks:
+            qs = qs.filter(
+                Q(name__icontains=t) |
+                Q(phone__icontains=t) |
+                Q(email__icontains=t) |
+                Q(address__icontains=t) |
+                Q(city__icontains=t)
+            )
 
-    # Make list AFTER all filters
     orgs = list(qs.order_by("name"))
 
-    # user location
     lat = request.GET.get("lat")
     lng = request.GET.get("lng")
     user_lat = user_lng = None
@@ -542,7 +567,6 @@ def institutions_directory(request):
     except Exception:
         user_lat = user_lng = None
 
-    # attach distance and sort if we have user coords
     if user_lat is not None and user_lng is not None:
         for o in orgs:
             o.distance_km = None
@@ -552,14 +576,15 @@ def institutions_directory(request):
                 except Exception:
                     o.distance_km = None
 
-        orgs.sort(key=lambda x: (x.distance_km is None, x.distance_km or 10**9, x.name.lower()))
+        orgs.sort(key=lambda x: (x.distance_km is None, x.distance_km or 10**9, (x.name or "").lower()))
 
     return render(request, "hospitals/directory.html", {
         "orgs": orgs,
         "city": city,
         "org_type": org_type,
-        "q": search_q,          
+        "q": q_raw,
         "user_lat": user_lat,
         "user_lng": user_lng,
         "ORG_TYPES": Organization.TYPE,
+        "results_count": len(orgs),
     })

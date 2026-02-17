@@ -4,7 +4,7 @@ from django.core.mail import send_mail
 from django.db import transaction
 from django.utils import timezone
 
-from .models import Organization, OrganizationMembership
+from .models import Organization, OrganizationMembership, BloodCampaign
 
 
 @admin.register(Organization)
@@ -153,3 +153,16 @@ class OrganizationMembershipAdmin(admin.ModelAdmin):
     list_display = ("organization", "user", "role", "is_active", "added_at")
     list_filter = ("role", "is_active")
     search_fields = ("organization__name", "user__username", "user__email")
+
+
+
+@admin.register(BloodCampaign)
+class BloodCampaignAdmin(admin.ModelAdmin):
+    list_display = (
+        "id", "organization", "title", "date", "city", "status",
+        "target_units", "actual_units_collected", "actual_donors_count"
+    )
+    list_filter = ("status", "date", "city", "organization__org_type")
+    search_fields = ("title", "organization__name", "venue_name", "city")
+    ordering = ("-date", "-created_at")
+    autocomplete_fields = ("organization",)

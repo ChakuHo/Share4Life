@@ -1,8 +1,6 @@
 from django.conf import settings
 from django.core.validators import FileExtensionValidator
 from django.db import models
-from django.utils import timezone
-from blood.matching import canonical_city
 
 
 class Organization(models.Model):
@@ -50,13 +48,16 @@ class Organization(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # GPS
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.name} ({self.get_org_type_display()})"
-    
+
     def save(self, *args, **kwargs):
+        # import inside save to avoid any import/circular surprises
+        from blood.matching import canonical_city
         self.city_canon = canonical_city(self.city)
         super().save(*args, **kwargs)
 
@@ -87,7 +88,7 @@ class OrganizationMembership(models.Model):
 
     def __str__(self):
         return f"{self.user.username} -> {self.organization.name} ({self.role})"
-    
+
 
 class BloodCampaign(models.Model):
     STATUS = [
@@ -122,8 +123,22 @@ class BloodCampaign(models.Model):
     )
 
     status = models.CharField(max_length=10, choices=STATUS, default="UPCOMING")
-
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # ---------------- Impact / Proof of success ----------------
+    cover_image = models.ImageField(upload_to="campaign_covers/", null=True, blank=True)
+
+    actual_units_collected = models.PositiveIntegerField(null=True, blank=True)
+    actual_donors_count = models.PositiveIntegerField(null=True, blank=True)
+
+    impact_highlights = models.TextField(blank=True)
+
+    completion_report = models.FileField(
+        upload_to="campaign_reports/",
+        null=True, blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=["pdf", "jpg", "jpeg", "png"])],
+        help_text="Upload proof/report (PDF/JPG/PNG).",
+    )
 
     class Meta:
         ordering = ["date", "start_time"]

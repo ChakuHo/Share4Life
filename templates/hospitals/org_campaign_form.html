@@ -34,7 +34,7 @@
 
     <div class="card shadow-sm">
       <div class="card-body">
-        <form method="post" novalidate>
+        <form method="post" enctype="multipart/form-data">
           {% csrf_token %}
 
           {% if form.non_field_errors %}
@@ -44,76 +44,112 @@
           <div class="form-group">
             <label class="font-weight-bold">Title</label>
             {{ form.title }}
-            {% for e in form.title.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            {% for e in form.title.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
           </div>
 
           <div class="form-group">
             <label class="font-weight-bold">Description</label>
             {{ form.description }}
-            {% for e in form.description.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            {% for e in form.description.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
           </div>
 
           <div class="form-row">
             <div class="form-group col-md-4">
               <label class="font-weight-bold">Date</label>
               {{ form.date }}
-              {% for e in form.date.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              {% for e in form.date.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
             </div>
             <div class="form-group col-md-4">
               <label class="font-weight-bold">Start time</label>
               {{ form.start_time }}
-              {% for e in form.start_time.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              {% for e in form.start_time.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
             </div>
             <div class="form-group col-md-4">
               <label class="font-weight-bold">End time</label>
               {{ form.end_time }}
-              {% for e in form.end_time.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              {% for e in form.end_time.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
             </div>
           </div>
 
           <div class="form-group">
             <label class="font-weight-bold">Venue name</label>
             {{ form.venue_name }}
-            {% for e in form.venue_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            {% for e in form.venue_name.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
           </div>
 
           <div class="form-group">
             <label class="font-weight-bold">Address</label>
             {{ form.address }}
-            {% for e in form.address.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            {% for e in form.address.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
           </div>
 
           <div class="form-row">
             <div class="form-group col-md-6">
               <label class="font-weight-bold">City</label>
               {{ form.city }}
-              {% for e in form.city.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              {% for e in form.city.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
             </div>
             <div class="form-group col-md-3">
               <label class="font-weight-bold">Target units</label>
               {{ form.target_units }}
-              {% for e in form.target_units.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              {% for e in form.target_units.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
             </div>
             <div class="form-group col-md-3">
               <label class="font-weight-bold">Status</label>
               {{ form.status }}
-              {% for e in form.status.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              {% for e in form.status.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
             </div>
           </div>
 
           <div class="form-group">
             <label class="font-weight-bold">Blood groups needed (optional)</label>
             {{ form.blood_groups_needed }}
-            {% for e in form.blood_groups_needed.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-            <div class="text-muted small mt-1">Example: O+, O-, A+</div>
+            {% for e in form.blood_groups_needed.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
           </div>
 
+          {% if is_edit %}
+            <hr>
+            <h5 class="mb-2" id="impact">Impact / Proof of Success</h5>
+
+            <div class="form-group">
+              <label class="font-weight-bold">Cover image (optional)</label>
+              {{ form.cover_image }}
+              {% for e in form.cover_image.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="form-row">
+              <div class="form-group col-md-6">
+                <label class="font-weight-bold">Actual units collected</label>
+                {{ form.actual_units_collected }}
+                {% for e in form.actual_units_collected.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+              </div>
+              <div class="form-group col-md-6">
+                <label class="font-weight-bold">Donors count</label>
+                {{ form.actual_donors_count }}
+                {% for e in form.actual_donors_count.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="font-weight-bold">Impact highlights</label>
+              {{ form.impact_highlights }}
+              {% for e in form.impact_highlights.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="form-group">
+              <label class="font-weight-bold">Completion report/proof (PDF/JPG/PNG)</label>
+              {{ form.completion_report }}
+              {% for e in form.completion_report.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+              {% if camp and camp.completion_report %}
+                <div class="text-muted small mt-1">
+                  Existing proof is already uploaded. Upload again only if you want to replace it.
+                </div>
+              {% endif %}
+            </div>
+          {% endif %}
+
           <button class="btn btn-danger btn-lg btn-block" type="submit" id="camp-btn">
-            {% if is_edit %}
-              <i class="fa fa-save"></i> Save Changes
-            {% else %}
-              <i class="fa fa-save"></i> Create Campaign
-            {% endif %}
+            {% if is_edit %}<i class="fa fa-save"></i> Save Changes{% else %}<i class="fa fa-save"></i> Create Campaign{% endif %}
           </button>
         </form>
       </div>

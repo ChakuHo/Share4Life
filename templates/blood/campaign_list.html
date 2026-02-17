@@ -7,18 +7,16 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
       <div>
         <h3 class="mb-1">Blood Donation Camps</h3>
-        <div class="text-muted">Upcoming and ongoing blood donation drives.</div>
+        <div class="text-muted">Upcoming and ongoing blood donation drives, plus verified past impact.</div>
       </div>
 
       <div class="d-flex flex-wrap" style="gap:.5rem;">
-        {# Show create button only if user is approved org ADMIN #}
         {% if user.is_authenticated and org_membership and org_membership.role == "ADMIN" %}
           <a href="{% url 'org_campaign_create' %}" class="btn btn-danger">
             <i class="fa fa-plus"></i> Create Campaign
           </a>
         {% endif %}
 
-        {# Helpful shortcut for any org member #}
         {% if user.is_authenticated and org_membership %}
           <a href="{% url 'org_portal' %}" class="btn btn-outline-secondary">
             <i class="fa fa-hospital"></i> Institution Portal
@@ -27,11 +25,43 @@
       </div>
     </div>
 
+    <!-- Impact summary -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <div class="row text-center">
+          <div class="col-md-4 mb-2 mb-md-0">
+            <div class="text-muted small">Completed Camps</div>
+            <div style="font-size:22px; font-weight:800;">
+              {{ totals.total_completed|default:"0" }}
+            </div>
+          </div>
+          <div class="col-md-4 mb-2 mb-md-0">
+            <div class="text-muted small">Units Collected (Reported)</div>
+            <div style="font-size:22px; font-weight:800;">
+              {{ totals.total_units|default:"0" }}
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="text-muted small">Donors (Reported)</div>
+            <div style="font-size:22px; font-weight:800;">
+              {{ totals.total_donors|default:"0" }}
+            </div>
+          </div>
+        </div>
+        <div class="text-muted small mt-2">
+          Note: totals depend on institutions entering results after completion.
+        </div>
+      </div>
+    </div>
+
+    <!-- Upcoming / Ongoing -->
+    <h5 class="mb-2">Upcoming / Ongoing</h5>
     <div class="row">
       {% for c in campaigns %}
         <div class="col-md-6 col-lg-4">
           <div class="card mb-3 shadow-sm h-100">
             <div class="card-body">
+
               <div class="d-flex justify-content-between mb-2">
                 <span class="badge badge-danger p-2">{{ c.organization.get_org_type_display }}</span>
                 <small class="text-muted">{{ c.date|date:"Y-m-d" }}</small>
@@ -44,7 +74,7 @@
               </div>
 
               {% if c.description %}
-                <p class="small mb-2">{{ c.description|truncatechars:120 }}</p>
+                <p class="small mb-2">{{ c.description|truncatechars:140 }}</p>
               {% endif %}
 
               <div class="text-muted small">
@@ -52,6 +82,7 @@
                 {% if c.blood_groups_needed %}
                   <br>Needed: {{ c.blood_groups_needed }}
                 {% endif %}
+                <br>Status: <strong>{{ c.get_status_display }}</strong>
               </div>
 
               <div class="mt-3 d-flex flex-wrap" style="gap:.5rem;">
@@ -66,17 +97,81 @@
         </div>
       {% empty %}
         <div class="col-12">
-          <div class="alert alert-secondary">
-            No upcoming campaigns right now. <br>
-            Create One?
-            {% if user.is_authenticated and org_membership and org_membership.role == "ADMIN" %}
-              <!-- <div class="mt-2">
-                <a href="{% url 'org_campaign_create' %}" class="btn btn-sm btn-danger">
-                  <i class="fa fa-plus"></i> Create campaign
-                </a>
-              </div> -->
+          <div class="alert alert-secondary">No upcoming campaigns right now.</div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- Past success -->
+    <h5 class="mt-4 mb-2">Past Successful Camps</h5>
+    <div class="row">
+      {% for c in past_campaigns %}
+        <div class="col-md-6 col-lg-4">
+          <div class="card mb-3 shadow-sm h-100">
+
+            {% if c.cover_image %}
+              <img src="{{ c.cover_image.url }}" class="card-img-top" alt="Campaign cover"
+                   style="object-fit:cover; height:170px;">
             {% endif %}
+
+            <div class="card-body">
+              <div class="d-flex justify-content-between mb-2">
+                <span class="badge badge-secondary p-2">{{ c.organization.get_org_type_display }}</span>
+                <small class="text-muted">{{ c.date|date:"Y-m-d" }}</small>
+              </div>
+
+              <h5 class="mb-1">{{ c.title }}</h5>
+              <div class="text-muted small mb-2">
+                By <strong>{{ c.organization.name }}</strong><br>
+                Venue: {{ c.venue_name }}{% if c.city %}, {{ c.city }}{% endif %}
+              </div>
+
+              <div class="text-muted small">
+                {% if c.actual_units_collected %}
+                  Units collected: <strong>{{ c.actual_units_collected }}</strong><br>
+                {% endif %}
+                {% if c.actual_donors_count %}
+                  Donors: <strong>{{ c.actual_donors_count }}</strong><br>
+                {% endif %}
+                Status: <strong>{{ c.get_status_display }}</strong>
+              </div>
+
+              {% if c.impact_highlights %}
+                <div class="mt-2 small">
+                  {{ c.impact_highlights|truncatechars:160 }}
+                </div>
+              {% endif %}
+
+              <div class="mt-3 d-flex flex-wrap" style="gap:.5rem;">
+                {% if c.completion_report %}
+                  <a class="btn btn-sm btn-outline-primary"
+                     href="{% url 'campaign_proof_viewer' c.id %}">
+                    View Proof
+                  </a>
+
+                  <a class="btn btn-sm btn-outline-secondary"
+                     href="{{ c.completion_report.url }}" download>
+                    Download
+                  </a>
+                {% endif %}
+
+                <a class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener"
+                   href="https://www.google.com/maps/search/?api=1&query={{ c.venue_name|urlencode }}%20{{ c.city|urlencode }}">
+                  Map
+                </a>
+              </div>
+
+              {% if not c.actual_units_collected and not c.completion_report and not c.impact_highlights %}
+                <div class="text-muted small mt-2">
+                  Results/proof not uploaded yet.
+                </div>
+              {% endif %}
+            </div>
           </div>
+        </div>
+      {% empty %}
+        <div class="col-12">
+          <div class="alert alert-secondary">No past campaigns recorded yet.</div>
         </div>
       {% endfor %}
     </div>

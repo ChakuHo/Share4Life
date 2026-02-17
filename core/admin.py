@@ -10,6 +10,16 @@ class SiteSettingAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return False
 
+    fieldsets = (
+        ("Branding", {"fields": ("site_name", "site_logo", "favicon")}),
+        ("Homepage Hero", {"fields": ("hero_title", "hero_subtitle", "hero_background")}),
+        ("Contact Info", {"fields": ("contact_email", "contact_phone", "address")}),
+        ("Social Media", {"fields": ("facebook_url", "twitter_url", "instagram_url")}),
+        ("Footer", {"fields": ("footer_text",)}),
+        ("About Page", {"fields": ("about_title", "about_intro", "about_trust_safety", "about_how_it_works")}),
+        ("Legal / Footer Modals", {"fields": ("privacy_policy", "terms_of_service", "footer_faq")}),
+    )
+
 
 @admin.register(TeamMember)
 class TeamMemberAdmin(admin.ModelAdmin):

@@ -29,6 +29,7 @@ from .forms import (
     DonationCreateForm, DonationReportForm,
     BloodRequestEditForm
 )
+from django.db.models import Sum, Count
 from .models import (
     PublicBloodRequest, GuestResponse, DonorResponse,
     BloodDonation, DonationMedicalReport, BloodEscalationState,
@@ -1189,8 +1190,9 @@ def request_proof_view(request, request_id):
     return FileResponse(req.proof_document.open("rb"), as_attachment=False)
 
 def blood_campaigns_view(request):
-    today = timezone.now().date()
-    campaigns = (
+    today = timezone.localdate()
+
+    upcoming = (
         BloodCampaign.objects
         .filter(
             organization__status="APPROVED",
@@ -1200,7 +1202,33 @@ def blood_campaigns_view(request):
         .select_related("organization")
         .order_by("date", "start_time")
     )
-    return render(request, "blood/campaign_list.html", {"campaigns": campaigns})
+
+    past = (
+        BloodCampaign.objects
+        .filter(
+            organization__status="APPROVED",
+            status="COMPLETED",
+        )
+        .select_related("organization")
+        .order_by("-date", "-created_at")
+    )[:24]
+
+    # Impact stats (only count where numbers exist)
+    stats_qs = BloodCampaign.objects.filter(
+        organization__status="APPROVED",
+        status="COMPLETED",
+    )
+    totals = stats_qs.aggregate(
+        total_completed=Count("id"),
+        total_units=Sum("actual_units_collected"),
+        total_donors=Sum("actual_donors_count"),
+    )
+
+    return render(request, "blood/campaign_list.html", {
+        "campaigns": upcoming,
+        "past_campaigns": past,
+        "totals": totals,
+    })
 
 @require_POST
 @login_required
@@ -1294,3 +1322,28 @@ def quick_respond_view(request, request_id):
 
     messages.success(request, "Response sent.")
     return redirect("blood_request_detail", request_id=blood_req.id)
+
+def campaign_proof_viewer(request, campaign_id):
+    camp = get_object_or_404(
+        BloodCampaign.objects.select_related("organization"),
+        id=campaign_id,
+        organization__status="APPROVED",
+    )
+
+    if not camp.completion_report:
+        raise Http404()
+
+    name = (camp.completion_report.name or "").lower()
+    ext = os.path.splitext(name)[1].lower()
+
+    if ext == ".pdf":
+        kind = "pdf"
+    elif ext in [".jpg", ".jpeg", ".png", ".webp"]:
+        kind = "image"
+    else:
+        kind = "file"
+
+    return render(request, "blood/campaign_proof_viewer.html", {
+        "camp": camp,
+        "kind": kind,
+    })

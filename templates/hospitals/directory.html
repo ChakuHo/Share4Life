@@ -8,7 +8,10 @@
       <div>
         <h3 class="mb-1">Institutions Directory</h3>
         <div class="text-muted">
-          Search approved hospitals/blood banks/organizations. Use GPS for nearest + directions.
+          Search approved institutions.
+          {% if results_count is not None %}
+            <span class="ml-2">Results: <b>{{ results_count }}</b></span>
+          {% endif %}
         </div>
       </div>
 
@@ -17,51 +20,41 @@
       </a>
     </div>
 
-    <!-- Filters / Search -->
+    <!-- Filters -->
     <div class="card shadow-sm mb-3">
       <div class="card-body">
-
         <form method="get" class="row align-items-end" id="filterForm">
 
           <div class="col-lg-4 mb-2">
-            <label class="text-muted small mb-1">Search (name / phone / email / address)</label>
-            <input
-              type="text"
-              class="form-control"
-              id="qInput"
-              name="q"
-              value="{{ request.GET.q|default:'' }}"
-              placeholder="e.g. Nepal Cancer Hospital, 984..., blood bank"
-              autocomplete="off"
-            >
-            <!-- <div class="text-muted small mt-1">
-              Tip: typing here filters instantly. Press “Apply” to filter server-side too.
-            </div> -->
+            <label class="text-muted small mb-1">Search (name / address / phone / email)</label>
+            <input type="text"
+                   class="form-control"
+                   name="q"
+                   id="qInput"
+                   value="{{ q|default:'' }}"
+                   placeholder="e.g. cancer hospital lalitpur, blood bank, 984..."
+                   autocomplete="off">
+            <!-- <div class="text-muted small mt-1">Tip: multi-word searches work (e.g. “cancer lalitpur”).</div> -->
           </div>
 
           <div class="col-lg-3 mb-2">
-            <label class="text-muted small mb-1">City / Area </label>
-            <input
-              type="text"
-              class="form-control"
-              name="city"
-              id="cityInput"
-              value="{{ request.GET.city|default:'' }}"
-              placeholder="e.g. Patan, Lalitpur / Asan, Kathmandu / BKT"
-              autocomplete="off"
-            >
+            <label class="text-muted small mb-1">City / Area (aliases supported)</label>
+            <input type="text"
+                   class="form-control"
+                   name="city"
+                   value="{{ city|default:'' }}"
+                   placeholder="e.g. Patan, Lalitpur / Asan, Kathmandu / BKT"
+                   autocomplete="off">
           </div>
 
           <div class="col-lg-3 mb-2">
             <label class="text-muted small mb-1">Type</label>
-            {% with t=request.GET.type|default:'' %}
-            <select class="form-control" name="type" id="typeInput">
+            <select class="form-control" name="type">
               <option value="">All</option>
               {% for code,label in ORG_TYPES %}
-                <option value="{{ code }}" {% if t == code %}selected{% endif %}>{{ label }}</option>
+                <option value="{{ code }}" {% if org_type == code %}selected{% endif %}>{{ label }}</option>
               {% endfor %}
             </select>
-            {% endwith %}
           </div>
 
           <div class="col-lg-2 mb-2 d-flex flex-column" style="gap:.5rem;">
@@ -78,66 +71,53 @@
             </a>
           </div>
 
-          <!-- carry GPS values -->
-          <input type="hidden" name="lat" id="latInput" value="{{ request.GET.lat|default:'' }}">
-          <input type="hidden" name="lng" id="lngInput" value="{{ request.GET.lng|default:'' }}">
+          <input type="hidden" name="lat" id="latInput" value="{{ user_lat|default:'' }}">
+          <input type="hidden" name="lng" id="lngInput" value="{{ user_lng|default:'' }}">
         </form>
 
-        {% if request.GET.lat and request.GET.lng %}
+        {% if user_lat and user_lng %}
           <div class="alert alert-success mt-3 mb-0" style="border-radius:12px;">
-            <strong>GPS enabled:</strong> showing nearest institutions first (distance shown when available).
+            <b>GPS enabled:</b> nearest institutions shown first.
           </div>
         {% else %}
           <div class="alert alert-light mt-3 mb-0" style="border-radius:12px;">
-            <strong>Tip:</strong> click <b>Use GPS</b> to sort by nearest and get Directions.
+            <b>Tip:</b> click <b>Use GPS</b> to sort by nearest and get Directions.
           </div>
         {% endif %}
       </div>
     </div>
 
     <!-- Results -->
-    <div class="row" id="orgGrid">
+    <div class="row">
       {% for o in orgs %}
-        <div class="col-md-6 col-lg-4 mb-3 org-card"
-             data-search="{{ o.name|default:'' }} {{ o.get_org_type_display|default:'' }} {{ o.city|default:'' }} {{ o.address|default:'' }} {{ o.phone|default:'' }} {{ o.email|default:'' }}">
+        <div class="col-md-6 col-lg-4 mb-3">
           <div class="card shadow-sm h-100">
             <div class="card-body d-flex flex-column">
 
               <div class="d-flex justify-content-between align-items-start">
                 <div style="min-width:0;">
-                  <div class="font-weight-bold text-truncate" style="font-size:18px;">
-                    {{ o.name }}
-                  </div>
+                  <div class="font-weight-bold text-truncate" style="font-size:18px;">{{ o.name }}</div>
                   <div class="text-muted small">
                     {% if o.city %}<i class="fa fa-map-marker-alt mr-1"></i>{{ o.city }}{% endif %}
+                    {% if o.distance_km is not None %}
+                      <span class="ml-2">• <b>{{ o.distance_km }}</b> km</span>
+                    {% endif %}
                   </div>
                 </div>
                 <span class="badge badge-secondary">{{ o.get_org_type_display }}</span>
               </div>
 
               <div class="text-muted small mt-2">
-                {% if o.address %}
-                  <div class="mb-1"><i class="fa fa-location-dot mr-1"></i>{{ o.address }}</div>
-                {% endif %}
-                {% if o.phone %}
-                  <div class="mb-1"><i class="fa fa-phone mr-1"></i>{{ o.phone }}</div>
-                {% endif %}
-                {% if o.email %}
-                  <div class="mb-1"><i class="fa fa-envelope mr-1"></i>{{ o.email }}</div>
-                {% endif %}
-
-                {% if o.distance_km is not None %}
-                  <div class="mt-2">
-                    <strong>Distance:</strong> {{ o.distance_km }} km
-                  </div>
-                {% endif %}
+                {% if o.address %}<div class="mb-1"><i class="fa fa-location-dot mr-1"></i>{{ o.address }}</div>{% endif %}
+                {% if o.phone %}<div class="mb-1"><i class="fa fa-phone mr-1"></i>{{ o.phone }}</div>{% endif %}
+                {% if o.email %}<div class="mb-1"><i class="fa fa-envelope mr-1"></i>{{ o.email }}</div>{% endif %}
               </div>
 
               <div class="mt-auto pt-3 d-flex flex-wrap" style="gap:.5rem;">
 
-                {% if request.GET.lat and request.GET.lng and o.latitude and o.longitude %}
+                {% if user_lat and user_lng and o.latitude and o.longitude %}
                   <a class="btn btn-sm btn-success" target="_blank" rel="noopener"
-                     href="https://www.google.com/maps/dir/?api=1&origin={{ request.GET.lat }},{{ request.GET.lng }}&destination={{ o.latitude }},{{ o.longitude }}">
+                     href="https://www.google.com/maps/dir/?api=1&origin={{ user_lat }},{{ user_lng }}&destination={{ o.latitude }},{{ o.longitude }}">
                     Directions
                   </a>
                 {% elif o.latitude and o.longitude %}
@@ -152,55 +132,64 @@
                   </a>
                 {% endif %}
 
-                <!-- Campaigns -->
-                <button type="button" class="btn btn-sm btn-outline-secondary js-toggle-camp" data-target="camp-{{ o.id }}">
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary js-toggle"
+                        data-target="camp-{{ o.id }}">
                   Campaigns
                 </button>
               </div>
 
-              <!-- Campaigns Panel (hidden by default; toggled via JS, no Bootstrap collapse dependency) -->
+              <!-- Campaign panel -->
               <div class="mt-3 d-none" id="camp-{{ o.id }}">
                 <div class="border rounded p-2 bg-light">
                   <div class="d-flex justify-content-between align-items-center">
                     <div class="font-weight-bold">Campaigns by {{ o.name }}</div>
-                    <a class="small" href="{% url 'blood_campaigns' %}">View all campaigns</a>
+                    <a class="small" href="{% url 'blood_campaigns' %}">View all</a>
                   </div>
 
                   <div class="mt-2">
-                    {% with shown=0 %}
-                      {% for c in o.campaigns.all|dictsort:"date" %}
-                        {# show only UPCOMING/ONGOING #}
-                        {% if c.status == "UPCOMING" or c.status == "ONGOING" %}
-                          <div class="border rounded p-2 mb-2 bg-white">
-                            <div class="d-flex justify-content-between">
-                              <div class="font-weight-bold">{{ c.title }}</div>
-                              <span class="badge badge-secondary">{{ c.status }}</span>
-                            </div>
-                            <div class="text-muted small">
-                              Date: {{ c.date }}
-                              {% if c.start_time %} • {{ c.start_time }}{% endif %}
-                              {% if c.venue_name %}<br>Venue: {{ c.venue_name }}{% endif %}
-                              {% if c.city %}<br>City: {{ c.city }}{% endif %}
-                            </div>
-                          </div>
-                        {% endif %}
-                      {% empty %}
-                        <div class="text-muted small">
-                          No campaigns available for this institution right now.<br>
-                          Search for another institution or check the
-                          <a href="{% url 'blood_campaigns' %}">Campaigns page</a>
-                          for more details regarding campaigns.
-                        </div>
-                      {% endfor %}
-                    {% endwith %}
-                  </div>
+                    <div class="font-weight-bold small mb-2">Upcoming / Ongoing</div>
 
-                  {# If institution has campaigns but none are UPCOMING/ONGOING, show the same message #}
-                  <div class="text-muted small d-none js-no-active-camps">
-                    No campaigns available for this institution right now.<br>
-                    Search for another institution or check the
-                    <a href="{% url 'blood_campaigns' %}">Campaigns page</a>
-                    for more details regarding campaigns.
+                    {% for c in o.active_campaigns|slice:":3" %}
+                      <div class="border rounded p-2 mb-2 bg-white">
+                        <div class="d-flex justify-content-between">
+                          <div class="font-weight-bold">{{ c.title }}</div>
+                          <span class="badge badge-success">{{ c.status }}</span>
+                        </div>
+                        <div class="text-muted small">
+                          Date: {{ c.date }}{% if c.start_time %} • {{ c.start_time }}{% endif %}
+                          {% if c.venue_name %}<br>Venue: {{ c.venue_name }}{% endif %}
+                          {% if c.city %}<br>City: {{ c.city }}{% endif %}
+                        </div>
+                      </div>
+                    {% empty %}
+                      <div class="text-muted small mb-2">
+                        No campaigns available on this institution right now.<br>
+                        Search for another institution or please refer to the
+                        <a href="{% url 'blood_campaigns' %}">Campaign page</a>
+                        for more details regarding campaigns.
+                      </div>
+                    {% endfor %}
+
+                    <hr>
+
+                    <div class="font-weight-bold small mb-2">Past Campaigns</div>
+
+                    {% for c in o.past_campaigns|slice:":3" %}
+                      <div class="border rounded p-2 mb-2 bg-white">
+                        <div class="d-flex justify-content-between">
+                          <div class="font-weight-bold">{{ c.title }}</div>
+                          <span class="badge badge-secondary">{{ c.status }}</span>
+                        </div>
+                        <div class="text-muted small">
+                          Date: {{ c.date }}{% if c.start_time %} • {{ c.start_time }}{% endif %}
+                          {% if c.venue_name %}<br>Venue: {{ c.venue_name }}{% endif %}
+                          {% if c.city %}<br>City: {{ c.city }}{% endif %}
+                        </div>
+                      </div>
+                    {% empty %}
+                      <div class="text-muted small">No past campaigns recorded.</div>
+                    {% endfor %}
                   </div>
 
                 </div>
@@ -216,110 +205,43 @@
       {% endfor %}
     </div>
 
-    <!-- Empty client-search results message -->
-    <div class="alert alert-warning d-none" id="noMatches" style="border-radius:12px;">
-      No institutions match your search. Try:
-      <ul class="mb-0">
-        <li>Using only city (e.g. <b>KTM</b>, <b>Patan</b>, <b>BKT</b>)</li>
-        <li>Searching by partial name (e.g. “cancer”, “blood”, “hospital”)</li>
-        <li>Clicking <b>Reset</b> and trying again</li>
-      </ul>
-    </div>
-
   </div>
 </section>
 
 <script>
 (function(){
-  function norm(s){
-    return (s || "").toString().toLowerCase().trim();
-  }
-
-  // ---- Client-side search improvements ----
-  const qInput = document.getElementById("qInput");
-  const cards = Array.from(document.querySelectorAll(".org-card"));
-  const noMatches = document.getElementById("noMatches");
-
-  function tokens(term){
-    term = norm(term);
-    if (!term) return [];
-    return term.split(/\s+/).filter(Boolean);
-  }
-
-  function applyClientFilter(){
-    if (!qInput) return;
-
-    const tks = tokens(qInput.value);
-    let visible = 0;
-
-    cards.forEach(function(card){
-      const hay = norm(card.getAttribute("data-search") || "");
-      let ok = true;
-
-      for (const t of tks){
-        if (hay.indexOf(t) === -1){
-          ok = false;
-          break;
-        }
-      }
-
-      card.style.display = ok ? "" : "none";
-      if (ok) visible++;
-    });
-
-    if (noMatches){
-      noMatches.classList.toggle("d-none", visible !== 0);
-    }
-  }
-
-  if (qInput){
-    qInput.addEventListener("input", applyClientFilter);
-    applyClientFilter();
-  }
-
-  // ---- Campaign toggles ----
-  document.querySelectorAll(".js-toggle-camp").forEach(function(btn){
+  // Toggle campaign panels
+  document.querySelectorAll(".js-toggle").forEach(function(btn){
     btn.addEventListener("click", function(){
       const id = btn.getAttribute("data-target");
-      const panel = document.getElementById(id);
-      if (!panel) return;
-
-      panel.classList.toggle("d-none");
-
-      // If opened: if there are NO UPCOMING/ONGOING cards, show fallback message
-      if (!panel.classList.contains("d-none")){
-        const active = panel.querySelectorAll(".bg-white").length;
-        const fallback = panel.querySelector(".js-no-active-camps");
-        if (fallback){
-          fallback.classList.toggle("d-none", active !== 0);
-        }
-      }
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle("d-none");
     });
   });
 
-  // ---- GPS button ----
+  // GPS
   const btn = document.getElementById("useLocationBtn");
   const latInput = document.getElementById("latInput");
   const lngInput = document.getElementById("lngInput");
-  const filterForm = document.getElementById("filterForm");
+  const form = document.getElementById("filterForm");
 
-  if (btn && latInput && lngInput && filterForm){
+  if (btn && latInput && lngInput && form){
     btn.addEventListener("click", function(){
       if (!navigator.geolocation){
-        alert("GPS is not supported in this browser.");
+        alert("GPS not supported.");
         return;
       }
       btn.disabled = true;
-      btn.innerText = "Detecting…";
+      btn.textContent = "Detecting…";
 
       navigator.geolocation.getCurrentPosition(function(pos){
         latInput.value = pos.coords.latitude.toFixed(6);
         lngInput.value = pos.coords.longitude.toFixed(6);
-        filterForm.submit();
+        form.submit();
       }, function(){
         btn.disabled = false;
-        btn.innerText = "Use GPS";
-        alert("Could not get GPS location. Please allow location permission.");
+        btn.textContent = "Use GPS";
+        alert("Could not get GPS location.");
       }, { enableHighAccuracy: true, timeout: 8000 });
     });
   }
