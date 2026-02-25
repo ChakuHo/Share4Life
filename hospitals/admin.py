@@ -119,7 +119,7 @@ class OrganizationAdmin(admin.ModelAdmin):
 
         transaction.on_commit(lambda: self._after_commit_rejected(request, org.id))
 
-    # --- Actions (still work) ---
+    # --- Actions ---
     def approve_org(self, request, queryset):
         for org in queryset:
             self._apply_approved(request, org)
@@ -130,7 +130,7 @@ class OrganizationAdmin(admin.ModelAdmin):
             self._apply_rejected(request, org)
     reject_org.short_description = "Reject selected organizations"
 
-    # --- Manual change page (new behavior) ---
+    # --- Manual change page  ---
     def save_model(self, request, obj, form, change):
         old_status = None
         if change and obj.pk:

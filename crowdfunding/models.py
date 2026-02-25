@@ -9,7 +9,6 @@ from django.utils.text import slugify
 
 
 class Campaign(models.Model):
-    # EXISTING fields (kept)
     title = models.CharField(max_length=200)
     patient_name = models.CharField(max_length=100)
     description = models.TextField()
@@ -27,6 +26,7 @@ class Campaign(models.Model):
         ("APPROVED", "Approved"),
         ("REJECTED", "Rejected"),
         ("COMPLETED", "Completed"),
+        ("EXPIRED", "Expired (Goal not reached)"), 
         ("ARCHIVED", "Archived"),
     ]
     status = models.CharField(max_length=12, choices=STATUS, default="APPROVED")
@@ -101,11 +101,18 @@ class Campaign(models.Model):
         return self.raised_total() >= (self.target_amount or Decimal("0.00"))
 
     def mark_completed_if_needed(self):
-        if self.status == "APPROVED" and self.should_complete():
+        if self.status in ("APPROVED", "EXPIRED") and self.should_complete():
             self.status = "COMPLETED"
             self.completed_at = timezone.now()
             self.save(update_fields=["status", "completed_at"])
 
+    def mark_expired_if_needed(self):
+        if self.status == "APPROVED" and self.is_expired() and (not self.should_complete()):
+            self.status = "EXPIRED"
+            self.save(update_fields=["status"])
+            return True
+        return False
+    
     def mark_archived(self):
         self.status = "ARCHIVED"
         self.archived_at = timezone.now()
@@ -265,6 +272,7 @@ class CampaignAuditLog(models.Model):
         ("DISBURSED", "Disbursed"),
         ("REPORTED", "Reported"),
         ("COMPLETED", "Completed"),
+        ("EXPIRED", "Expired"), 
         ("ARCHIVED", "Archived"),
         ("UPDATED", "Updated"),
     ]

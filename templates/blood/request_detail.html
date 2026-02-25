@@ -170,11 +170,9 @@
                     if (!btn || !ta) return;
 
                     async function copyText(text) {
-                      // Works on HTTPS + localhost
                       if (navigator.clipboard && window.isSecureContext) {
                         return navigator.clipboard.writeText(text);
                       }
-                      // Fallback for HTTP / older browsers
                       const tmp = document.createElement("textarea");
                       tmp.value = text;
                       tmp.setAttribute("readonly", "");
@@ -339,7 +337,13 @@
                   <small class="text-muted">{{ gr.responded_at|date:"Y-m-d H:i" }}</small>
                 </div>
                 <div class="text-muted small">
-                  Phone: {{ gr.donor_phone }} • Status: {{ gr.status }}
+                  Phone:
+                  {% if can_view_guest_contact %}
+                    <a href="tel:{{ gr.donor_phone }}"><strong>{{ gr.donor_phone }}</strong></a>
+                  {% else %}
+                    <strong>Hidden</strong>
+                  {% endif %}
+                  • Status: {{ gr.status }}
                 </div>
               </div>
             {% empty %}
@@ -392,6 +396,19 @@
                         Contact details are visible to the requester after acceptance.
                       </div>
                     {% endif %}
+
+                    {#  CHAT button for requester OR the accepted donor #}
+                    {% if req.created_by_id and user.is_authenticated %}
+                      {% if user.id == req.created_by_id or user.id == dr.donor.id %}
+                        <div class="mt-2">
+                          <a class="btn btn-sm btn-outline-primary"
+                             href="{% url 'chat_start_blood' req.id dr.donor.id %}">
+                            <i class="fa fa-comments"></i> Chat
+                          </a>
+                        </div>
+                      {% endif %}
+                    {% endif %}
+
                   {% else %}
                     <div class="mt-2 text-muted">
                       Contact details will appear after the donor accepts.

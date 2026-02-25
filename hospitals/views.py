@@ -230,32 +230,78 @@ def org_campaign_list(request):
 def org_campaign_create(request):
     org = request.organization
 
+    def _auto_status(date, start_time, end_time):
+        """
+        Auto status logic:
+          - future date -> UPCOMING
+          - today:
+              if start_time exists and now < start_time -> UPCOMING
+              elif end_time exists and now > end_time -> COMPLETED
+              else -> ONGOING
+        Note: we do NOT auto-set past dates here; form validation handles that.
+        """
+        today = timezone.localdate()
+        now_t = timezone.localtime().time()
+
+        if not date:
+            return "UPCOMING"
+
+        if date > today:
+            return "UPCOMING"
+
+        if date < today:
+            return "COMPLETED"
+
+        # date == today
+        if start_time and now_t < start_time:
+            return "UPCOMING"
+        if end_time and now_t > end_time:
+            return "COMPLETED"
+        return "ONGOING"
+
     if request.method == "POST":
-        form = BloodCampaignForm(request.POST, request.FILES, instance=camp)
+        form = BloodCampaignForm(request.POST, request.FILES)
+
         if form.is_valid():
             camp = form.save(commit=False)
             camp.organization = org
+
+            # Default city fallback (safe)
+            if not (camp.city or "").strip():
+                camp.city = (org.city or "").strip()
+
+            # staff can still choose COMPLETED/CANCELLED intentionally.
+            if (camp.status or "").upper() in ("UPCOMING", "ONGOING"):
+                camp.status = _auto_status(camp.date, camp.start_time, camp.end_time)
+
             camp.save()
 
-            # Notify users in same city (use aliases so Patan->Lalitpur works)
+            # ---------------- Notify users in same city ----------------
             city = (camp.city or org.city or "").strip()
 
             users_qs = CustomUser.objects.filter(is_active=True).select_related("profile")
+
             if city:
                 aliases = city_aliases(city)
                 q = Q()
                 for a in aliases:
                     a = (a or "").strip()
                     if a:
-                        q |= Q(profile__city__iexact=a) | Q(profile__city__icontains=a)
+                        # use canon if available
+                        q |= Q(profile__city_canon=canonical_city(a)) | Q(profile__city__iexact=a) | Q(profile__city__icontains=a)
+
                 users_qs = users_qs.filter(q | Q(profile__city__isnull=True) | Q(profile__city__exact=""))
             else:
                 users_qs = users_qs.filter(Q(profile__city__isnull=True) | Q(profile__city__exact=""))
 
             title = "New Blood Donation Camp"
-            body = f"{org.name} created a camp: {camp.title} on {camp.date}. Venue: {camp.venue_name} ({camp.city or org.city})"
+            body = (
+                f"{org.name} created a camp: {camp.title} on {camp.date}. "
+                f"Venue: {camp.venue_name} ({camp.city or org.city})"
+            )
             url = "/blood/campaigns/"
-            email_body = body + "\n\nOpen: " + url
+            abs_url = request.build_absolute_uri(url)
+            email_body = body + "\n\nOpen: " + abs_url
 
             broadcast_after_commit(
                 users_qs,
@@ -273,7 +319,9 @@ def org_campaign_create(request):
 
         messages.error(request, "Please fix the errors.")
     else:
-        form = BloodCampaignForm(initial={"city": org.city})
+        # prefill date to tomorrow
+        tomorrow = timezone.localdate() + timezone.timedelta(days=1)
+        form = BloodCampaignForm(initial={"city": org.city, "date": tomorrow})
 
     return render(request, "hospitals/org_campaign_form.html", {
         "org": org,

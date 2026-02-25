@@ -8,11 +8,18 @@ def last_verified_donation(user):
     return (
         BloodDonation.objects
         .filter(donor_user=user, status="VERIFIED")
+        .only("donated_at")
         .order_by("-donated_at")
         .first()
     )
 
 def next_eligible_datetime(user):
+    # FAST path: if profile cache exists, use it
+    prof = getattr(user, "profile", None)
+    if prof is not None and hasattr(prof, "next_eligible_at") and prof.next_eligible_at:
+        return prof.next_eligible_at
+
+    # fallback: compute from DB
     last = last_verified_donation(user)
     if not last:
         return None

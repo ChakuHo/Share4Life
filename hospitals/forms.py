@@ -1,3 +1,4 @@
+from datetime import date
 import re
 from django import forms
 from .models import Organization, OrganizationMembership, BloodCampaign
@@ -96,7 +97,7 @@ class BloodCampaignForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Recommended required fields (safe + helps directory/matching)
+        # Recommended required fields
         self.fields["city"].required = True
         self.fields["venue_name"].required = True
         self.fields["date"].required = True
@@ -112,6 +113,15 @@ class BloodCampaignForm(forms.ModelForm):
         self.fields["impact_highlights"].required = False
         self.fields["completion_report"].required = False
 
+        # UX: prevent selecting past date for new/upcoming/ongoing in the browser
+        try:
+            today_str = timezone.localdate().strftime("%Y-%m-%d")
+            current_status = (getattr(self.instance, "status", "") or "").upper()
+            if (not getattr(self.instance, "pk", None)) or (current_status in ("UPCOMING", "ONGOING")):
+                self.fields["date"].widget.attrs["min"] = today_str
+        except Exception:
+            pass
+
     def clean(self):
         cleaned = super().clean()
 
@@ -122,7 +132,9 @@ class BloodCampaignForm(forms.ModelForm):
         city = (cleaned.get("city") or "").strip()
         target_units = cleaned.get("target_units")
 
-        # Basic required checks (better message than default sometimes)
+        today = timezone.localdate()
+
+        # City required (custom message)
         if not city:
             self.add_error("city", "City is required.")
 
@@ -135,12 +147,25 @@ class BloodCampaignForm(forms.ModelForm):
             if target_units is None or int(target_units) <= 0:
                 self.add_error("target_units", "Target units must be greater than 0 for upcoming/ongoing campaigns.")
 
-        # Date should not be in the past for UPCOMING (optional rule; safe)
-        if status == "UPCOMING" and date:
-            if date < timezone.localdate():
-                self.add_error("date", "Upcoming campaigns cannot be set in the past. Use COMPLETED if already done.")
+        # -------------------------
+        # Date/status consistency
+        # -------------------------
+        if date:
+            # No backdate for UPCOMING/ONGOING
+            if status in ("UPCOMING", "ONGOING") and date < today:
+                self.add_error("date", "You cannot create an upcoming/ongoing campaign in the past.")
 
-        # Proof + impact required ONLY when COMPLETED
+            # Ongoing must be today (single-day event)
+            if status == "ONGOING" and date != today:
+                self.add_error("date", "Ongoing campaigns must be set for today. Use UPCOMING for future dates.")
+
+            # Completed/Cancelled cannot be future
+            if status in ("COMPLETED", "CANCELLED") and date > today:
+                self.add_error("date", "Completed/Cancelled campaigns cannot be set in the future.")
+
+        # -------------------------
+        # COMPLETED requirements
+        # -------------------------
         if status == "COMPLETED":
             if cleaned.get("actual_units_collected") in (None, ""):
                 self.add_error("actual_units_collected", "Actual units collected is required for completed campaigns.")

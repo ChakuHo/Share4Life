@@ -20,24 +20,36 @@
       </a>
     </div>
 
-    {# Status banners #}
+    {# ---------------- Status banners ---------------- #}
     {% if camp.status == "PENDING" %}
       <div class="alert alert-warning">
         <strong>Pending review.</strong>
         This campaign will be visible for public donations after admin approval.
       </div>
+
     {% elif camp.status == "REJECTED" %}
       <div class="alert alert-danger">
         <strong>Campaign rejected.</strong><br>
         Reason: {{ camp.rejection_reason|default:"Rejected by admin." }}
       </div>
+
     {% elif camp.status == "COMPLETED" %}
       <div class="alert alert-success">
         <strong>Target reached.</strong> This campaign has reached its goal. Donations are closed.
       </div>
+
     {% elif camp.status == "ARCHIVED" %}
       <div class="alert alert-secondary">
         <strong>Archived.</strong> This campaign is archived for record/transparency. Donations are closed.
+      </div>
+
+    {% elif camp.status == "EXPIRED" %}
+      <div class="alert alert-warning">
+        <strong>Campaign ended (goal not reached).</strong><br>
+        Raised Rs. {{ raised_total }} out of Rs. {{ camp.target_amount }}. Donations are closed.
+        <div class="text-muted small mt-1">
+          Flexible funding: staff can still disburse the raised amount for treatment with proof.
+        </div>
       </div>
     {% endif %}
 
@@ -61,7 +73,8 @@
             {% for d in documents %}
               <div class="border rounded p-2 mb-2">
                 <strong>{{ d.get_doc_type_display }}</strong>
-                <a href="{{ d.file.url }}" target="_blank" class="btn btn-sm btn-outline-secondary ml-2">View</a>
+                <a href="{{ d.file.url }}" target="_blank" rel="noopener"
+                   class="btn btn-sm btn-outline-secondary ml-2">View</a>
               </div>
             {% empty %}
               <div class="text-muted">No documents uploaded.</div>
@@ -85,7 +98,8 @@
                       </div>
                     {% endif %}
                   </div>
-                  <a href="{{ x.proof_file.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                  <a href="{{ x.proof_file.url }}" target="_blank" rel="noopener"
+                     class="btn btn-sm btn-outline-primary">
                     View Proof
                   </a>
                 </div>
@@ -98,50 +112,60 @@
             {% endfor %}
 
             <hr>
-            <h5 class="mb-2">Report this campaign</h5>
-            <div class="text-muted small mb-2">
-              If you suspect fraud or wrong documents, report it for admin review.
-            </div>
 
-            <form method="post" action="{% url 'campaign_report' camp.id %}" novalidate>
-              {% csrf_token %}
+            {# -------- Report section -------- #}
+            <details class="mt-2">
+              <summary class="btn btn-outline-danger btn-sm">
+                <i class="fa fa-flag"></i> Report / Raise a Concern
+              </summary>
 
-              {% if report_form.non_field_errors %}
-                <div class="alert alert-danger">{{ report_form.non_field_errors }}</div>
-              {% endif %}
-
-              <div class="form-row">
-                <div class="form-group col-md-4">
-                  <label class="font-weight-bold">Reason</label>
-                  {{ report_form.reason }}
-                  {% for e in report_form.reason.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+              <div class="border rounded p-3 mt-2">
+                <div class="text-muted small mb-2">
+                  Report only if you suspect fraud, misleading info, duplicate campaign, or abusive content.
+                  Admin will review.
                 </div>
-                <div class="form-group col-md-8">
-                  <label class="font-weight-bold">Message</label>
-                  {{ report_form.message }}
-                  {% for e in report_form.message.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-                </div>
+
+                <form method="post" action="{% url 'campaign_report' camp.id %}" novalidate>
+                  {% csrf_token %}
+
+                  {% if report_form.non_field_errors %}
+                    <div class="alert alert-danger">{{ report_form.non_field_errors }}</div>
+                  {% endif %}
+
+                  <div class="form-row">
+                    <div class="form-group col-md-4">
+                      <label class="font-weight-bold">Reason</label>
+                      {{ report_form.reason }}
+                      {% for e in report_form.reason.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                    </div>
+                    <div class="form-group col-md-8">
+                      <label class="font-weight-bold">Details</label>
+                      {{ report_form.message }}
+                      {% for e in report_form.message.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                    </div>
+                  </div>
+
+                  {% if not request.user.is_authenticated %}
+                    <div class="form-row">
+                      <div class="form-group col-md-6">
+                        <label class="font-weight-bold">Your Name</label>
+                        {{ report_form.guest_name }}
+                        {% for e in report_form.guest_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                      </div>
+                      <div class="form-group col-md-6">
+                        <label class="font-weight-bold">Your Email (optional)</label>
+                        {{ report_form.guest_email }}
+                        {% for e in report_form.guest_email.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                      </div>
+                    </div>
+                  {% endif %}
+
+                  <button class="btn btn-danger btn-sm" type="submit">
+                    Submit Report
+                  </button>
+                </form>
               </div>
-
-              {% if not request.user.is_authenticated %}
-                <div class="form-row">
-                  <div class="form-group col-md-6">
-                    <label class="font-weight-bold">Your Name</label>
-                    {{ report_form.guest_name }}
-                    {% for e in report_form.guest_name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-                  </div>
-                  <div class="form-group col-md-6">
-                    <label class="font-weight-bold">Your Email</label>
-                    {{ report_form.guest_email }}
-                    {% for e in report_form.guest_email.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-                  </div>
-                </div>
-              {% endif %}
-
-              <button class="btn btn-outline-danger btn-sm" type="submit">
-                Submit Report
-              </button>
-            </form>
+            </details>
 
           </div>
 
@@ -173,7 +197,6 @@
                 </div>
               {% endif %}
 
-          
               {% if request.user.is_authenticated and needs_disbursement_proof %}
                 {% if request.user.is_staff or is_owner %}
                   <div class="alert alert-warning mt-3">
@@ -183,7 +206,7 @@
                 {% endif %}
               {% endif %}
 
-              {% if open_reports_count %}
+              {% if show_reports_meta and open_reports_count %}
                 <div class="alert alert-warning mt-3 mb-0">
                   Reports pending review: <strong>{{ open_reports_count }}</strong>
                 </div>
@@ -191,19 +214,10 @@
 
               <hr>
 
+              {# Donation gating #}
               {% if camp.status != "APPROVED" %}
                 <div class="alert alert-info mb-0">
-                  Donations are available only when campaign is APPROVED (not archived/completed/pending).
-                </div>
-
-              {% elif camp.is_expired %}
-                <div class="alert alert-warning mb-0">
-                  Campaign deadline has passed. Donations are closed.
-                </div>
-
-              {% elif camp.status == "COMPLETED" %}
-                <div class="alert alert-success mb-0">
-                  Target reached. Donations are closed.
+                  Donations are closed for this campaign.
                 </div>
 
               {% elif request.user.is_authenticated and camp.owner_id == request.user.id %}

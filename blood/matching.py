@@ -2,6 +2,9 @@ import math
 from django.db.models import Q
 from accounts.models import CustomUser
 from blood.eligibility import is_eligible
+from datetime import timedelta
+from django.utils import timezone
+from .models import BloodDonation
 
 
 # -------- Blood compatibility (donor groups allowed for recipient) --------
@@ -122,27 +125,34 @@ def match_city(req):
     if not req_city:
         return []
 
-    aliases = city_aliases(req_city)  # now handles "area, city"
-    target_canon = {canonical_city(a) for a in aliases}
+    aliases = city_aliases(req_city)
+    canon_targets = {canonical_city(a) for a in aliases if a}
+    now = timezone.now()
 
-    qs = eligible_donors_queryset().filter(profile__city__isnull=False).exclude(profile__city="")
+    allowed_groups = COMPATIBLE_DONORS.get((req.blood_group or "").strip().upper(), set())
+    if not allowed_groups:
+        return []
 
-    # DB prefilter by common alias strings (reduces python loop)
-    q = Q()
+    qs = (
+        eligible_donors_queryset()
+        .filter(profile__blood_group__in=list(allowed_groups))
+        .exclude(profile__city__exact="")
+    )
+
+    # city match: prefer canon field (fast) but keep backward compatibility
+    # (if some old profiles have empty city_canon)
+    q_city = Q(profile__city_canon__in=list(canon_targets))
     for a in aliases:
         if a:
-            q |= Q(profile__city__iexact=a)
-    if q:
-        qs = qs.filter(q)
+            q_city |= Q(profile__city__iexact=a)
 
-    donors = []
-    for u in qs:
-        u_city = canonical_city(getattr(u.profile, "city", "") or "")
-        if u_city in target_canon:
-            if is_eligible(u) and blood_group_allowed(req.blood_group, getattr(u.profile, "blood_group", "")):
-                donors.append(u)
+    qs = qs.filter(q_city)
 
-    return donors
+    # eligibility using cached next_eligible_at (fast)
+    qs = qs.filter(Q(profile__next_eligible_at__isnull=True) | Q(profile__next_eligible_at__lte=now))
+
+    # Return list (compat with your realtime ping code)
+    return list(qs)
 
 
 def match_radius(req, radius_km: float):

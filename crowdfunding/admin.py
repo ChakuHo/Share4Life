@@ -1,6 +1,6 @@
 import json
-from django.contrib import admin
-from django.contrib import messages
+from django.contrib import admin, messages
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
 from accounts.models import CustomUser
@@ -51,7 +51,7 @@ class DonationAdmin(admin.ModelAdmin):
             pretty = str(obj.raw_response)
         return format_html("<pre style='white-space:pre-wrap'>{}</pre>", pretty)
 
-    raw_response_pretty.short_description = "Raw response (pretty)"
+    raw_response_pretty.short_description = "Raw response"
 
     def get_readonly_fields(self, request, obj=None):
         """
@@ -219,10 +219,153 @@ class CampaignAdmin(admin.ModelAdmin):
 
 @admin.register(CampaignReport)
 class CampaignReportAdmin(admin.ModelAdmin):
-    list_display = ("id", "campaign", "reason", "status", "created_at")
-    list_filter = ("status", "reason")
-    search_fields = ("campaign__title", "guest_name", "guest_email", "message")
+    list_display = (
+        "id",
+        "campaign_link",
+        "reporter_display",
+        "reason_badge",
+        "status_badge",
+        "message_preview",
+        "created_at",
+    )
+    list_filter = ("status", "reason", "created_at")
+    search_fields = (
+        "campaign__title",
+        "campaign__patient_name",
+        "guest_name",
+        "guest_email",
+        "message",
+        "reason",
+        "reporter_user__username",
+        "reporter_user__email",
+    )
+    ordering = ("-created_at",)
 
+    readonly_fields = ("created_at",)
+
+    fieldsets = (
+        ("Report", {"fields": ("campaign", "status", "reason", "message")}),
+        ("Reporter", {"fields": ("reporter_user", "guest_name", "guest_email")}),
+        ("Timestamp", {"fields": ("created_at",)}),
+    )
+
+    actions = ["mark_reviewed", "mark_dismissed", "reopen_reports"]
+
+    @admin.display(description="Campaign")
+    def campaign_link(self, obj: CampaignReport):
+        if not obj.campaign_id:
+            return "—"
+        url = reverse("admin:crowdfunding_campaign_change", args=[obj.campaign_id])
+        return format_html('<a href="{}">#{}</a> {}', url, obj.campaign_id, obj.campaign.title)
+
+    @admin.display(description="Reporter")
+    def reporter_display(self, obj: CampaignReport):
+        if obj.reporter_user_id:
+            u = obj.reporter_user
+            return f"{u.username} ({u.email or 'no-email'})"
+        return f"{obj.guest_name or 'Guest'} ({obj.guest_email or 'no-email'})"
+
+    @admin.display(description="Reason")
+    def reason_badge(self, obj: CampaignReport):
+        reason = (obj.reason or "OTHER").upper()
+        color = {
+            "FAKE_DOCS": "#dc3545",
+            "SCAM": "#b30000",
+            "MISLEADING": "#fd7e14",
+            "DUPLICATE": "#6f42c1",
+            "ABUSE": "#343a40",
+            "OTHER": "#6c757d",
+        }.get(reason, "#6c757d")
+
+        return format_html(
+            '<span style="display:inline-block;padding:2px 8px;border-radius:999px;'
+            'background:{};color:#fff;font-weight:700;font-size:12px;">{}</span>',
+            color, reason
+        )
+
+    @admin.display(description="Status")
+    def status_badge(self, obj: CampaignReport):
+        s = (obj.status or "OPEN").upper()
+        color = {
+            "OPEN": "#ffc107",
+            "REVIEWED": "#198754",
+            "DISMISSED": "#6c757d",
+        }.get(s, "#6c757d")
+        text_color = "#000" if s == "OPEN" else "#fff"
+
+        return format_html(
+            '<span style="display:inline-block;padding:2px 8px;border-radius:999px;'
+            'background:{};color:{};font-weight:700;font-size:12px;">{}</span>',
+            color, text_color, s
+        )
+
+    @admin.display(description="Message")
+    def message_preview(self, obj: CampaignReport):
+        txt = (obj.message or "").strip()
+        if not txt:
+            return "—"
+        return (txt[:80] + "…") if len(txt) > 80 else txt
+
+    # -------- Admin Actions --------
+    def mark_reviewed(self, request, queryset):
+        updated = 0
+        for rep in queryset.select_related("campaign"):
+            if rep.status == "REVIEWED":
+                continue
+            rep.status = "REVIEWED"
+            rep.save(update_fields=["status"])
+            updated += 1
+
+            CampaignAuditLog.objects.create(
+                campaign=rep.campaign,
+                actor=request.user,
+                action="UPDATED",
+                message=f"Report #{rep.id} marked REVIEWED ({rep.reason})",
+            )
+
+        self.message_user(request, f"{updated} report(s) marked REVIEWED.", level=messages.SUCCESS)
+
+    mark_reviewed.short_description = "Mark selected reports as REVIEWED"
+
+    def mark_dismissed(self, request, queryset):
+        updated = 0
+        for rep in queryset.select_related("campaign"):
+            if rep.status == "DISMISSED":
+                continue
+            rep.status = "DISMISSED"
+            rep.save(update_fields=["status"])
+            updated += 1
+
+            CampaignAuditLog.objects.create(
+                campaign=rep.campaign,
+                actor=request.user,
+                action="UPDATED",
+                message=f"Report #{rep.id} marked DISMISSED ({rep.reason})",
+            )
+
+        self.message_user(request, f"{updated} report(s) marked DISMISSED.", level=messages.WARNING)
+
+    mark_dismissed.short_description = "Mark selected reports as DISMISSED"
+
+    def reopen_reports(self, request, queryset):
+        updated = 0
+        for rep in queryset.select_related("campaign"):
+            if rep.status == "OPEN":
+                continue
+            rep.status = "OPEN"
+            rep.save(update_fields=["status"])
+            updated += 1
+
+            CampaignAuditLog.objects.create(
+                campaign=rep.campaign,
+                actor=request.user,
+                action="UPDATED",
+                message=f"Report #{rep.id} reopened ({rep.reason})",
+            )
+
+        self.message_user(request, f"{updated} report(s) reopened.", level=messages.INFO)
+
+    reopen_reports.short_description = "Reopen selected reports (set to OPEN)"
 
 admin.site.register(CampaignDocument)
 admin.site.register(Disbursement)

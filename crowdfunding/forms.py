@@ -86,20 +86,59 @@ class DisbursementForm(forms.ModelForm):
 
 
 class CampaignReportForm(forms.ModelForm):
+    REASONS = [
+        ("FAKE_DOCS", "Fake / forged documents"),
+        ("SCAM", "Scam or fraud suspicion"),
+        ("MISLEADING", "Misleading information"),
+        ("DUPLICATE", "Duplicate campaign"),
+        ("ABUSE", "Abusive / harmful content"),
+        ("OTHER", "Other"),
+    ]
+
+    reason = forms.ChoiceField(
+        choices=REASONS,
+        widget=forms.Select(attrs={"class": "form-control"})
+    )
+
     class Meta:
         model = CampaignReport
         fields = ["reason", "message", "guest_name", "guest_email"]
         widgets = {
-            "reason": forms.TextInput(attrs={"class": "form-control"}),
-            "message": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
-            "guest_name": forms.TextInput(attrs={"class": "form-control"}),
-            "guest_email": forms.EmailInput(attrs={"class": "form-control"}),
+            "message": forms.Textarea(attrs={
+                "class": "form-control",
+                "rows": 3,
+                "placeholder": "Explain what looks wrong (min 10 characters).",
+            }),
+            "guest_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Your name"}),
+            "guest_email": forms.EmailInput(attrs={"class": "form-control", "placeholder": "Your email (optional)"}),
         }
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # Require details to prevent empty/spam reports
+        self.fields["message"].required = True
+
         if user and user.is_authenticated:
             self.fields["guest_name"].required = False
             self.fields["guest_email"].required = False
         else:
             self.fields["guest_name"].required = True
+            self.fields["guest_email"].required = False
+
+    def clean(self):
+        cleaned = super().clean()
+        reason = (cleaned.get("reason") or "").strip()
+        msg = (cleaned.get("message") or "").strip()
+
+        if len(msg) < 10:
+            self.add_error("message", "Please provide details (min 10 characters).")
+
+        if len(msg) > 1000:
+            self.add_error("message", "Message too long (max 1000 characters).")
+
+        # If OTHER, require stronger explanation
+        if reason == "OTHER" and len(msg) < 20:
+            self.add_error("message", "Please provide more detail for 'Other' (min 20 characters).")
+
+        return cleaned

@@ -266,12 +266,35 @@ class BloodDonation(models.Model):
             try:
                 from django.apps import apps
                 from django.db.models import F
+
                 Profile = apps.get_model("accounts", "UserProfile")
 
                 units = int(self.units or 0)
                 add_points = 150 + (20 * units)
 
-                Profile.objects.filter(user_id=self.donor_user_id).update(points=F("points") + add_points)
+                Profile.objects.filter(user_id=self.donor_user_id).update(
+                    points=F("points") + add_points
+                )
+            except Exception:
+                pass
+
+            # ✅ OPTIONAL IMPROVEMENT (SAFE):
+            # Cache eligibility dates on donor profile IF those fields exist.
+            # This does NOT break if you haven't added those fields yet.
+            try:
+                from django.apps import apps
+
+                Profile = apps.get_model("accounts", "UserProfile")
+                field_names = {f.name for f in Profile._meta.get_fields()}
+
+                if "last_verified_donation_at" in field_names and "next_eligible_at" in field_names:
+                    elig_days = 90  # keep consistent with blood/eligibility.py ELIGIBILITY_DAYS
+                    next_dt = (self.donated_at + timedelta(days=elig_days)) if self.donated_at else None
+
+                    Profile.objects.filter(user_id=self.donor_user_id).update(
+                        last_verified_donation_at=self.donated_at,
+                        next_eligible_at=next_dt,
+                    )
             except Exception:
                 pass
 

@@ -39,6 +39,11 @@ from .realtime import push_request_event, push_ping_to_donors, push_ping_stage
 
 import re
 from urllib.parse import quote
+from blood.matching import match_city
+from django.db.models import Q
+
+
+
 #------------------------------------------------------------------------------------------------
 
 def _wa_number(phone: str) -> str:
@@ -77,10 +82,17 @@ def _wa_number(phone: str) -> str:
     return ""
 
 
-def _notify_user(user, title, body="", url="", level="INFO"):
+def _notify_user(user, title, body="", url="", level="INFO", category="SYSTEM"):
     if not user:
         return
-    Notification.objects.create(user=user, title=title, body=body, url=url, level=level)
+    Notification.objects.create(
+        user=user,
+        title=title,
+        body=body,
+        url=url,
+        level=level,
+        category=category,
+    )
 
 def _client_ip(request):
     # supports proxies if configured
@@ -143,6 +155,87 @@ def _cache_incr(key: str, ttl_seconds: int) -> int:
         val = int(cache.get(key, 0) or 0) + 1
         cache.set(key, val, timeout=ttl_seconds)
         return val
+
+
+def _ensure_chat_thread_on_accept(blood_req, donor_user):
+    """
+    Create chat thread once donor ACCEPTS.
+    Works only for logged-in requests (created_by exists).
+    Safe/idempotent.
+    """
+    if not blood_req or not donor_user:
+        return
+    if not blood_req.created_by_id:
+        return  # guest request -> no chat
+
+    try:
+        from communication.models import ChatThread
+        ChatThread.objects.get_or_create(
+            request=blood_req,
+            donor=donor_user,
+            defaults={"requester": blood_req.created_by},
+        )
+    except Exception:
+        pass
+
+def bulk_notify_city_eligible_donors(req, request_obj=None) -> int:
+    """
+    Bulk notify (in-app + email queue) to eligible + compatible donors in the same city.
+    Emergency only. Excludes requester and donors who already responded.
+    Throttled to avoid duplicate sends.
+    """
+    if not req or not getattr(req, "is_emergency", False):
+        return 0
+
+    # throttle (prevents double send)
+    key = f"s4l:bulk_emergency_city:{req.id}"
+    if cache.get(key):
+        return 0
+    cache.set(key, True, timeout=60 * 60 * 12)  # 12h
+
+    donors = match_city(req)  # already eligible + compatible + city
+    donor_ids = [u.id for u in donors]
+    if not donor_ids:
+        return 0
+
+    # exclude donors who already responded
+    responded_ids = set(
+        DonorResponse.objects.filter(request=req, donor_id__in=donor_ids)
+        .values_list("donor_id", flat=True)
+    )
+    donor_ids = [i for i in donor_ids if i not in responded_ids]
+    if not donor_ids:
+        return 0
+
+    users_qs = CustomUser.objects.filter(id__in=donor_ids, is_active=True, is_donor=True)
+
+    # exclude requester
+    if req.created_by_id:
+        users_qs = users_qs.exclude(id=req.created_by_id)
+
+    title = "URGENT Blood Request"
+    url = req.get_absolute_url()
+
+    body = (
+        f"Urgent need: {req.blood_group} in {req.location_city}. "
+        f"Hospital: {req.hospital_name}. Units: {req.units_needed}. "
+        f"Contact: {req.contact_phone}"
+    )
+
+    abs_url = request_obj.build_absolute_uri(url) if request_obj else url
+    email_body = body + f"\n\nOpen: {abs_url}"
+
+    broadcast_after_commit(
+        users_qs,
+        title=title,
+        body=body,
+        url=url,
+        level="DANGER",
+        category="EMERGENCY",
+        email_subject=title,
+        email_body=email_body,
+    )
+    return users_qs.count()
 
 
 def allow_guest_emergency_post(phone: str, ip: str) -> Tuple[bool, str]:
@@ -245,6 +338,7 @@ def emergency_request_view(request):
     - Throttle + captcha
     - CITY ping instantly
     - Escalation schedule: 1 min per stage via management command
+    - NEW: bulk in-app + email to eligible compatible donors in same city
     """
 
     if request.user.is_authenticated:
@@ -293,6 +387,9 @@ def emergency_request_view(request):
             # CITY ping immediately
             transaction.on_commit(lambda: push_ping_stage(obj, "CITY"))
 
+            # NEW: bulk notify eligible donors in city (in-app + email)
+            transaction.on_commit(lambda: bulk_notify_city_eligible_donors(obj, request_obj=request))
+
             # schedule escalation after 1 minute
             st, created = BloodEscalationState.objects.get_or_create(request=obj)
             st.stage = "CITY"
@@ -311,7 +408,6 @@ def emergency_request_view(request):
         "recaptcha_enabled": getattr(settings, "RECAPTCHA_ENABLED", False),
         "recaptcha_site_key": getattr(settings, "RECAPTCHA_SITE_KEY", ""),
     })
-
 
 # Logged-in recipient request
 @login_required
@@ -342,11 +438,9 @@ def recipient_request_view(request):
         if family_member.city:
             initial["location_city"] = family_member.city
 
-        # If you want to use family member phone when available, else user's phone
         if family_member.phone_number:
             initial["contact_phone"] = family_member.phone_number
 
-        # GPS prefill
         if family_member.latitude is not None:
             initial["latitude"] = family_member.latitude
         if family_member.longitude is not None:
@@ -376,32 +470,12 @@ def recipient_request_view(request):
                 st.last_run_at = None
                 st.schedule_next(minutes=1)
                 st.save(update_fields=["stage", "is_done", "last_run_at", "next_run_at", "updated_at"])
+
+                # bulk notify eligible + compatible donors in same city (in-app + email)
+                transaction.on_commit(lambda: bulk_notify_city_eligible_donors(obj, request_obj=request))
+
             else:
                 transaction.on_commit(lambda: push_ping_to_donors(obj))
-
-            # If emergency, broadcast notification + email to all active users
-            if obj.is_emergency:
-                users_qs = CustomUser.objects.filter(is_active=True)
-
-                title = "URGENT Blood Request"
-                url = obj.get_absolute_url()
-                abs_url = request.build_absolute_uri(obj.get_absolute_url())
-
-                body = (
-                    f"Urgent need: {obj.blood_group} in {obj.location_city}. "
-                    f"Hospital: {obj.hospital_name}. Contact: {obj.contact_phone}"
-                )
-                email_body = body + f"\n\nOpen: {abs_url}"
-
-                broadcast_after_commit(
-                    users_qs,
-                    title=title,
-                    body=body,
-                    url=url,
-                    level="DANGER",
-                    email_subject=title,
-                    email_body=email_body,
-                )
 
             messages.success(request, "Request created successfully.")
             return redirect("my_blood_requests")
@@ -540,6 +614,15 @@ def request_detail_view(request, request_id, slug=None):
         )
     )
 
+    # who can see guest donor phone numbers
+    can_view_guest_contact = (
+        request.user.is_authenticated and (
+            request.user.is_staff
+            or getattr(request.user, "is_hospital_admin", False)
+            or (blood_req.created_by_id == request.user.id)
+        )
+    )
+
     eligible_info = None
     my_response = None
     my_donation = None
@@ -605,10 +688,8 @@ def request_detail_view(request, request_id, slug=None):
             f"Open: {abs_url}"
         )
 
-        # Share to any WhatsApp chat
         whatsapp_share_url = "https://wa.me/?text=" + quote(sos_share_text)
 
-        # Direct WhatsApp to emergency contact (only if number looks valid)
         ec_phone = (emergency_contact or {}).get("phone") if emergency_contact else ""
         wa_num = _wa_number(ec_phone)
         if wa_num:
@@ -629,6 +710,7 @@ def request_detail_view(request, request_id, slug=None):
         "can_mark_donation": can_mark_donation,
         "can_respond": can_respond,
         "can_view_donor_contact": can_view_donor_contact,
+        "can_view_guest_contact": can_view_guest_contact,  
         "emergency_contact": emergency_contact,
         "emergency_profiles": emergency_profiles,
         "sos_recent": sos_recent,
@@ -736,10 +818,12 @@ def donor_respond_view(request, request_id):
         messages.error(request, "You created this request. You cannot respond as a donor to your own request.")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
+    # closed?
     if blood_req.status in ("FULFILLED", "CANCELLED") or not blood_req.is_active:
         messages.error(request, "This request is closed.")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
+    # eligibility check
     if not is_eligible(request.user):
         nxt = next_eligible_datetime(request.user)
         messages.error(request, f"You are not eligible yet. Eligible again on: {nxt.date() if nxt else 'N/A'}")
@@ -751,17 +835,21 @@ def donor_respond_view(request, request_id):
         if obj is None:
             obj = DonorResponse(request=blood_req, donor=request.user)
 
+        old_status = obj.status  # capture before saving
+
         form = DonorResponseForm(request.POST, instance=obj)
         if form.is_valid():
             resp = form.save(commit=False)
             resp.responded_at = timezone.now()
             resp.save()
 
+            # move request to IN_PROGRESS if it was OPEN and donor accepted
             if resp.status == "ACCEPTED" and blood_req.status == "OPEN":
                 blood_req.status = "IN_PROGRESS"
                 blood_req.save(update_fields=["status"])
 
-            if blood_req.created_by_id:
+            # notify requester (avoid spam if same status submitted repeatedly)
+            if blood_req.created_by_id and old_status != resp.status:
                 phone = (request.user.phone_number or "").strip()
                 phone_txt = f" Phone: {phone}" if phone else ""
                 _notify_user(
@@ -771,6 +859,46 @@ def donor_respond_view(request, request_id):
                     url=f"/blood/request/{blood_req.id}/",
                     level="INFO",
                 )
+
+            # --- CHAT: only when donor becomes ACCEPTED (transition) and request has owner ---
+            if blood_req.created_by_id and resp.status == "ACCEPTED" and old_status != "ACCEPTED":
+                req_id = blood_req.id
+                donor_id = request.user.id
+                requester_id = blood_req.created_by_id
+
+                def _after_commit():
+                    # create thread (idempotent due to unique constraint)
+                    try:
+                        from communication.models import ChatThread
+                        thread, _ = ChatThread.objects.get_or_create(
+                            request_id=req_id,
+                            donor_id=donor_id,
+                            defaults={"requester_id": requester_id},
+                        )
+                        thread_url = reverse("chat_thread_detail", args=[thread.id])
+
+                        # notify requester + donor with CHAT category
+                        Notification.objects.create(
+                            user_id=requester_id,
+                            category="CHAT",
+                            title="Chat unlocked (donor accepted)",
+                            body=f"{request.user.get_full_name() or request.user.username} accepted your request. You can chat now.",
+                            url=thread_url,
+                            level="SUCCESS",
+                        )
+                        Notification.objects.create(
+                            user_id=donor_id,
+                            category="CHAT",
+                            title="Chat unlocked",
+                            body=f"You accepted request #{req_id}. You can chat with the requester now.",
+                            url=thread_url,
+                            level="INFO",
+                        )
+                    except Exception:
+                        # never break donor flow if chat fails
+                        pass
+
+                transaction.on_commit(_after_commit)
 
             messages.success(request, "Response submitted.")
             return redirect("blood_request_detail", request_id=blood_req.id)
@@ -943,7 +1071,8 @@ def blood_request_make_emergency_view(request, request_id):
       - Only OPEN / IN_PROGRESS and active
       - Only once (if already emergency -> blocked)
       - Immediately CITY ping + start escalation
-      - Immediately notify institutions in the same city (your choice #5 = B)
+      - Immediately notify institutions in the same city
+      - NEW: bulk notify eligible donors in same city (in-app + email)
     """
     req = get_object_or_404(PublicBloodRequest, id=request_id, created_by=request.user)
 
@@ -963,6 +1092,9 @@ def blood_request_make_emergency_view(request, request_id):
     # immediate CITY ping
     transaction.on_commit(lambda: push_ping_stage(req, "CITY"))
 
+    # NEW: bulk notify eligible + compatible donors in same city (in-app + email)
+    transaction.on_commit(lambda: bulk_notify_city_eligible_donors(req, request_obj=request))
+
     # reset/start escalation state
     st, _ = BloodEscalationState.objects.get_or_create(request=req)
     st.stage = "CITY"
@@ -971,7 +1103,7 @@ def blood_request_make_emergency_view(request, request_id):
     st.schedule_next(minutes=1)
     st.save(update_fields=["stage", "is_done", "last_run_at", "next_run_at", "updated_at"])
 
-    # notify institutions immediately   
+    # notify institutions immediately
     title = "SOS: Blood request upgraded to EMERGENCY"
     body = (
         f"Request #{req.id}: Need {req.blood_group} • Units {req.units_needed} • "
@@ -1248,23 +1380,32 @@ def quick_respond_view(request, request_id):
     # block self response
     if blood_req.created_by_id and blood_req.created_by_id == request.user.id:
         if wants_json:
-            return _json_error("You cannot respond to your own request.", status=403,
-                               redirect_url=f"/blood/request/{blood_req.id}/")
+            return _json_error(
+                "You cannot respond to your own request.",
+                status=403,
+                redirect_url=f"/blood/request/{blood_req.id}/"
+            )
         return redirect("blood_request_detail", request_id=blood_req.id)
 
     # closed?
     if blood_req.status in ("FULFILLED", "CANCELLED") or not blood_req.is_active:
         if wants_json:
-            return _json_error("This request is closed.", status=409,
-                               redirect_url=f"/blood/request/{blood_req.id}/")
+            return _json_error(
+                "This request is closed.",
+                status=409,
+                redirect_url=f"/blood/request/{blood_req.id}/"
+            )
         messages.error(request, "This request is closed.")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
     # eligibility check
     if not is_eligible(request.user):
         if wants_json:
-            return _json_error("You are not eligible to donate right now.", status=403,
-                               redirect_url=f"/blood/request/{blood_req.id}/")
+            return _json_error(
+                "You are not eligible to donate right now.",
+                status=403,
+                redirect_url=f"/blood/request/{blood_req.id}/"
+            )
         messages.error(request, "You are not eligible to donate right now.")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
@@ -1273,8 +1414,11 @@ def quick_respond_view(request, request_id):
 
     if status not in ("ACCEPTED", "DECLINED", "DELAYED"):
         if wants_json:
-            return _json_error("Invalid response.", status=400,
-                               redirect_url=f"/blood/request/{blood_req.id}/")
+            return _json_error(
+                "Invalid response.",
+                status=400,
+                redirect_url=f"/blood/request/{blood_req.id}/"
+            )
         messages.error(request, "Invalid response.")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
@@ -1302,13 +1446,50 @@ def quick_respond_view(request, request_id):
             level="INFO",
         )
 
+    # --- CHAT: only when donor becomes ACCEPTED (transition) and request has owner ---
+    if blood_req.created_by_id and status == "ACCEPTED" and old_status != "ACCEPTED":
+        req_id = blood_req.id
+        donor_id = request.user.id
+        requester_id = blood_req.created_by_id
+
+        def _after_commit():
+            try:
+                from communication.models import ChatThread
+                thread, _ = ChatThread.objects.get_or_create(
+                    request_id=req_id,
+                    donor_id=donor_id,
+                    defaults={"requester_id": requester_id},
+                )
+                thread_url = reverse("chat_thread_detail", args=[thread.id])
+
+                Notification.objects.create(
+                    user_id=requester_id,
+                    category="CHAT",
+                    title="Chat unlocked (donor accepted)",
+                    body=f"{request.user.get_full_name() or request.user.username} accepted your request. You can chat now.",
+                    url=thread_url,
+                    level="SUCCESS",
+                )
+                Notification.objects.create(
+                    user_id=donor_id,
+                    category="CHAT",
+                    title="Chat unlocked",
+                    body=f"You accepted request #{req_id}. You can chat with the requester now.",
+                    url=thread_url,
+                    level="INFO",
+                )
+            except Exception:
+                pass
+
+        transaction.on_commit(_after_commit)
+
     # realtime update to request room
     push_request_event(blood_req.id, {
         "type": "DONOR_RESPONSE",
         "donor": request.user.username,
         "status": status,
         "message": message_txt,
-        "at": obj.responded_at.isoformat(),
+        "at": obj.responded_at.isoformat() if obj.responded_at else "",
     })
 
     # JSON for fetch, redirect for normal browser POST
@@ -1322,6 +1503,7 @@ def quick_respond_view(request, request_id):
 
     messages.success(request, "Response sent.")
     return redirect("blood_request_detail", request_id=blood_req.id)
+
 
 def campaign_proof_viewer(request, campaign_id):
     camp = get_object_or_404(

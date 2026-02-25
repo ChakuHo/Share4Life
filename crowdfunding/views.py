@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.db import transaction
-
+from django.core.cache import cache
 from .models import (
     Campaign, CampaignDocument, Donation, Disbursement,
     CampaignAuditLog, CampaignReport
@@ -24,12 +24,23 @@ def _auto_update_campaign(camp: Campaign):
     camp.refresh_raised_amount()
 
     before = camp.status
+
+    # 1) Complete if target reached (APPROVED or EXPIRED -> COMPLETED)
     camp.mark_completed_if_needed()
     if before != camp.status and camp.status == "COMPLETED":
         CampaignAuditLog.objects.create(
             campaign=camp, actor=None, action="COMPLETED", message="Target reached"
         )
 
+    # 2) Expire if deadline passed and goal not reached
+    before2 = camp.status
+    changed = camp.mark_expired_if_needed()
+    if changed and before2 != camp.status and camp.status == "EXPIRED":
+        CampaignAuditLog.objects.create(
+            campaign=camp, actor=None, action="EXPIRED", message="Deadline passed, goal not reached"
+        )
+
+    # 3) Archive after completion
     if camp.status == "COMPLETED" and camp.completed_at:
         days = int(getattr(settings, "CAMPAIGN_ARCHIVE_AFTER_DAYS", 1))
         if timezone.now() >= camp.completed_at + timedelta(days=days):
@@ -51,26 +62,33 @@ def _make_esewa_signature(total_amount: int, transaction_uuid: str) -> str:
     ).digest()
     return base64.b64encode(mac).decode("utf-8")
 
+def _client_ip(request):
+    xff = request.META.get("HTTP_X_FORWARDED_FOR")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR", "") or ""
+
 
 def campaign_list(request):
-    qs = Campaign.objects.exclude(status="ARCHIVED").filter(status__in=["APPROVED", "COMPLETED"]).order_by(
-        "-is_featured", "-created_at"
-    )
+    qs = Campaign.objects.exclude(status="ARCHIVED").filter(
+        status__in=["APPROVED", "COMPLETED", "EXPIRED"]
+    ).order_by("-is_featured", "-created_at")
 
     items = list(qs[:60])
     for c in items:
         _auto_update_campaign(c)
 
-    qs = Campaign.objects.exclude(status="ARCHIVED").filter(status__in=["APPROVED", "COMPLETED"]).order_by(
-        "-is_featured", "-created_at"
-    )
+    qs = Campaign.objects.exclude(status="ARCHIVED").filter(
+        status__in=["APPROVED", "COMPLETED", "EXPIRED"]
+    ).order_by("-is_featured", "-created_at")
+
     return render(request, "crowdfunding/campaign_list.html", {"items": qs})
 
 
 def campaign_detail(request, pk, slug=None):
     camp = get_object_or_404(Campaign, pk=pk)
 
-    public_ok = camp.status in ("APPROVED", "COMPLETED", "ARCHIVED")
+    public_ok = camp.status in ("APPROVED", "COMPLETED", "EXPIRED", "ARCHIVED")
     if not public_ok:
         if not (request.user.is_authenticated and (request.user.is_staff or camp.owner_id == request.user.id)):
             raise Http404()
@@ -93,6 +111,10 @@ def campaign_detail(request, pk, slug=None):
     donation_form = DonationForm(user=request.user)
     report_form = CampaignReportForm(user=request.user)
 
+    # only staff/owner sees report meta
+    show_reports_meta = bool(request.user.is_authenticated and (request.user.is_staff or is_owner))
+    open_reports_count = camp.reports.filter(status="OPEN").count() if show_reports_meta else 0
+
     return render(request, "crowdfunding/campaign_detail.html", {
         "camp": camp,
         "donation_form": donation_form,
@@ -103,7 +125,8 @@ def campaign_detail(request, pk, slug=None):
         "documents": camp.documents.order_by("-uploaded_at"),
         "disbursements": camp.disbursements.order_by("-released_at"),
         "available_balance": camp.available_balance(),
-        "open_reports_count": camp.reports.filter(status="OPEN").count(),
+        "open_reports_count": open_reports_count,
+        "show_reports_meta": show_reports_meta,  
         "is_owner": is_owner,
         "needs_disbursement_proof": needs_disbursement_proof,
         "disbursed_total": disbursed_total,
@@ -170,8 +193,12 @@ def campaign_create(request):
 
 @require_POST
 def donate_start(request, pk):
-    camp = get_object_or_404(Campaign, pk=pk, status="APPROVED")
+    camp = get_object_or_404(Campaign, pk=pk)
     _auto_update_campaign(camp)
+
+    if camp.status != "APPROVED":
+        messages.error(request, "Donations are closed for this campaign.")
+        return redirect("campaign_detail", pk=camp.id)
 
     #  BLOCK self-donation (campaign owner cannot donate to own campaign)
     if request.user.is_authenticated and camp.owner_id == request.user.id:
@@ -517,16 +544,62 @@ def my_campaigns(request):
 def report_campaign(request, pk):
     camp = get_object_or_404(Campaign, pk=pk)
 
-    form = CampaignReportForm(request.POST, user=request.user)
-    if not form.is_valid():
-        messages.error(request, "Please fix the report form.")
+    # throttle key
+    ident = f"u{request.user.id}" if request.user.is_authenticated else f"ip{_client_ip(request)}"
+    throttle_key = f"s4l:cf_report:{camp.id}:{ident}"
+
+    if cache.get(throttle_key):
+        messages.error(request, "You recently submitted a report. Please wait a few minutes before reporting again.")
         return redirect("campaign_detail", pk=camp.id)
+
+    # prevent duplicate open reports from same logged-in user
+    if request.user.is_authenticated:
+        if CampaignReport.objects.filter(campaign=camp, reporter_user=request.user, status="OPEN").exists():
+            messages.info(request, "You already have an open report for this campaign. Admin will review it.")
+            return redirect("campaign_detail", pk=camp.id)
+
+    form = CampaignReportForm(request.POST, user=request.user)
+
+    if not form.is_valid():
+        # rebuild context and re-render page with errors
+        _auto_update_campaign(camp)
+        is_owner = bool(request.user.is_authenticated and camp.owner_id == request.user.id)
+
+        raised_total = camp.raised_total()
+        disbursed_total = camp.disbursed_total()
+        has_any_disbursement = camp.disbursements.exists()
+        needs_disbursement_proof = bool(raised_total > 0 and not has_any_disbursement)
+
+        donation_form = DonationForm(user=request.user)
+
+        show_reports_meta = bool(request.user.is_authenticated and (request.user.is_staff or is_owner))
+        open_reports_count = camp.reports.filter(status="OPEN").count() if show_reports_meta else 0
+
+        messages.error(request, "Please fix the report form errors.")
+        return render(request, "crowdfunding/campaign_detail.html", {
+            "camp": camp,
+            "donation_form": donation_form,
+            "report_form": form,  # invalid form with errors
+            "raised_total": raised_total,
+            "pct": camp.get_percentage(),
+            "donor_count": camp.donations.filter(status="SUCCESS").count(),
+            "documents": camp.documents.order_by("-uploaded_at"),
+            "disbursements": camp.disbursements.order_by("-released_at"),
+            "available_balance": camp.available_balance(),
+            "open_reports_count": open_reports_count,
+            "show_reports_meta": show_reports_meta,
+            "is_owner": is_owner,
+            "needs_disbursement_proof": needs_disbursement_proof,
+            "disbursed_total": disbursed_total,
+        })
 
     rep = form.save(commit=False)
     rep.campaign = camp
     if request.user.is_authenticated:
         rep.reporter_user = request.user
     rep.save()
+
+    cache.set(throttle_key, True, timeout=300)  # 5 minutes cooldown
 
     CampaignAuditLog.objects.create(
         campaign=camp, actor=rep.reporter_user, action="REPORTED", message=rep.reason

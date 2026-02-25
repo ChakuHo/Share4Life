@@ -35,7 +35,6 @@ class CustomUser(AbstractUser):
     def kyc_verified(self) -> bool:
         return self.kyc_status == "APPROVED"
 
-
 class UserProfile(models.Model):
     """
     Extended details for medical info and location.
@@ -47,16 +46,26 @@ class UserProfile(models.Model):
         ('O+', 'O+'), ('O-', 'O-'),
     )
 
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile')
-    
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='profile'
+    )
+
     blood_group = models.CharField(max_length=5, choices=BLOOD_GROUPS, blank=True)
     medical_history = models.TextField(blank=True, help_text="Allergies, past surgeries, etc.")
-    
+
     # Location
     city = models.CharField(max_length=100, blank=True)
+    city_canon = models.CharField(max_length=100, blank=True, db_index=True)
+
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
-    
+
+    # Donation eligibility cache (performance)
+    last_verified_donation_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    next_eligible_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
     # Gamification
     points = models.IntegerField(default=0)
 
@@ -73,9 +82,25 @@ class UserProfile(models.Model):
     # Emergency contact
     emergency_contact_name = models.CharField(max_length=120, blank=True)
     emergency_contact_phone = models.CharField(max_length=30, blank=True)
-    
+
+    def save(self, *args, **kwargs):
+        # Always compute canonical city
+        try:
+            from blood.matching import canonical_city
+            self.city_canon = canonical_city(self.city or "")
+        except Exception:
+            self.city_canon = (self.city or "").strip().lower()
+
+        # If update_fields is used, ensure city_canon is also saved
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None:
+            kwargs["update_fields"] = list(set(update_fields) | {"city_canon"})
+
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"Profile of {self.user.username}"
+    
 
 class FamilyMember(models.Model):
     primary_user = models.ForeignKey(

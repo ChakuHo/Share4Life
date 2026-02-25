@@ -11,7 +11,7 @@
           <div class="text-muted">{{ org.name }} • Update your public blood drive.</div>
         {% else %}
           <h3 class="mb-1">New Blood Donation Campaign</h3>
-          <div class="text-muted">{{ org.name }} • Create a public blood drive.</div>
+          <div class="text-muted">{{ org.name }} • Create a public blood drive. (No backdate allowed)</div>
         {% endif %}
       </div>
 
@@ -34,7 +34,7 @@
 
     <div class="card shadow-sm">
       <div class="card-body">
-        <form method="post" enctype="multipart/form-data">
+        <form method="post" enctype="multipart/form-data" id="campForm">
           {% csrf_token %}
 
           {% if form.non_field_errors %}
@@ -57,6 +57,9 @@
             <div class="form-group col-md-4">
               <label class="font-weight-bold">Date</label>
               {{ form.date }}
+              <div class="text-muted small mt-1">
+                Upcoming/Ongoing cannot be in the past.
+              </div>
               {% for e in form.date.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
             </div>
             <div class="form-group col-md-4">
@@ -85,8 +88,14 @@
 
           <div class="form-row">
             <div class="form-group col-md-6">
-              <label class="font-weight-bold">City</label>
+              <label class="font-weight-bold d-flex justify-content-between align-items-center">
+                <span>City</span>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="detectCityBtn">
+                  <i class="fa fa-location-arrow"></i> Use my location
+                </button>
+              </label>
               {{ form.city }}
+              <div class="text-muted small mt-1" id="detectCityStatus"></div>
               {% for e in form.city.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
             </div>
             <div class="form-group col-md-3">
@@ -97,6 +106,9 @@
             <div class="form-group col-md-3">
               <label class="font-weight-bold">Status</label>
               {{ form.status }}
+              <div class="text-muted small mt-1">
+                Tip: Future date becomes UPCOMING automatically. Today becomes ONGOING (unless start time is later).
+              </div>
               {% for e in form.status.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
             </div>
           </div>
@@ -109,42 +121,47 @@
 
           {% if is_edit %}
             <hr>
-            <h5 class="mb-2" id="impact">Impact / Proof of Success</h5>
-
-            <div class="form-group">
-              <label class="font-weight-bold">Cover image (optional)</label>
-              {{ form.cover_image }}
-              {% for e in form.cover_image.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
-            </div>
-
-            <div class="form-row">
-              <div class="form-group col-md-6">
-                <label class="font-weight-bold">Actual units collected</label>
-                {{ form.actual_units_collected }}
-                {% for e in form.actual_units_collected.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+            <div id="impactWrap">
+              <h5 class="mb-2" id="impact">Impact / Proof of Success</h5>
+              <div class="alert alert-light small">
+                Add these fields when the campaign is COMPLETED. (Status = COMPLETED)
               </div>
-              <div class="form-group col-md-6">
-                <label class="font-weight-bold">Donors count</label>
-                {{ form.actual_donors_count }}
-                {% for e in form.actual_donors_count.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+
+              <div class="form-group">
+                <label class="font-weight-bold">Cover image (optional)</label>
+                {{ form.cover_image }}
+                {% for e in form.cover_image.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
               </div>
-            </div>
 
-            <div class="form-group">
-              <label class="font-weight-bold">Impact highlights</label>
-              {{ form.impact_highlights }}
-              {% for e in form.impact_highlights.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
-            </div>
-
-            <div class="form-group">
-              <label class="font-weight-bold">Completion report/proof (PDF/JPG/PNG)</label>
-              {{ form.completion_report }}
-              {% for e in form.completion_report.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
-              {% if camp and camp.completion_report %}
-                <div class="text-muted small mt-1">
-                  Existing proof is already uploaded. Upload again only if you want to replace it.
+              <div class="form-row">
+                <div class="form-group col-md-6">
+                  <label class="font-weight-bold">Actual units collected</label>
+                  {{ form.actual_units_collected }}
+                  {% for e in form.actual_units_collected.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
                 </div>
-              {% endif %}
+                <div class="form-group col-md-6">
+                  <label class="font-weight-bold">Donors count</label>
+                  {{ form.actual_donors_count }}
+                  {% for e in form.actual_donors_count.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="font-weight-bold">Impact highlights</label>
+                {{ form.impact_highlights }}
+                {% for e in form.impact_highlights.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+              </div>
+
+              <div class="form-group">
+                <label class="font-weight-bold">Completion report/proof (PDF/JPG/PNG)</label>
+                {{ form.completion_report }}
+                {% for e in form.completion_report.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+                {% if camp and camp.completion_report %}
+                  <div class="text-muted small mt-1">
+                    Existing proof is already uploaded. Upload again only if you want to replace it.
+                  </div>
+                {% endif %}
+              </div>
             </div>
           {% endif %}
 
@@ -161,12 +178,120 @@
 <script>
 document.addEventListener('DOMContentLoaded', function(){
   const btn = document.getElementById('camp-btn');
-  const form = btn ? btn.closest('form') : null;
-  if (!btn || !form) return;
-  form.addEventListener('submit', function(){
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
-  });
+  const form = document.getElementById('campForm');
+  const cityBtn = document.getElementById('detectCityBtn');
+  const cityStatus = document.getElementById('detectCityStatus');
+
+  const dateEl = document.getElementById("id_date");
+  const startEl = document.getElementById("id_start_time");
+  const endEl = document.getElementById("id_end_time");
+  const statusEl = document.getElementById("id_status");
+
+  const impactWrap = document.getElementById("impactWrap");
+  const isEdit = Boolean(impactWrap);
+
+  // disable submit button on submit
+  if (btn && form){
+    form.addEventListener('submit', function(){
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
+    });
+  }
+
+  // show/hide impact section based on status (edit mode only)
+  function syncImpactVisibility(){
+    if (!isEdit || !statusEl || !impactWrap) return;
+    const s = (statusEl.value || "").toUpperCase();
+    impactWrap.style.display = (s === "COMPLETED") ? "" : "none";
+  }
+
+  // auto status suggestion (doesn't remove manual control)
+  function suggestStatus(){
+    if (!dateEl || !statusEl) return;
+
+    const s = (statusEl.value || "").toUpperCase();
+    // don't auto-touch if user picked COMPLETED/CANCELLED
+    if (s === "COMPLETED" || s === "CANCELLED") {
+      syncImpactVisibility();
+      return;
+    }
+
+    const dateVal = dateEl.value;
+    if (!dateVal) return;
+
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth()+1).padStart(2,'0');
+    const dd = String(today.getDate()).padStart(2,'0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+
+    if (dateVal > todayStr) {
+      statusEl.value = "UPCOMING";
+      syncImpactVisibility();
+      return;
+    }
+
+    if (dateVal < todayStr) {
+      // don't auto-set past; backend will validate
+      syncImpactVisibility();
+      return;
+    }
+
+    // date is today
+    const start = startEl ? startEl.value : "";
+    const now = new Date();
+    const nowHH = String(now.getHours()).padStart(2,'0');
+    const nowMM = String(now.getMinutes()).padStart(2,'0');
+    const nowStr = `${nowHH}:${nowMM}`;
+
+    if (start && nowStr < start) {
+      statusEl.value = "UPCOMING";
+    } else {
+      statusEl.value = "ONGOING";
+    }
+    syncImpactVisibility();
+  }
+
+  if (dateEl) dateEl.addEventListener("change", suggestStatus);
+  if (startEl) startEl.addEventListener("change", suggestStatus);
+  if (statusEl) statusEl.addEventListener("change", function(){ syncImpactVisibility(); });
+
+  // initial sync
+  suggestStatus();
+  syncImpactVisibility();
+
+  // city auto-detect using browser GPS + OpenStreetMap Nominatim
+  if (cityBtn){
+    cityBtn.addEventListener("click", async function(){
+      if (!navigator.geolocation) {
+        cityStatus.textContent = "Geolocation is not supported by your browser.";
+        return;
+      }
+      cityStatus.textContent = "Detecting your location...";
+      navigator.geolocation.getCurrentPosition(async function(pos){
+        try{
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+          const resp = await fetch(url, { headers: { "Accept": "application/json" } });
+          const data = await resp.json();
+          const addr = data.address || {};
+          const city = addr.city || addr.town || addr.village || addr.county || "";
+          const cityInput = document.getElementById("id_city");
+          if (cityInput && city) {
+            cityInput.value = city;
+            cityStatus.textContent = "City detected: " + city;
+          } else {
+            cityStatus.textContent = "Could not detect city. Please type it manually.";
+          }
+        } catch(e){
+          cityStatus.textContent = "City detection failed. Please type manually.";
+        }
+      }, function(){
+        cityStatus.textContent = "Permission denied. Please type city manually.";
+      }, { enableHighAccuracy: true, timeout: 8000 });
+    });
+  }
 });
 </script>
 

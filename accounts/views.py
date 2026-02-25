@@ -16,10 +16,11 @@ from blood.eligibility import (
     last_verified_donation,
     ELIGIBILITY_DAYS,
 )
+
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from django.db.models import Max
-from blood.matching import city_aliases
+from blood.matching import city_aliases, canonical_city
 import io
 from django.http import HttpResponse
 from django.db.models import Sum
@@ -245,7 +246,9 @@ def public_donor_directory(request):
     # --- City filter (aliases) ---
     if city:
         aliases = city_aliases(city)
-        city_q = Q()
+        canon_set = {canonical_city(a) for a in aliases if a}
+
+        city_q = Q(profile__city_canon__in=list(canon_set))
         for a in aliases:
             city_q |= Q(profile__city__iexact=a)
         qs = qs.filter(city_q)
@@ -287,30 +290,31 @@ def register(request):
         if form.is_valid():
             cd = form.cleaned_data
             username = cd["username"]
-            email = cd["email"]
+            email = (cd["email"] or "").strip().lower()
             password = cd["password"]
             first_name = cd["first_name"]
             last_name = cd["last_name"]
-            phone = cd["phone"]
-            city = cd["city"]
+            phone = (cd["phone"] or "").strip()
+            city = (cd["city"] or "").strip()
 
             try:
-                user = CustomUser.objects.create_user(
-                    username=username,
-                    email=email,
-                    password=password,
-                    first_name=first_name,
-                    last_name=last_name,
-                    phone_number=phone,
-                )
+                with transaction.atomic():
+                    user = CustomUser.objects.create_user(
+                        username=username,
+                        email=email,
+                        password=password,
+                        first_name=first_name,
+                        last_name=last_name,
+                        phone_number=phone,
+                    )
 
-                #  profile + set city
-                profile, _ = UserProfile.objects.get_or_create(user=user)
-                profile.city = city
-                profile.save(update_fields=["city"])
+                    # profile + set city (IMPORTANT: save without limiting update_fields)
+                    profile, _ = UserProfile.objects.get_or_create(user=user)
+                    profile.city = city
+                    profile.save() 
 
-                # Ensure KYC exists (safe)
-                KYCProfile.objects.get_or_create(user=user)
+                    # Ensure KYC exists (safe)
+                    KYCProfile.objects.get_or_create(user=user)
 
                 # Send email verification (don’t block registration if email fails)
                 try:
