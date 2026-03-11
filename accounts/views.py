@@ -34,7 +34,7 @@ from accounts.models import UserProfile
 from core.models import SiteSetting
 
 from blood.models import BloodDonation
-from organ.models import OrganPledge
+from organ.models import OrganPledge, OrganRequest
 
 from .forms import (
     RegistrationForm,
@@ -50,7 +50,7 @@ from .kyc_forms import KYCProfileForm, KYCUploadForm
 from .models import CustomUser, UserProfile, FamilyMember, KYCProfile, KYCDocument
 from .tokens import make_email_token, read_email_token
 
-from blood.models import PublicBloodRequest
+from blood.models import PublicBloodRequest, BloodDonation
 from crowdfunding.models import Campaign, Donation
 
 
@@ -280,7 +280,58 @@ def public_donor_directory(request):
 
 @login_required
 def dashboard(request):
-    return render(request, "users/dashboard.html", {"user": request.user})
+    u = request.user
+
+    # -------- Blood (recipient) --------
+    my_blood_requests_total = 0
+    my_blood_requests_open = 0
+    if u.is_recipient:
+        my_blood_requests_total = PublicBloodRequest.objects.filter(created_by=u).count()
+        my_blood_requests_open = PublicBloodRequest.objects.filter(
+            created_by=u, is_active=True, status__in=["OPEN", "IN_PROGRESS"]
+        ).count()
+
+    # -------- Blood (donor) --------
+    donor_verified_count = 0
+    donor_verified_units = 0
+    donor_eligible = None
+    donor_next_eligible = None
+
+    if u.is_donor:
+        donor_verified_qs = BloodDonation.objects.filter(donor_user=u, status="VERIFIED")
+        donor_verified_count = donor_verified_qs.count()
+        donor_verified_units = donor_verified_qs.aggregate(s=Sum("units"))["s"] or 0
+        donor_eligible = is_eligible(u)
+        donor_next_eligible = next_eligible_datetime(u)
+
+    # -------- Crowdfunding --------
+    my_campaigns_total = Campaign.objects.filter(owner=u).count()
+    my_campaigns_recent = Campaign.objects.filter(owner=u).order_by("-created_at")[:5]
+
+    my_donations_total = Donation.objects.filter(donor_user=u, status="SUCCESS").count()
+    my_donated_amount = Donation.objects.filter(donor_user=u, status="SUCCESS").aggregate(s=Sum("amount"))["s"] or 0
+
+    # -------- Organ --------
+    my_organ_pledges = OrganPledge.objects.filter(donor=u).count() if u.is_donor else 0
+    my_organ_requests = OrganRequest.objects.filter(created_by=u).count() if u.is_recipient else 0
+
+    return render(request, "users/dashboard.html", {
+        "my_blood_requests_total": my_blood_requests_total,
+        "my_blood_requests_open": my_blood_requests_open,
+
+        "donor_verified_count": donor_verified_count,
+        "donor_verified_units": donor_verified_units,
+        "donor_eligible": donor_eligible,
+        "donor_next_eligible": donor_next_eligible,
+
+        "my_campaigns_total": my_campaigns_total,
+        "my_campaigns_recent": my_campaigns_recent,
+        "my_donations_total": my_donations_total,
+        "my_donated_amount": my_donated_amount,
+
+        "my_organ_pledges": my_organ_pledges,
+        "my_organ_requests": my_organ_requests,
+    })
 
 
 def register(request):

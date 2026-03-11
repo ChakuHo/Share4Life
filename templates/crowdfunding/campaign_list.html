@@ -10,8 +10,14 @@
       {% endif %}
     </div>
 
+    {# ---------------- ACTIVE ---------------- #}
+    <div class="d-flex justify-content-between align-items-center mt-3 mb-2">
+      <h5 class="mb-0" style="font-weight:800;">Active Campaigns</h5>
+      <span class="text-muted small">Open for donations</span>
+    </div>
+
     <div class="row">
-      {% for c in items %}
+      {% for c in active_items %}
         <div class="col-md-6 col-lg-4 mb-3">
           <div class="card shadow-sm h-100">
             <a href="{{ c.get_absolute_url }}" class="text-decoration-none">
@@ -21,19 +27,162 @@
               {% endif %}
             </a>
             <div class="card-body">
-              <strong>{{ c.title }}</strong>
-              <div class="text-muted small">{{ c.patient_name }} • {{ c.hospital_city }}</div>
-              <div class="text-muted small mt-2">
-                Raised: Rs. {{ c.raised_amount }} / Rs. {{ c.target_amount }}
+              <div class="d-flex justify-content-between align-items-start">
+                <strong class="mr-2">{{ c.title }}</strong>
+                <span class="badge badge-success">Active</span>
               </div>
+              <div class="text-muted small">{{ c.patient_name }}{% if c.hospital_city %} • {{ c.hospital_city }}{% endif %}</div>
+
+              <div class="text-muted small mt-2">
+                Raised: Rs. {{ c.raised_sum }} / Rs. {{ c.target_amount }}
+              </div>
+              <div class="text-muted small">
+                Donors: {{ c.donor_count }}
+              </div>
+
               <a class="btn btn-primary btn-sm mt-3" href="{{ c.get_absolute_url }}">View</a>
             </div>
           </div>
         </div>
       {% empty %}
-        <div class="col-12"><div class="alert alert-secondary">No campaigns yet.</div></div>
+        <div class="col-12"><div class="alert alert-secondary">No active campaigns right now.</div></div>
       {% endfor %}
     </div>
+
+    {# ---------------- COMPLETED (recent, not yet archived) ---------------- #}
+    <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+      <h5 class="mb-0" style="font-weight:800;">Completed Campaigns (Recent)</h5>
+      <span class="text-muted small">Outcome + disbursement proof</span>
+    </div>
+
+    <div class="row">
+      {% for c in completed_items %}
+        <div class="col-md-6 col-lg-4 mb-3">
+          <div class="card shadow-sm h-100 border-success">
+            <a href="{{ c.get_absolute_url }}" class="text-decoration-none">
+              {% if c.image %}
+                <img src="{{ c.image.url }}" class="img-fluid"
+                     style="height:200px;width:100%;object-fit:cover;border-top-left-radius:12px;border-top-right-radius:12px;">
+              {% endif %}
+            </a>
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start">
+                <strong class="mr-2">{{ c.title }}</strong>
+                <span class="badge badge-success">Completed</span>
+              </div>
+              <div class="text-muted small">{{ c.patient_name }}{% if c.hospital_city %} • {{ c.hospital_city }}{% endif %}</div>
+
+              <div class="text-muted small mt-2">Raised: Rs. {{ c.raised_sum }} / Rs. {{ c.target_amount }}</div>
+              <div class="text-muted small">Donors helped: {{ c.donor_count }}</div>
+
+              <hr class="my-2">
+              <div class="text-muted small">Disbursed: Rs. {{ c.disbursed_sum }}</div>
+              <div class="text-muted small">Available balance: Rs. {{ c.available_sum }}</div>
+              <div class="text-muted small">Proof uploads: {{ c.disbursement_count }}</div>
+
+              {% if c.disb_list and c.disb_list.0 and c.disb_list.0.proof_file %}
+                <a class="btn btn-outline-primary btn-sm mt-2" target="_blank" rel="noopener"
+                   href="{{ c.disb_list.0.proof_file.url }}">
+                  View Latest Proof
+                </a>
+              {% endif %}
+
+              <a class="btn btn-primary btn-sm mt-2" href="{{ c.get_absolute_url }}">View Full Details</a>
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <div class="col-12"><div class="alert alert-secondary">No completed campaigns yet.</div></div>
+      {% endfor %}
+    </div>
+
+    {# ---------------- ARCHIVED (success stories) ---------------- #}
+    <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+      <h5 class="mb-0" style="font-weight:800;">Success Stories (Archived)</h5>
+      <span class="text-muted small">Completed campaigns</span>
+    </div>
+
+    <div class="row">
+      {% for c in archived_items %}
+        <div class="col-md-6 col-lg-4 mb-3">
+          <div class="card shadow-sm h-100 border-secondary">
+            <a href="{{ c.get_absolute_url }}" class="text-decoration-none">
+              {% if c.image %}
+                <img src="{{ c.image.url }}" class="img-fluid"
+                     style="height:200px;width:100%;object-fit:cover;border-top-left-radius:12px;border-top-right-radius:12px;">
+              {% endif %}
+            </a>
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start">
+                <strong class="mr-2">{{ c.title }}</strong>
+                <span class="badge badge-secondary">Archived</span>
+              </div>
+
+              <div class="text-muted small">{{ c.patient_name }}{% if c.hospital_city %} • {{ c.hospital_city }}{% endif %}</div>
+
+              <div class="text-muted small mt-2">Raised: Rs. {{ c.raised_sum }} / Rs. {{ c.target_amount }}</div>
+              <div class="text-muted small">Donors helped: {{ c.donor_count }}</div>
+
+              <hr class="my-2">
+              <div class="text-muted small">Disbursed: Rs. {{ c.disbursed_sum }}</div>
+              <div class="text-muted small">Available balance: Rs. {{ c.available_sum }}</div>
+              <div class="text-muted small">Proof uploads: {{ c.disbursement_count }}</div>
+
+              {% if c.disb_list and c.disb_list.0 and c.disb_list.0.proof_file %}
+                <a class="btn btn-outline-primary btn-sm mt-2" target="_blank" rel="noopener"
+                   href="{{ c.disb_list.0.proof_file.url }}">
+                  View Latest Proof
+                </a>
+              {% endif %}
+
+              <a class="btn btn-primary btn-sm mt-2" href="{{ c.get_absolute_url }}">View Full Details</a>
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <div class="col-12"><div class="alert alert-secondary">No archived campaigns.</div></div>
+      {% endfor %}
+    </div>
+
+    {# ---------------- EXPIRED ---------------- #}
+    <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+      <h5 class="mb-0" style="font-weight:800;">Ended (Goal Not Reached)</h5>
+    </div>
+
+    <div class="row">
+      {% for c in expired_items %}
+        <div class="col-md-6 col-lg-4 mb-3">
+          <div class="card shadow-sm h-100 border-warning">
+            <a href="{{ c.get_absolute_url }}" class="text-decoration-none">
+              {% if c.image %}
+                <img src="{{ c.image.url }}" class="img-fluid"
+                     style="height:200px;width:100%;object-fit:cover;border-top-left-radius:12px;border-top-right-radius:12px;">
+              {% endif %}
+            </a>
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start">
+                <strong class="mr-2">{{ c.title }}</strong>
+                <span class="badge badge-warning">Expired</span>
+              </div>
+
+              <div class="text-muted small">{{ c.patient_name }}{% if c.hospital_city %} • {{ c.hospital_city }}{% endif %}</div>
+
+              <div class="text-muted small mt-2">Raised: Rs. {{ c.raised_sum }} / Rs. {{ c.target_amount }}</div>
+              <div class="text-muted small">Donors helped: {{ c.donor_count }}</div>
+
+              <hr class="my-2">
+              <div class="text-muted small">Disbursed: Rs. {{ c.disbursed_sum }}</div>
+              <div class="text-muted small">Available balance: Rs. {{ c.available_sum }}</div>
+
+              <a class="btn btn-primary btn-sm mt-3" href="{{ c.get_absolute_url }}">View</a>
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <div class="col-12"><div class="alert alert-secondary">No expired campaigns.</div></div>
+      {% endfor %}
+    </div>
+
   </div>
 </section>
 {% endblock %}

@@ -17,7 +17,9 @@ from .models import (
 )
 from .forms import CampaignCreateForm, DonationForm, DisbursementForm, CampaignReportForm
 from .services import notify_user, khalti_initiate, khalti_lookup
-from django.db.models import Sum
+
+from django.db.models import Sum, Count, Q, Prefetch, Value, DecimalField, ExpressionWrapper, F
+from django.db.models.functions import Coalesce
 
 
 def _auto_update_campaign(camp: Campaign):
@@ -69,20 +71,71 @@ def _client_ip(request):
     return request.META.get("REMOTE_ADDR", "") or ""
 
 
-def campaign_list(request):
-    qs = Campaign.objects.exclude(status="ARCHIVED").filter(
-        status__in=["APPROVED", "COMPLETED", "EXPIRED"]
-    ).order_by("-is_featured", "-created_at")
 
+def campaign_list(request):
+    # include ARCHIVED so success stories remain visible
+    qs = (
+        Campaign.objects
+        .filter(status__in=["APPROVED", "COMPLETED", "EXPIRED", "ARCHIVED"])
+        .annotate(
+            donor_count=Count("donations", filter=Q(donations__status="SUCCESS"), distinct=True),
+            raised_sum=Coalesce(Sum("donations__amount", filter=Q(donations__status="SUCCESS")), Value(0), output_field=DecimalField()),
+            disbursed_sum=Coalesce(Sum("disbursements__amount"), Value(0), output_field=DecimalField()),
+            disbursement_count=Count("disbursements", distinct=True),
+        )
+        .annotate(
+            available_sum=ExpressionWrapper(
+                F("raised_sum") - F("disbursed_sum"),
+                output_field=DecimalField(max_digits=12, decimal_places=2)
+            )
+        )
+        .prefetch_related(
+            Prefetch(
+                "disbursements",
+                queryset=Disbursement.objects.select_related("released_by").order_by("-released_at"),
+                to_attr="disb_list"
+            )
+        )
+        .order_by("-is_featured", "-created_at")
+    )
+
+    # keep your “auto update” behavior
     items = list(qs[:60])
     for c in items:
         _auto_update_campaign(c)
 
-    qs = Campaign.objects.exclude(status="ARCHIVED").filter(
-        status__in=["APPROVED", "COMPLETED", "EXPIRED"]
-    ).order_by("-is_featured", "-created_at")
+    # requery after updates
+    qs = (
+        Campaign.objects
+        .filter(status__in=["APPROVED", "COMPLETED", "EXPIRED", "ARCHIVED"])
+        .annotate(
+            donor_count=Count("donations", filter=Q(donations__status="SUCCESS"), distinct=True),
+            raised_sum=Coalesce(Sum("donations__amount", filter=Q(donations__status="SUCCESS")), Value(0), output_field=DecimalField()),
+            disbursed_sum=Coalesce(Sum("disbursements__amount"), Value(0), output_field=DecimalField()),
+            disbursement_count=Count("disbursements", distinct=True),
+        )
+        .annotate(
+            available_sum=ExpressionWrapper(
+                F("raised_sum") - F("disbursed_sum"),
+                output_field=DecimalField(max_digits=12, decimal_places=2)
+            )
+        )
+        .prefetch_related(
+            Prefetch(
+                "disbursements",
+                queryset=Disbursement.objects.select_related("released_by").order_by("-released_at"),
+                to_attr="disb_list"
+            )
+        )
+        .order_by("-is_featured", "-created_at")
+    )
 
-    return render(request, "crowdfunding/campaign_list.html", {"items": qs})
+    return render(request, "crowdfunding/campaign_list.html", {
+        "active_items": qs.filter(status="APPROVED"),
+        "completed_items": qs.filter(status="COMPLETED"),          # recent completed (not archived yet)
+        "expired_items": qs.filter(status="EXPIRED"),
+        "archived_items": qs.filter(status="ARCHIVED"),            # past completed success stories
+    })
 
 
 def campaign_detail(request, pk, slug=None):

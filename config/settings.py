@@ -53,6 +53,13 @@ INSTALLED_APPS = [
     'hospitals.apps.HospitalsConfig',
     'organ.apps.OrganConfig',
 ]
+JAZZMIN_SETTINGS = {
+    "custom_js": "admin/js/admin_tabs_fix.js",
+    "site_title": "Share4Life Admin",
+    "site_header": "Share4Life",
+    "welcome_sign": "Welcome to Share4Life Administration",
+    "site_brand": "Share4Life",
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
