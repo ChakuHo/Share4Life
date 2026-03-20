@@ -41,6 +41,28 @@ CANON_ALIASES = {
     "bhaktapur": {"bhaktapur", "bkt"},
 }
 
+# -------- Neighbor Groups (expand city -> nearby cities) --------
+NEIGHBOR_GROUPS = [
+    {"kathmandu", "lalitpur", "bhaktapur"},   # Kathmandu Valley group
+    # Examples (we can add these anytime but first we neeed to check that we support these in CITY_CANON later):
+    # {"pokhara", "lekhnath"},
+    # {"biratnagar", "itahari", "dharan"},
+]
+
+def nearby_city_canons(canon: str):
+    """
+    Returns a list of canonical city names considered neighbors of the given city.
+    Example: Lalitpur -> Kathmandu + Bhaktapur (valley group).
+    """
+    canon = (canon or "").strip().lower()
+    if not canon:
+        return []
+
+    for grp in NEIGHBOR_GROUPS:
+        if canon in grp:
+            return sorted(list(grp - {canon}))
+    return []
+
 
 def canonical_city(value: str) -> str:
     """

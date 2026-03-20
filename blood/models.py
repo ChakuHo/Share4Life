@@ -181,10 +181,26 @@ class DonorResponse(models.Model):
     message = models.CharField(max_length=255, blank=True)
     responded_at = models.DateTimeField(null=True, blank=True)
 
+    # acceptance timestamp for ordering standby donors
+    accepted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    # primary donor flag (only ONE primary per request)
+    is_primary = models.BooleanField(default=False, db_index=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("request", "donor")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["request", "donor"],
+                name="uniq_donor_response_per_request",
+            ),
+            models.UniqueConstraint(
+                fields=["request"],
+                condition=Q(is_primary=True, status="ACCEPTED"),
+                name="uniq_primary_accepted_per_request",
+            ),
+        ]
 
 
 class BloodDonation(models.Model):
@@ -409,4 +425,51 @@ class BloodDonorPingLog(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=["request", "donor"], name="uniq_ping_request_donor")
+        ]
+
+class BloodEmailEscalationState(models.Model):
+    """
+    Schedules staged EMAIL escalation separately from WebSocket pings.
+    """
+    STAGES = [
+        ("CITY", "City"),
+        ("NEARBY", "Nearby/Neighbor Group"),
+        ("RADIUS_10", "Radius 10km"),
+        ("DONE", "Done"),
+    ]
+
+    request = models.OneToOneField(
+        "blood.PublicBloodRequest",
+        on_delete=models.CASCADE,
+        related_name="email_state",
+    )
+
+    stage = models.CharField(max_length=12, choices=STAGES, default="CITY")
+    next_run_at = models.DateTimeField(null=True, blank=True)
+    last_run_at = models.DateTimeField(null=True, blank=True)
+    is_done = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class BloodRequestEmailedUser(models.Model):
+    """
+    Dedupe: do not email the same donor twice for the same request.
+    """
+    request = models.ForeignKey(
+        "blood.PublicBloodRequest",
+        on_delete=models.CASCADE,
+        related_name="emailed_users",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="blood_emailed_requests",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["request", "user"], name="uniq_email_per_request_user")
         ]

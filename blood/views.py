@@ -330,15 +330,64 @@ def _notify_orgs_in_city_blood(city: str, title: str, body: str, url: str = "", 
         sent += 1
     return sent
 
+def _promote_next_primary_if_needed(blood_req):
+    """
+    If there is no primary ACCEPTED donor, promote the earliest accepted donor to primary.
+    """
+    if not blood_req:
+        return None
+
+    primary = DonorResponse.objects.filter(
+        request=blood_req, status="ACCEPTED", is_primary=True
+    ).first()
+    if primary:
+        return primary
+
+    nxt = (DonorResponse.objects
+           .filter(request=blood_req, status="ACCEPTED")
+           .order_by("accepted_at", "responded_at", "created_at")
+           .first())
+    if not nxt:
+        return None
+
+    DonorResponse.objects.filter(request=blood_req, is_primary=True).update(is_primary=False)
+    nxt.is_primary = True
+    nxt.save(update_fields=["is_primary"])
+    return nxt
+
+
+def _set_primary_on_accept(blood_req, resp_obj):
+    """
+    Make donor primary only if no other primary ACCEPTED exists.
+    Returns True if donor became primary else False.
+    """
+    if not blood_req or not resp_obj:
+        return False
+
+    exists_primary = DonorResponse.objects.filter(
+        request=blood_req, status="ACCEPTED", is_primary=True
+    ).exists()
+
+    if not exists_primary:
+        DonorResponse.objects.filter(request=blood_req, is_primary=True).update(is_primary=False)
+        resp_obj.is_primary = True
+        resp_obj.save(update_fields=["is_primary"])
+        return True
+
+    resp_obj.is_primary = False
+    resp_obj.save(update_fields=["is_primary"])
+    return False
+
 # Guest emergency request
 def emergency_request_view(request):
     """
     Guest emergency request:
-    - Proof required (form)
+    - Proof required
     - Throttle + captcha
     - CITY ping instantly
-    - Escalation schedule: 1 min per stage via management command
-    - NEW: bulk in-app + email to eligible compatible donors in same city
+    - Email CITY instantly (bulk_notify_city_eligible_donors)
+    - Schedule email escalation: NEARBY after 5 mins, then RADIUS_10 after 5 mins
+    - WebSocket escalation loop via existing BloodEscalationState
     """
 
     if request.user.is_authenticated:
@@ -384,19 +433,28 @@ def emergency_request_view(request):
             obj.verification_status = "PENDING"
             obj.save()
 
-            # CITY ping immediately
+            # WebSocket: CITY ping immediately
             transaction.on_commit(lambda: push_ping_stage(obj, "CITY"))
 
-            # NEW: bulk notify eligible donors in city (in-app + email)
+            # Email+Inapp: CITY instantly
             transaction.on_commit(lambda: bulk_notify_city_eligible_donors(obj, request_obj=request))
 
-            # schedule escalation after 1 minute
-            st, created = BloodEscalationState.objects.get_or_create(request=obj)
+            # schedule WebSocket escalation loop
+            st, _ = BloodEscalationState.objects.get_or_create(request=obj)
             st.stage = "CITY"
             st.is_done = False
             st.last_run_at = None
             st.schedule_next(minutes=1)
             st.save(update_fields=["stage", "is_done", "last_run_at", "next_run_at", "updated_at"])
+
+            # schedule EMAIL escalation 
+            from .models import BloodEmailEscalationState
+            st_email, _ = BloodEmailEscalationState.objects.get_or_create(request=obj)
+            st_email.stage = "NEARBY"  # CITY already emailed
+            st_email.is_done = False
+            st_email.last_run_at = None
+            st_email.next_run_at = timezone.now() + timedelta(minutes=5)
+            st_email.save(update_fields=["stage", "is_done", "last_run_at", "next_run_at", "updated_at"])
 
             messages.success(request, "Emergency posted. Proof attached and visible to donors.")
             return redirect("public_dashboard")
@@ -413,10 +471,9 @@ def emergency_request_view(request):
 @login_required
 @recipient_required
 def recipient_request_view(request):
-    require_proof = not request.user.is_verified  # KYC verified => no proof required
+    require_proof = not request.user.is_verified
     emergency_mode = (request.GET.get("emergency") or request.POST.get("emergency") or "").strip().lower() in ("1", "true", "yes", "on")
 
-    # ---- prefill from FamilyMember ----
     family_id = (request.GET.get("family_id") or request.POST.get("family_id") or "").strip()
     family_member = None
     if family_id:
@@ -429,7 +486,6 @@ def recipient_request_view(request):
         "is_emergency": emergency_mode,
     }
 
-    # override initial if requesting for family member
     if family_member:
         if family_member.name:
             initial["patient_name"] = family_member.name
@@ -437,10 +493,8 @@ def recipient_request_view(request):
             initial["blood_group"] = family_member.blood_group
         if family_member.city:
             initial["location_city"] = family_member.city
-
         if family_member.phone_number:
             initial["contact_phone"] = family_member.phone_number
-
         if family_member.latitude is not None:
             initial["latitude"] = family_member.latitude
         if family_member.longitude is not None:
@@ -456,11 +510,11 @@ def recipient_request_view(request):
             if emergency_mode:
                 obj.is_emergency = True
 
-            # Blood: KYC verified users are auto-verified
             obj.verification_status = "VERIFIED" if request.user.is_verified else "PENDING"
             obj.save()
 
-            # Emergency escalation only for emergency requests
+            from .models import BloodEmailEscalationState
+
             if obj.is_emergency:
                 transaction.on_commit(lambda: push_ping_stage(obj, "CITY"))
 
@@ -471,11 +525,28 @@ def recipient_request_view(request):
                 st.schedule_next(minutes=1)
                 st.save(update_fields=["stage", "is_done", "last_run_at", "next_run_at", "updated_at"])
 
-                # bulk notify eligible + compatible donors in same city (in-app + email)
+                # CITY email immediately
                 transaction.on_commit(lambda: bulk_notify_city_eligible_donors(obj, request_obj=request))
 
+                # schedule EMAIL escalation: NEARBY after 5 mins
+                st_email, _ = BloodEmailEscalationState.objects.get_or_create(request=obj)
+                st_email.stage = "NEARBY"
+                st_email.is_done = False
+                st_email.last_run_at = None
+                st_email.next_run_at = timezone.now() + timedelta(minutes=5)
+                st_email.save(update_fields=["stage", "is_done", "last_run_at", "next_run_at", "updated_at"])
+
             else:
+                # WebSocket ping (existing)
                 transaction.on_commit(lambda: push_ping_to_donors(obj))
+
+                # NON-emergency email delayed: CITY after 6 hours
+                st_email, _ = BloodEmailEscalationState.objects.get_or_create(request=obj)
+                st_email.stage = "CITY"
+                st_email.is_done = False
+                st_email.last_run_at = None
+                st_email.next_run_at = timezone.now() + timedelta(hours=6)
+                st_email.save(update_fields=["stage", "is_done", "last_run_at", "next_run_at", "updated_at"])
 
             messages.success(request, "Request created successfully.")
             return redirect("my_blood_requests")
@@ -559,7 +630,7 @@ def request_detail_view(request, request_id, slug=None):
             return redirect(canonical, permanent=True)
 
     guest_responses = blood_req.responses.order_by("-responded_at")
-    donor_responses = blood_req.donor_responses.select_related("donor").order_by("-responded_at", "-created_at")
+    donor_responses = blood_req.donor_responses.select_related("donor").order_by("-is_primary", "-accepted_at", "-responded_at", "-created_at")
     donations = blood_req.donations.select_related("donor_user").order_by("-donated_at")
 
     is_active_request = bool(blood_req.is_active and blood_req.status in ("OPEN", "IN_PROGRESS"))
@@ -1065,18 +1136,8 @@ def blood_request_cancel_view(request, request_id):
 @login_required
 @recipient_required
 def blood_request_make_emergency_view(request, request_id):
-    """
-    Upgrade an existing logged-in request to emergency:
-      - Only request owner
-      - Only OPEN / IN_PROGRESS and active
-      - Only once (if already emergency -> blocked)
-      - Immediately CITY ping + start escalation
-      - Immediately notify institutions in the same city
-      - NEW: bulk notify eligible donors in same city (in-app + email)
-    """
     req = get_object_or_404(PublicBloodRequest, id=request_id, created_by=request.user)
 
-    # must be active/open
     if (not req.is_active) or (req.status in ("FULFILLED", "CANCELLED")):
         messages.error(request, "This request is closed. You cannot mark it as emergency.")
         return redirect("my_blood_requests")
@@ -1085,17 +1146,12 @@ def blood_request_make_emergency_view(request, request_id):
         messages.info(request, "This request is already marked as emergency.")
         return redirect("my_blood_requests")
 
-    # upgrade
     req.is_emergency = True
     req.save(update_fields=["is_emergency"])
 
-    # immediate CITY ping
     transaction.on_commit(lambda: push_ping_stage(req, "CITY"))
-
-    # NEW: bulk notify eligible + compatible donors in same city (in-app + email)
     transaction.on_commit(lambda: bulk_notify_city_eligible_donors(req, request_obj=request))
 
-    # reset/start escalation state
     st, _ = BloodEscalationState.objects.get_or_create(request=req)
     st.stage = "CITY"
     st.is_done = False
@@ -1103,7 +1159,15 @@ def blood_request_make_emergency_view(request, request_id):
     st.schedule_next(minutes=1)
     st.save(update_fields=["stage", "is_done", "last_run_at", "next_run_at", "updated_at"])
 
-    # notify institutions immediately
+    # schedule EMAIL escalation
+    from .models import BloodEmailEscalationState
+    st_email, _ = BloodEmailEscalationState.objects.get_or_create(request=req)
+    st_email.stage = "NEARBY"
+    st_email.is_done = False
+    st_email.last_run_at = None
+    st_email.next_run_at = timezone.now() + timedelta(minutes=5)
+    st_email.save(update_fields=["stage", "is_done", "last_run_at", "next_run_at", "updated_at"])
+
     title = "SOS: Blood request upgraded to EMERGENCY"
     body = (
         f"Request #{req.id}: Need {req.blood_group} • Units {req.units_needed} • "
@@ -1119,7 +1183,6 @@ def blood_request_make_emergency_view(request, request_id):
 
     messages.success(request, f"Request upgraded to EMERGENCY. Institutions notified: {sent}.")
     return redirect("my_blood_requests")
-
 
 # Upload medical report
 @login_required
@@ -1368,7 +1431,6 @@ def blood_campaigns_view(request):
 def quick_respond_view(request, request_id):
     blood_req = get_object_or_404(PublicBloodRequest, id=request_id)
 
-    # detect fetch/ajax
     wants_json = (
         request.headers.get("x-requested-with") == "XMLHttpRequest"
         or "application/json" in (request.headers.get("accept") or "").lower()
@@ -1377,64 +1439,66 @@ def quick_respond_view(request, request_id):
     def _json_error(msg, status=400, redirect_url=""):
         return JsonResponse({"ok": False, "error": msg, "redirect_url": redirect_url}, status=status)
 
-    # block self response
     if blood_req.created_by_id and blood_req.created_by_id == request.user.id:
         if wants_json:
-            return _json_error(
-                "You cannot respond to your own request.",
-                status=403,
-                redirect_url=f"/blood/request/{blood_req.id}/"
-            )
-        return redirect("blood_request_detail", request_id=blood_req.id)
+            return _json_error("You cannot respond to your own request.", status=403, redirect_url=blood_req.get_absolute_url())
+        return redirect(blood_req.get_absolute_url())
 
-    # closed?
     if blood_req.status in ("FULFILLED", "CANCELLED") or not blood_req.is_active:
         if wants_json:
-            return _json_error(
-                "This request is closed.",
-                status=409,
-                redirect_url=f"/blood/request/{blood_req.id}/"
-            )
+            return _json_error("This request is closed.", status=409, redirect_url=blood_req.get_absolute_url())
         messages.error(request, "This request is closed.")
-        return redirect("blood_request_detail", request_id=blood_req.id)
+        return redirect(blood_req.get_absolute_url())
 
-    # eligibility check
     if not is_eligible(request.user):
         if wants_json:
-            return _json_error(
-                "You are not eligible to donate right now.",
-                status=403,
-                redirect_url=f"/blood/request/{blood_req.id}/"
-            )
+            return _json_error("You are not eligible to donate right now.", status=403, redirect_url=blood_req.get_absolute_url())
         messages.error(request, "You are not eligible to donate right now.")
-        return redirect("blood_request_detail", request_id=blood_req.id)
+        return redirect(blood_req.get_absolute_url())
 
     status = (request.POST.get("status") or "").strip().upper()
     message_txt = (request.POST.get("message") or "").strip()
 
     if status not in ("ACCEPTED", "DECLINED", "DELAYED"):
         if wants_json:
-            return _json_error(
-                "Invalid response.",
-                status=400,
-                redirect_url=f"/blood/request/{blood_req.id}/"
-            )
+            return _json_error("Invalid response.", status=400, redirect_url=blood_req.get_absolute_url())
         messages.error(request, "Invalid response.")
-        return redirect("blood_request_detail", request_id=blood_req.id)
+        return redirect(blood_req.get_absolute_url())
 
     obj, _ = DonorResponse.objects.get_or_create(request=blood_req, donor=request.user)
     old_status = obj.status
+    old_primary = bool(obj.is_primary)
 
     obj.status = status
     obj.message = message_txt
     obj.responded_at = timezone.now()
-    obj.save(update_fields=["status", "message", "responded_at"])
 
-    if status == "ACCEPTED" and blood_req.status == "OPEN":
-        blood_req.status = "IN_PROGRESS"
-        blood_req.save(update_fields=["status"])
+    if status == "ACCEPTED" and obj.accepted_at is None:
+        obj.accepted_at = timezone.now()
 
-    # notify requester (avoid spam if clicking same button repeatedly)
+    obj.save(update_fields=["status", "message", "responded_at", "accepted_at"])
+
+    # If donor left ACCEPTED and was primary, promote next standby
+    if old_status == "ACCEPTED" and status in ("DECLINED", "DELAYED"):
+        if old_primary:
+            obj.is_primary = False
+            obj.save(update_fields=["is_primary"])
+            _promote_next_primary_if_needed(blood_req)
+
+    became_primary = False
+    if status == "ACCEPTED":
+        with transaction.atomic():
+            # lock all responses for this request to avoid race
+            DonorResponse.objects.select_for_update().filter(request=blood_req)
+
+            became_primary = _set_primary_on_accept(blood_req, obj)
+
+        # Request goes IN_PROGRESS once first accept happens
+        if blood_req.status == "OPEN":
+            blood_req.status = "IN_PROGRESS"
+            blood_req.save(update_fields=["status"])
+
+    # notify requester only if status changed
     if blood_req.created_by_id and old_status != status:
         phone = (request.user.phone_number or "").strip()
         phone_txt = f" Phone: {phone}" if phone else ""
@@ -1442,67 +1506,36 @@ def quick_respond_view(request, request_id):
             blood_req.created_by,
             "Donor response",
             f"{request.user.username} responded: {status}.{phone_txt}",
-            url=f"/blood/request/{blood_req.id}/",
+            url=blood_req.get_absolute_url(),
             level="INFO",
         )
 
-    # --- CHAT: only when donor becomes ACCEPTED (transition) and request has owner ---
-    if blood_req.created_by_id and status == "ACCEPTED" and old_status != "ACCEPTED":
-        req_id = blood_req.id
-        donor_id = request.user.id
-        requester_id = blood_req.created_by_id
+    # Primary/standby message (only for normal form post)
+    if not wants_json and status == "ACCEPTED":
+        if became_primary:
+            messages.success(request, "Accepted. You are the PRIMARY donor for this request. Please coordinate with the patient.")
+        else:
+            messages.info(request, "Accepted. Another donor is already primary. You are saved as STANDBY—thank you for your willingness to help.")
 
-        def _after_commit():
-            try:
-                from communication.models import ChatThread
-                thread, _ = ChatThread.objects.get_or_create(
-                    request_id=req_id,
-                    donor_id=donor_id,
-                    defaults={"requester_id": requester_id},
-                )
-                thread_url = reverse("chat_thread_detail", args=[thread.id])
-
-                Notification.objects.create(
-                    user_id=requester_id,
-                    category="CHAT",
-                    title="Chat unlocked (donor accepted)",
-                    body=f"{request.user.get_full_name() or request.user.username} accepted your request. You can chat now.",
-                    url=thread_url,
-                    level="SUCCESS",
-                )
-                Notification.objects.create(
-                    user_id=donor_id,
-                    category="CHAT",
-                    title="Chat unlocked",
-                    body=f"You accepted request #{req_id}. You can chat with the requester now.",
-                    url=thread_url,
-                    level="INFO",
-                )
-            except Exception:
-                pass
-
-        transaction.on_commit(_after_commit)
-
-    # realtime update to request room
     push_request_event(blood_req.id, {
         "type": "DONOR_RESPONSE",
         "donor": request.user.username,
         "status": status,
         "message": message_txt,
         "at": obj.responded_at.isoformat() if obj.responded_at else "",
+        "is_primary": bool(obj.is_primary),
     })
 
-    # JSON for fetch, redirect for normal browser POST
     if wants_json:
         return JsonResponse({
             "ok": True,
             "request_id": blood_req.id,
             "status": status,
+            "is_primary": bool(obj.is_primary),
             "redirect_url": blood_req.get_absolute_url(),
         })
 
-    messages.success(request, "Response sent.")
-    return redirect("blood_request_detail", request_id=blood_req.id)
+    return redirect(blood_req.get_absolute_url())
 
 
 def campaign_proof_viewer(request, campaign_id):

@@ -108,6 +108,13 @@
               </form>
             </div>
 
+            {# Helpful note about primary/standby (new) #}
+            <div class="alert alert-light mt-3" style="border-radius:12px;">
+              <strong>Primary & Standby offers:</strong>
+              The first accepted donor becomes <strong>Primary</strong>. Other accepted donors are saved as <strong>Standby</strong>
+              in case the primary donor cannot proceed.
+            </div>
+
             {# ---------------- EMERGENCY NETWORK ---------------- #}
             <div class="card mt-3" style="border-radius:14px;">
               <div class="card-body">
@@ -371,7 +378,7 @@
                     <div class="text-muted small">@{{ dr.donor.username }}</div>
                   </div>
                   <small class="text-muted">
-                    {{ dr.responded_at|default:dr.created_at|date:"Y-m-d H:i" }}
+                    {{ dr.accepted_at|default:dr.responded_at|default:dr.created_at|date:"Y-m-d H:i" }}
                   </small>
                 </div>
 
@@ -379,6 +386,14 @@
                   Status: <strong>{{ dr.get_status_display }}</strong>
 
                   {% if dr.status == "ACCEPTED" %}
+                    <div class="mt-2">
+                      {% if dr.is_primary %}
+                        <span class="badge badge-success">Primary Donor</span>
+                      {% else %}
+                        <span class="badge badge-secondary">Standby Donor</span>
+                      {% endif %}
+                    </div>
+
                     {% if can_view_donor_contact %}
                       <div class="mt-2">
                         Phone:
@@ -397,7 +412,6 @@
                       </div>
                     {% endif %}
 
-                    {#  CHAT button for requester OR the accepted donor #}
                     {% if req.created_by_id and user.is_authenticated %}
                       {% if user.id == req.created_by_id or user.id == dr.donor.id %}
                         <div class="mt-2">
