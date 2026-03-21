@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+import os
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,13 +22,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-j)w)mg!wfrc&1@4&%rwf+40ij03mj$f@363e9!2_%kd3bc8gw!'
+SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-secret-change-me")
+DEBUG = os.environ.get("DEBUG", "1") == "1"
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+ALLOWED_HOSTS = (os.environ.get("ALLOWED_HOSTS", "127.0.0.1,localhost").split(","))
+ALLOWED_HOSTS = [h.strip() for h in ALLOWED_HOSTS if h.strip()]
 
-ALLOWED_HOSTS = []
-
+# static root for production because render needs it
+STATIC_ROOT = (BASE_DIR / "staticfiles")
 
 # Application definition
 
@@ -63,6 +66,8 @@ JAZZMIN_SETTINGS = {
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -91,6 +96,9 @@ TEMPLATES = [
     },
 ]
 
+# static files storage 
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
@@ -98,11 +106,11 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        "OPTIONS": {"timeout": 20},
-    }
+    "default": dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=60,
+        ssl_require=os.environ.get("DB_SSL_REQUIRE", "0") == "1",
+    )
 }
 
 
@@ -140,7 +148,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / 'static']  #  central static folder
 
 # --- Media Files (Profile Pics, Medical Reports) ---
@@ -151,7 +159,6 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 AUTH_USER_MODEL = 'accounts.CustomUser'
 
-import os
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = "smtp.gmail.com"
@@ -175,10 +182,12 @@ EMAIL_QUEUE_MAX_ATTEMPTS = 3
 
 ASGI_APPLICATION = "config.asgi.application"
 
+REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {"hosts": [("127.0.0.1", 6379)]},
+        "CONFIG": {"hosts": [REDIS_URL]},
     }
 }
 
@@ -243,3 +252,7 @@ S4L_ELIGIBILITY_REMIND_REPEAT_DAYS = 7  # don’t remind again for same user for
 
 S4L_CAMPAIGN_REMIND_DAYS_BEFORE = 2     # remind 2 days before camp date
 S4L_CAMPAIGN_REMIND_REPEAT_DAYS = 7
+
+# Required for Render HTTPS, otherwise admin POST can fail
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
