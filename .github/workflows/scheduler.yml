@@ -2,9 +2,9 @@ name: Share4Life Auto Scheduler
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # Every 5 minutes
-    - cron: "0 * * * *"     # Every hour
-    - cron: "0 2 * * *"     # Daily at 2 AM UTC
+    - cron: "*/5 * * * *"
+    - cron: "0 * * * *"
+    - cron: "0 2 * * *"
   workflow_dispatch:
 
 jobs:
@@ -21,11 +21,9 @@ jobs:
       REDIS_URL: ${{ secrets.REDIS_URL }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -34,34 +32,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # ==========================
-      # 5-MINUTE TASKS
-      # ==========================
+      # 5-minute tasks
       - name: Run 5-minute tasks
         if: github.event.schedule == '*/5 * * * *' || github.event_name == 'workflow_dispatch'
         run: |
-          cd Share4Life
+          cd share4life
           python manage.py escalate_blood_requests
           python manage.py process_blood_email_escalations
           python manage.py send_queued_emails
 
-      # ==========================
-      # HOURLY TASKS
-      # ==========================
+      # Hourly tasks
       - name: Run hourly tasks
         if: github.event.schedule == '0 * * * *'
         run: |
-          cd Share4Life
+          cd share4life
           python manage.py send_donor_eligibility_reminders
           python manage.py remind_disbursement_proofs
           python manage.py update_campaign_states
           python manage.py update_campaign_statuses
 
-      # ==========================
-      # DAILY TASK
-      # ==========================
+      # Daily tasks
       - name: Run daily tasks
         if: github.event.schedule == '0 2 * * *'
         run: |
-          cd Share4Life
+          cd share4life
           python manage.py recalculate_points
