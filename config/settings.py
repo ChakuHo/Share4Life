@@ -99,7 +99,14 @@ TEMPLATES = [
 ]
 
 # static files storage 
-STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
