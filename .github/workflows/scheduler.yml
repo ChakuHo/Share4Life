@@ -24,10 +24,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.12.7
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.12.7"
 
       - name: Install pipenv
         run: |
@@ -38,7 +38,9 @@ jobs:
         run: |
           pipenv install --deploy --ignore-pipfile
 
+      # -------------------------
       # 5-MINUTE TASKS
+      # -------------------------
       - name: Run 5-minute tasks
         if: github.event.schedule == '*/5 * * * *' || github.event_name == 'workflow_dispatch'
         run: |
@@ -46,7 +48,9 @@ jobs:
           pipenv run python manage.py process_blood_email_escalations
           pipenv run python manage.py send_queued_emails
 
+      # -------------------------
       # HOURLY TASKS
+      # -------------------------
       - name: Run hourly tasks
         if: github.event.schedule == '0 * * * *'
         run: |
@@ -55,7 +59,9 @@ jobs:
           pipenv run python manage.py update_campaign_states
           pipenv run python manage.py update_campaign_statuses
 
+      # -------------------------
       # DAILY TASK
+      # -------------------------
       - name: Run daily tasks
         if: github.event.schedule == '0 2 * * *'
         run: |
