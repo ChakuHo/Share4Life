@@ -35,37 +35,27 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          cd share4life
           pip install -r requirements.txt
 
-      # -------------------------
       # 5-MINUTE TASKS
-      # -------------------------
       - name: Run 5-minute tasks
         if: github.event.schedule == '*/5 * * * *' || github.event_name == 'workflow_dispatch'
         run: |
-          cd share4life
           python manage.py escalate_blood_requests
           python manage.py process_blood_email_escalations
           python manage.py send_queued_emails
 
-      # -------------------------
       # HOURLY TASKS
-      # -------------------------
       - name: Run hourly tasks
         if: github.event.schedule == '0 * * * *'
         run: |
-          cd share4life
           python manage.py send_donor_eligibility_reminders
           python manage.py remind_disbursement_proofs
           python manage.py update_campaign_states
           python manage.py update_campaign_statuses
 
-      # -------------------------
       # DAILY TASK
-      # -------------------------
       - name: Run daily tasks
         if: github.event.schedule == '0 2 * * *'
         run: |
-          cd share4life
           python manage.py recalculate_points
