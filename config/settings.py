@@ -99,7 +99,7 @@ TEMPLATES = [
 ]
 
 # static files storage 
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
