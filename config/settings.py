@@ -282,3 +282,5 @@ S4L_CAMPAIGN_REMIND_REPEAT_DAYS = 7
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+# Enable scheduled email sending (like queued emails, reminders, etc). Can be turned off for testing to prevent accidental emails.
+ENABLE_SCHEDULED_EMAILS = os.environ.get("ENABLE_SCHEDULED_EMAILS", "1") == "1"
