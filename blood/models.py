@@ -293,10 +293,7 @@ class BloodDonation(models.Model):
                 )
             except Exception:
                 pass
-
-            # ✅ OPTIONAL IMPROVEMENT (SAFE):
-            # Cache eligibility dates on donor profile IF those fields exist.
-            # This does NOT break if you haven't added those fields yet.
+            
             try:
                 from django.apps import apps
 
