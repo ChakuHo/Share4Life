@@ -1,14 +1,14 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
-from django.db import transaction
-from django.db.models import Q
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from accounts.models import CustomUser
-from communication.services import broadcast_inapp, queue_email_broadcast
+from communication.models import NotificationPreference, QueuedEmail
+from communication.services import broadcast_inapp
 from blood.models import (
-    PublicBloodRequest,
     DonorResponse,
     BloodDonation,
     BloodEmailEscalationState,
@@ -21,7 +21,12 @@ class Command(BaseCommand):
     help = "Queue staged EMAIL notifications for blood requests (emergency and non-emergency)."
 
     def handle(self, *args, **options):
+        if not getattr(settings, "ENABLE_SCHEDULED_EMAILS", True):
+            self.stdout.write("Scheduled emails are disabled.")
+            return
+
         now = timezone.now()
+        site_base = (getattr(settings, "SITE_BASE_URL", "") or "").rstrip("/")
 
         states = (
             BloodEmailEscalationState.objects
@@ -36,11 +41,13 @@ class Command(BaseCommand):
             return
 
         processed = 0
+        total_queued = 0
+        total_skipped_duplicates = 0
 
         for st in states:
             req = st.request
 
-            # stop if request closed
+            # stop if request is closed
             if (not req.is_active) or req.status in ("FULFILLED", "CANCELLED"):
                 st.stage = "DONE"
                 st.is_done = True
@@ -49,8 +56,11 @@ class Command(BaseCommand):
                 st.save(update_fields=["stage", "is_done", "last_run_at", "next_run_at", "updated_at"])
                 continue
 
-            # stop if someone already accepted OR donation already recorded
-            if DonorResponse.objects.filter(request=req, status="ACCEPTED").exists() or BloodDonation.objects.filter(request=req).exists():
+            # stop if someone accepted or donation exists
+            if (
+                DonorResponse.objects.filter(request=req, status="ACCEPTED").exists()
+                or BloodDonation.objects.filter(request=req).exists()
+            ):
                 st.stage = "DONE"
                 st.is_done = True
                 st.last_run_at = now
@@ -58,7 +68,6 @@ class Command(BaseCommand):
                 st.save(update_fields=["stage", "is_done", "last_run_at", "next_run_at", "updated_at"])
                 continue
 
-            # build recipient user list by stage
             recipients = []
 
             if st.stage == "CITY":
@@ -68,8 +77,12 @@ class Command(BaseCommand):
                 req_canon = canonical_city(req.location_city)
                 near_canons = nearby_city_canons(req_canon)
                 if near_canons:
-                    qs = CustomUser.objects.filter(is_active=True, is_donor=True).select_related("profile")
-                    qs = qs.filter(profile__city_canon__in=near_canons)
+                    qs = (
+                        CustomUser.objects
+                        .filter(is_active=True, is_donor=True)
+                        .select_related("profile")
+                        .filter(profile__city_canon__in=near_canons)
+                    )
                     recipients = list(qs)
                 else:
                     recipients = []
@@ -77,25 +90,19 @@ class Command(BaseCommand):
             elif st.stage == "RADIUS_10":
                 recipients = match_radius(req, 10)
 
-            # turn list -> queryset
             ids = [u.id for u in recipients]
             users_qs = CustomUser.objects.filter(id__in=ids, is_active=True, is_donor=True)
 
-            # exclude request owner
             if req.created_by_id:
                 users_qs = users_qs.exclude(id=req.created_by_id)
 
-            # exclude donors who already responded (any status)
             responded_ids = DonorResponse.objects.filter(request=req).values_list("donor_id", flat=True)
             users_qs = users_qs.exclude(id__in=responded_ids)
 
-            # exclude already emailed users
-            emailed_ids = BloodRequestEmailedUser.objects.filter(request=req).values_list("user_id", flat=True)
-            users_qs = users_qs.exclude(id__in=emailed_ids)
+            user_rows = list(users_qs.values("id", "email"))
+            user_ids = [row["id"] for row in user_rows]
 
-            count = users_qs.count()
-
-            if count:
+            if user_rows:
                 title = "URGENT Blood Request" if req.is_emergency else "Blood Request"
                 level = "DANGER" if req.is_emergency else "INFO"
                 category = "EMERGENCY" if req.is_emergency else "BLOOD"
@@ -105,23 +112,70 @@ class Command(BaseCommand):
                     f"Need {req.blood_group} in {req.location_city} at {req.hospital_name}. "
                     f"Units: {req.units_needed}. Contact: {req.contact_phone}"
                 )
-                email_body = body + f"\n\nOpen: {url}"
 
-                broadcast_inapp(users_qs, title=title, body=body, url=url, level=level, category=category)
-                queue_email_broadcast(users_qs, subject=title, body=email_body, category=category)
+                open_url = f"{site_base}{url}" if site_base and url.startswith("/") else url
+                email_body = body + f"\n\nOpen: {open_url}"
 
-                # dedupe store
-                rows = [
-                    BloodRequestEmailedUser(request=req, user_id=uid)
-                    for uid in users_qs.values_list("id", flat=True)
-                ]
-                BloodRequestEmailedUser.objects.bulk_create(rows, ignore_conflicts=True)
+                # in-app notifications
+                broadcast_inapp(
+                    CustomUser.objects.filter(id__in=user_ids),
+                    title=title,
+                    body=body,
+                    url=url,
+                    level=level,
+                    category=category
+                )
 
-            # schedule next stage
+                prefs_map = {
+                    p.user_id: p
+                    for p in NotificationPreference.objects.filter(user_id__in=user_ids)
+                }
+
+                queued_now = 0
+                skipped_now = 0
+
+                for row in user_rows:
+                    uid = row["id"]
+                    email = (row["email"] or "").strip()
+
+                    if not email:
+                        continue
+
+                    pref = prefs_map.get(uid)
+                    if pref and (not pref.email_enabled):
+                        continue
+                    if pref and pref.email_emergency_only and category != "EMERGENCY":
+                        continue
+
+                    try:
+                        with transaction.atomic():
+                            obj, created = BloodRequestEmailedUser.objects.get_or_create(
+                                request=req,
+                                user_id=uid,
+                            )
+                            if not created:
+                                skipped_now += 1
+                                continue
+
+                            QueuedEmail.objects.create(
+                                user_id=uid,
+                                to_email=email,
+                                subject=title,
+                                body=email_body,
+                                status="PENDING",
+                            )
+                            queued_now += 1
+
+                    except IntegrityError:
+                        skipped_now += 1
+                        continue
+
+                total_queued += queued_now
+                total_skipped_duplicates += skipped_now
+
             st.last_run_at = now
 
             if req.is_emergency:
-                # emergency escalates every 5 minutes
                 if st.stage == "CITY":
                     st.stage = "NEARBY"
                     st.next_run_at = now + timedelta(minutes=5)
@@ -133,7 +187,6 @@ class Command(BaseCommand):
                     st.is_done = True
                     st.next_run_at = None
             else:
-                # non-emergency escalates slowly (6h/12h/24h)
                 if st.stage == "CITY":
                     st.stage = "NEARBY"
                     st.next_run_at = now + timedelta(hours=6)
@@ -148,4 +201,8 @@ class Command(BaseCommand):
             st.save(update_fields=["stage", "next_run_at", "last_run_at", "is_done", "updated_at"])
             processed += 1
 
-        self.stdout.write(self.style.SUCCESS(f"Processed email escalation states: {processed}"))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Processed states: {processed}, queued emails: {total_queued}, skipped duplicates: {total_skipped_duplicates}"
+            )
+        )
