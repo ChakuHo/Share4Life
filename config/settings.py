@@ -159,10 +159,9 @@ if CLOUDINARY_URL:
 AUTH_USER_MODEL = "accounts.CustomUser"
 
 # Email
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = "smtp.gmail.com"
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
+# Email
+BREVO_API_KEY = (os.environ.get("BREVO_API_KEY", "") or "").strip()
+EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "10"))
 
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
@@ -173,6 +172,14 @@ DEFAULT_FROM_EMAIL = os.environ.get(
 )
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 EMAIL_VERIFICATION_REQUIRED = True
+
+if BREVO_API_KEY:
+    EMAIL_BACKEND = "communication.email_backends.BrevoAPIEmailBackend"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = "smtp.gmail.com"
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
 
 # Notification / email queue settings
 NOTIFICATION_RETENTION_DAYS = 7
