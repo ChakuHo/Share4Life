@@ -84,29 +84,43 @@ def send_verification_email_to_user(request, user) -> bool:
 
 def home(request):
     """
-    Dynamic Landing Page (Blood + Crowdfunding) + Home Popup (session-only)
-
-    Popup behavior (JS sessionStorage):
-      - Not shown again on refresh
-      - Shown again if tab/browser is closed
-
-    Popup priority:
-      1) Crowdfunding (APPROVED + not expired)
-      2) Blood campaign (if BloodCampaign model exists and has recognizable status fields)
+    Home page:
+      - Urgent ticker = only active emergency blood requests
+      - Active Emergencies cards = only active emergency blood requests
+      - Completed / fulfilled / cancelled / rejected / unverified requests hidden
+      - Home popup logic kept
+      - Featured campaign logic kept
     """
-    all_requests = (
+    today = timezone.localdate()
+
+    # Only active public blood requests that should still be visible
+    active_public_requests = (
         PublicBloodRequest.objects
-        .filter(is_active=True)
+        .filter(
+            is_active=True,
+            status__in=["OPEN", "IN_PROGRESS"],
+        )
+        .exclude(verification_status__in=["REJECTED", "UNVERIFIED"])
         .order_by("-is_emergency", "-created_at")
     )
 
+    # Ticker: only urgent/emergency requests
+    urgent_requests = (
+        active_public_requests
+        .filter(is_emergency=True)
+        .order_by("-created_at")
+    )
+
+    # Cards section: only active emergency requests
+    recent_requests = urgent_requests[:4]
+
+    # Keep your featured campaign logic
     featured_campaign = Campaign.objects.filter(
         is_featured=True,
         status__in=["APPROVED", "COMPLETED"]
     ).first()
 
     home_popup = None
-    today = timezone.localdate()
 
     # ---------- 1) Crowdfunding popup ----------
     ongoing_cf = (
@@ -118,7 +132,6 @@ def home(request):
     )
 
     if ongoing_cf:
-        # Use raised_total() for accurate amount 
         raised = ongoing_cf.raised_total()
         target = ongoing_cf.target_amount
         pct = ongoing_cf.get_percentage()
@@ -141,10 +154,10 @@ def home(request):
     if not home_popup:
         BloodCampaign = None
         try:
-            from hospitals.models import BloodCampaign as BloodCampaign  # if your command is in hospitals
+            from hospitals.models import BloodCampaign as BloodCampaign
         except Exception:
             try:
-                from blood.models import BloodCampaign as BloodCampaign  # if you put it in blood
+                from blood.models import BloodCampaign as BloodCampaign
             except Exception:
                 BloodCampaign = None
 
@@ -152,10 +165,9 @@ def home(request):
             def safe_first(filters: dict, order_by: str):
                 try:
                     return BloodCampaign.objects.filter(**filters).order_by(order_by).first()
-                except (FieldError, Exception):
+                except Exception:
                     return None
 
-            # Try common statuses without breaking if field differs
             bc = (
                 safe_first({"status": "ONGOING"}, "-id")
                 or safe_first({"status": "ACTIVE"}, "-id")
@@ -187,12 +199,13 @@ def home(request):
                 }
 
     context = {
-        "urgent_requests": all_requests[:5],
-        "recent_requests": all_requests[:4],
+        "urgent_requests": urgent_requests[:5],
+        "recent_requests": recent_requests,
         "featured_campaign": featured_campaign,
-        "home_popup": home_popup, 
+        "home_popup": home_popup,
     }
     return render(request, "core/home.html", context)
+
 
 def public_donor_directory(request):
     """
