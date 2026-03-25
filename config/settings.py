@@ -159,7 +159,6 @@ if CLOUDINARY_URL:
 AUTH_USER_MODEL = "accounts.CustomUser"
 
 # Email
-# Email
 BREVO_API_KEY = (os.environ.get("BREVO_API_KEY", "") or "").strip()
 EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "10"))
 
