@@ -183,6 +183,10 @@ def bulk_notify_city_eligible_donors(req, request_obj=None) -> int:
     Bulk notify (in-app + email queue) to eligible + compatible donors in the same city.
     Emergency only. Excludes requester and donors who already responded.
     Throttled to avoid duplicate sends.
+
+    IMPORTANT:
+    - Marks users in BloodRequestEmailedUser so later escalation stages do not re-email
+      the same donor for the same request.
     """
     if not req or not getattr(req, "is_emergency", False):
         return 0
@@ -213,6 +217,19 @@ def bulk_notify_city_eligible_donors(req, request_obj=None) -> int:
     if req.created_by_id:
         users_qs = users_qs.exclude(id=req.created_by_id)
 
+    # exclude already emailed users for this request
+    from .models import BloodRequestEmailedUser
+    already_emailed_ids = set(
+        BloodRequestEmailedUser.objects.filter(request=req)
+        .values_list("user_id", flat=True)
+    )
+    if already_emailed_ids:
+        users_qs = users_qs.exclude(id__in=already_emailed_ids)
+
+    user_ids = list(users_qs.values_list("id", flat=True))
+    if not user_ids:
+        return 0
+
     title = "URGENT Blood Request"
     url = req.get_absolute_url()
 
@@ -225,17 +242,32 @@ def bulk_notify_city_eligible_donors(req, request_obj=None) -> int:
     abs_url = request_obj.build_absolute_uri(url) if request_obj else url
     email_body = body + f"\n\nOpen: {abs_url}"
 
-    broadcast_after_commit(
-        users_qs,
+    from communication.services import broadcast_inapp, queue_email_broadcast
+
+    # send now
+    final_qs = CustomUser.objects.filter(id__in=user_ids, is_active=True, is_donor=True)
+
+    broadcast_inapp(
+        final_qs,
         title=title,
         body=body,
         url=url,
         level="DANGER",
         category="EMERGENCY",
-        email_subject=title,
-        email_body=email_body,
     )
-    return users_qs.count()
+
+    queue_email_broadcast(
+        final_qs,
+        subject=title,
+        body=email_body,
+        category="EMERGENCY",
+    )
+
+    # mark as emailed for dedupe across later stages
+    rows = [BloodRequestEmailedUser(request=req, user_id=uid) for uid in user_ids]
+    BloodRequestEmailedUser.objects.bulk_create(rows, ignore_conflicts=True)
+
+    return len(user_ids)
 
 
 def allow_guest_emergency_post(phone: str, ip: str) -> Tuple[bool, str]:
