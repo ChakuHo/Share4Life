@@ -3,7 +3,10 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
     <title>{% block title %}Share4Life - Save a Life Today{% endblock %}</title>
 
     <!-- Favicon from SiteSettings -->
@@ -13,90 +16,112 @@
       <link rel="apple-touch-icon" href="{{ site_settings.favicon.url }}">
     {% endif %}
 
+    <!-- Small network hint for external icon CDN -->
+    <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+
     <!-- FontAwesome & Bootstrap -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
+    />
     <link href="{% static 'css/bootstrap.css' %}" rel="stylesheet" type="text/css" />
     <link href="{% static 'css/ui.css' %}" rel="stylesheet" type="text/css" />
     <link href="{% static 'css/responsive.css' %}" rel="stylesheet" />
 
-    <!-- JS -->
+    <!-- Keep these in head for compatibility with existing child templates -->
     <script src="{% static 'js/jquery-2.0.0.min.js' %}"></script>
     <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
 
     <!-- PROFESSIONAL MEDICAL THEME CSS -->
     <style>
-        :root {
-            --primary-color: #0a2558;
-            --secondary-color: #e63946;
-            --light-bg: #f8f9fa;
-            --white: #ffffff;
-        }
+      :root {
+        --primary-color: #0a2558;
+        --secondary-color: #e63946;
+        --light-bg: #f8f9fa;
+        --white: #ffffff;
+      }
 
-        body {
-            background-color: var(--light-bg);
-            color: #333;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding-top: 80px;
-        }
+      body {
+        background-color: var(--light-bg);
+        color: #333;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        padding-top: 80px;
+      }
 
-        .btn-primary {
-            background-color: var(--primary-color) !important;
-            border-color: var(--primary-color) !important;
-            color: white !important;
-        }
-        .btn-primary:hover { background-color: #061838 !important; }
+      .btn-primary {
+        background-color: var(--primary-color) !important;
+        border-color: var(--primary-color) !important;
+        color: white !important;
+      }
 
-        .btn-outline-primary {
-            color: var(--primary-color) !important;
-            border-color: var(--primary-color) !important;
-        }
-        .btn-outline-primary:hover {
-            background-color: var(--primary-color) !important;
-            color: white !important;
-        }
+      .btn-primary:hover {
+        background-color: #061838 !important;
+      }
 
-        .btn-danger {
-            background-color: var(--secondary-color) !important;
-            border-color: var(--secondary-color) !important;
-            color: white !important;
-        }
-        .btn-danger:hover { background-color: #c92a35 !important; }
+      .btn-outline-primary {
+        color: var(--primary-color) !important;
+        border-color: var(--primary-color) !important;
+      }
 
-        .btn-outline-danger {
-            color: var(--secondary-color) !important;
-            border-color: var(--secondary-color) !important;
-        }
-        .btn-outline-danger:hover {
-            background-color: var(--secondary-color) !important;
-            color: white !important;
-        }
+      .btn-outline-primary:hover {
+        background-color: var(--primary-color) !important;
+        color: white !important;
+      }
 
-        .text-primary { color: var(--primary-color) !important; }
-        .text-danger { color: var(--secondary-color) !important; }
+      .btn-danger {
+        background-color: var(--secondary-color) !important;
+        border-color: var(--secondary-color) !important;
+        color: white !important;
+      }
 
-        .card {
-            border: none;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-            border-radius: 12px;
-        }
+      .btn-danger:hover {
+        background-color: #c92a35 !important;
+      }
 
-        /* Toast placement */
-        .s4l-toast-wrap{
-          position: fixed;
-          right: 18px;
-          bottom: 18px;
-          z-index: 2000;
-          max-width: 360px;
-        }
-        .toast{
-          border-radius: 12px;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.12);
-        }
+      .btn-outline-danger {
+        color: var(--secondary-color) !important;
+        border-color: var(--secondary-color) !important;
+      }
+
+      .btn-outline-danger:hover {
+        background-color: var(--secondary-color) !important;
+        color: white !important;
+      }
+
+      .text-primary {
+        color: var(--primary-color) !important;
+      }
+
+      .text-danger {
+        color: var(--secondary-color) !important;
+      }
+
+      .card {
+        border: none;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+        border-radius: 12px;
+      }
+
+      /* Toast placement */
+      .s4l-toast-wrap {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 2000;
+        max-width: 360px;
+      }
+
+      .toast {
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+      }
     </style>
+
+    {% block extra_head %}{% endblock %}
   </head>
 
   <body>
-
     {% include 'includes/navbar.html' %}
     {% include 'includes/messages.html' %}
 
@@ -111,11 +136,23 @@
 
     <!-- Toast -->
     <div class="s4l-toast-wrap">
-      <div class="toast" id="s4lToast" role="alert" aria-live="assertive" aria-atomic="true" data-delay="2500">
+      <div
+        class="toast"
+        id="s4lToast"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+        data-delay="2500"
+      >
         <div class="toast-header">
           <strong class="mr-auto" id="s4lToastTitle">Share4Life</strong>
           <small class="text-muted" id="s4lToastTime">now</small>
-          <button type="button" class="ml-2 mb-1 close" data-dismiss="toast" aria-label="Close">
+          <button
+            type="button"
+            class="ml-2 mb-1 close"
+            data-dismiss="toast"
+            aria-label="Close"
+          >
             <span aria-hidden="true">&times;</span>
           </button>
         </div>
@@ -125,7 +162,14 @@
 
     <!-- REAL-TIME DONOR PING MODAL -->
     {% if user.is_authenticated and user.is_donor %}
-    <div class="modal fade" id="donorPingModal" tabindex="-1" role="dialog" aria-labelledby="donorPingTitle" aria-hidden="true">
+    <div
+      class="modal fade"
+      id="donorPingModal"
+      tabindex="-1"
+      role="dialog"
+      aria-labelledby="donorPingTitle"
+      aria-hidden="true"
+    >
       <div class="modal-dialog modal-dialog-centered" role="document" style="max-width: 520px;">
         <div class="modal-content" style="border-radius:14px;">
           <div class="modal-header">
@@ -170,169 +214,313 @@
     </div>
 
     <script>
-    (function(){
-      function showToast(title, body){
-        try {
-          const t = document.getElementById("s4lToast");
-          const ttl = document.getElementById("s4lToastTitle");
-          const b = document.getElementById("s4lToastBody");
-          if (!t || !ttl || !b) return;
+      (function () {
+        function showToast(title, body) {
+          try {
+            const t = document.getElementById("s4lToast");
+            const ttl = document.getElementById("s4lToastTitle");
+            const b = document.getElementById("s4lToastBody");
+            if (!t || !ttl || !b) return;
 
-          ttl.textContent = title || "Share4Life";
-          b.textContent = body || "—";
+            ttl.textContent = title || "Share4Life";
+            b.textContent = body || "—";
 
-          if (window.bootstrap && window.bootstrap.Toast) {
-            new window.bootstrap.Toast(t).show();
-            return;
+            if (window.bootstrap && window.bootstrap.Toast) {
+              new window.bootstrap.Toast(t).show();
+              return;
+            }
+            if (window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.toast === "function") {
+              window.jQuery(t).toast("show");
+              return;
+            }
+            console.log("[Toast]", title, body);
+          } catch (e) {
+            console.log("[ToastError]", e);
           }
-          if (window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.toast === "function") {
-            window.jQuery(t).toast("show");
-            return;
-          }
-          console.log("[Toast]", title, body);
-        } catch (e) {
-          console.log("[ToastError]", e);
         }
-      }
 
-      function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-          const cookies = document.cookie.split(';');
-          for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-              cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-              break;
+        function getCookie(name) {
+          let cookieValue = null;
+          if (document.cookie && document.cookie !== "") {
+            const cookies = document.cookie.split(";");
+            for (let i = 0; i < cookies.length; i++) {
+              const cookie = cookies[i].trim();
+              if (cookie.substring(0, name.length + 1) === (name + "=")) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+              }
             }
           }
-        }
-        return cookieValue;
-      }
-
-      function getCSRFToken(){
-        return (
-          getCookie("csrftoken")
-          || (document.querySelector('input[name="csrfmiddlewaretoken"]') || {}).value
-          || ""
-        );
-      }
-
-      const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
-      const socketUrl = wsScheme + "://" + window.location.host + "/ws/blood/donor/";
-      let currentPing = null;
-
-      function postQuickRespond(requestId, status) {
-        return fetch(`/blood/request/${requestId}/quick-respond/`, {
-          method: "POST",
-          credentials: "same-origin",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-            "X-CSRFToken": getCSRFToken()
-          },
-          body: new URLSearchParams({ status: status }).toString()
-        });
-      }
-
-      function setPingUI(data) {
-        document.getElementById("ping-blood").textContent = data.blood_group || "—";
-        document.getElementById("ping-units").textContent = "Units: " + (data.units_needed || "—");
-        document.getElementById("ping-hospital").textContent = data.hospital || "—";
-        document.getElementById("ping-city").textContent = data.city || "—";
-
-        const distEl = document.getElementById("ping-distance");
-        if (distEl) {
-          distEl.textContent = (data.distance_km != null) ? (data.distance_km + " km away") : "Distance: —";
+          return cookieValue;
         }
 
-        const openBtn = document.getElementById("ping-open");
-        openBtn.href = data.detail_url || "#";
-      }
-
-      function showModal() { window.jQuery && window.jQuery("#donorPingModal").modal("show"); }
-      function hideModal() { window.jQuery && window.jQuery("#donorPingModal").modal("hide"); }
-
-      function bindButtons(){
-        const acceptBtn = document.getElementById("ping-accept");
-        const declineBtn = document.getElementById("ping-decline");
-        const delayBtn = document.getElementById("ping-delay");
-        const openBtn = document.getElementById("ping-open");
-
-        if (!acceptBtn || !declineBtn || !delayBtn || !openBtn) return;
-        if (acceptBtn.dataset.bound === "1") return;
-        acceptBtn.dataset.bound = "1";
-
-        function guard() {
-          if (!currentPing || !currentPing.request_id) return null;
-          return currentPing.request_id;
+        function getCSRFToken() {
+          return (
+            getCookie("csrftoken") ||
+            (document.querySelector('input[name="csrfmiddlewaretoken"]') || {}).value ||
+            ""
+          );
         }
 
-        openBtn.addEventListener("click", function(){ hideModal(); });
+        const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+        const socketUrl = wsScheme + "://" + window.location.host + "/ws/blood/donor/";
+        let currentPing = null;
+        let socket = null;
+        let reconnectDelay = 2000;
+        let reconnectTimer = null;
+        let started = false;
 
-        acceptBtn.addEventListener("click", function(){
-          const id = guard(); if (!id) return;
-          acceptBtn.disabled = true;
+        function postQuickRespond(requestId, status) {
+          return fetch(`/blood/request/${requestId}/quick-respond/`, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+              "X-CSRFToken": getCSRFToken()
+            },
+            body: new URLSearchParams({ status: status }).toString()
+          });
+        }
 
-          postQuickRespond(id, "ACCEPTED")
-            .then(function(resp){
-              hideModal();
-              if (!resp || !resp.ok) { showToast("Error", "Could not send ACCEPT. Please try again."); return; }
-              showToast("Accepted", "Response sent. Opening request…");
-              const url = (currentPing && currentPing.detail_url) ? currentPing.detail_url : `/blood/request/${id}/`;
-              setTimeout(function(){ window.location.href = url; }, 400);
-            })
-            .catch(function(){ hideModal(); showToast("Error", "Network error while sending ACCEPT."); })
-            .finally(function(){ acceptBtn.disabled = false; });
+        function setPingUI(data) {
+          const bloodEl = document.getElementById("ping-blood");
+          const unitsEl = document.getElementById("ping-units");
+          const hospEl = document.getElementById("ping-hospital");
+          const cityEl = document.getElementById("ping-city");
+          const distEl = document.getElementById("ping-distance");
+          const openBtn = document.getElementById("ping-open");
+
+          if (bloodEl) bloodEl.textContent = data.blood_group || "—";
+          if (unitsEl) unitsEl.textContent = "Units: " + (data.units_needed || "—");
+          if (hospEl) hospEl.textContent = data.hospital || "—";
+          if (cityEl) cityEl.textContent = data.city || "—";
+
+          if (distEl) {
+            distEl.textContent =
+              (data.distance_km != null)
+                ? (data.distance_km + " km away")
+                : "Distance: —";
+          }
+
+          if (openBtn) openBtn.href = data.detail_url || "#";
+        }
+
+        function showModal() {
+          if (window.jQuery) {
+            window.jQuery("#donorPingModal").modal("show");
+          }
+        }
+
+        function hideModal() {
+          if (window.jQuery) {
+            window.jQuery("#donorPingModal").modal("hide");
+          }
+        }
+
+        function bindButtons() {
+          const acceptBtn = document.getElementById("ping-accept");
+          const declineBtn = document.getElementById("ping-decline");
+          const delayBtn = document.getElementById("ping-delay");
+          const openBtn = document.getElementById("ping-open");
+
+          if (!acceptBtn || !declineBtn || !delayBtn || !openBtn) return;
+          if (acceptBtn.dataset.bound === "1") return;
+          acceptBtn.dataset.bound = "1";
+
+          function guard() {
+            if (!currentPing || !currentPing.request_id) return null;
+            return currentPing.request_id;
+          }
+
+          openBtn.addEventListener("click", function () {
+            hideModal();
+          });
+
+          acceptBtn.addEventListener("click", function () {
+            const id = guard();
+            if (!id) return;
+            acceptBtn.disabled = true;
+
+            postQuickRespond(id, "ACCEPTED")
+              .then(function (resp) {
+                hideModal();
+                if (!resp || !resp.ok) {
+                  showToast("Error", "Could not send ACCEPT. Please try again.");
+                  return;
+                }
+                showToast("Accepted", "Response sent. Opening request…");
+                const url =
+                  (currentPing && currentPing.detail_url)
+                    ? currentPing.detail_url
+                    : `/blood/request/${id}/`;
+                setTimeout(function () {
+                  window.location.href = url;
+                }, 350);
+              })
+              .catch(function () {
+                hideModal();
+                showToast("Error", "Network error while sending ACCEPT.");
+              })
+              .finally(function () {
+                acceptBtn.disabled = false;
+              });
+          });
+
+          declineBtn.addEventListener("click", function () {
+            const id = guard();
+            if (!id) return;
+            declineBtn.disabled = true;
+
+            postQuickRespond(id, "DECLINED")
+              .then(function (resp) {
+                hideModal();
+                if (!resp || !resp.ok) {
+                  showToast("Error", "Could not send DECLINE. Please try again.");
+                  return;
+                }
+                showToast("Declined", "Response sent.");
+              })
+              .catch(function () {
+                hideModal();
+                showToast("Error", "Network error while sending DECLINE.");
+              })
+              .finally(function () {
+                declineBtn.disabled = false;
+              });
+          });
+
+          delayBtn.addEventListener("click", function () {
+            const id = guard();
+            if (!id) return;
+            delayBtn.disabled = true;
+
+            postQuickRespond(id, "DELAYED")
+              .then(function (resp) {
+                hideModal();
+                if (!resp || !resp.ok) {
+                  showToast("Error", "Could not send DELAY. Please try again.");
+                  return;
+                }
+                showToast("Delayed", "Response sent.");
+              })
+              .catch(function () {
+                hideModal();
+                showToast("Error", "Network error while sending DELAY.");
+              })
+              .finally(function () {
+                delayBtn.disabled = false;
+              });
+          });
+        }
+
+        function scheduleReconnect() {
+          if (reconnectTimer) return;
+          reconnectTimer = setTimeout(function () {
+            reconnectTimer = null;
+            if (document.hidden || !navigator.onLine) {
+              scheduleReconnect();
+              return;
+            }
+            connect();
+          }, reconnectDelay);
+
+          reconnectDelay = Math.min(reconnectDelay * 2, 15000);
+        }
+
+        function connect() {
+          try {
+            if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+              return;
+            }
+
+            socket = new WebSocket(socketUrl);
+
+            socket.onopen = function () {
+              reconnectDelay = 2000;
+            };
+
+            socket.onmessage = function (e) {
+              const data = JSON.parse(e.data || "{}");
+              if (data.type !== "DONOR_PING") return;
+
+              currentPing = data;
+              setPingUI(data);
+              bindButtons();
+
+              setTimeout(function () {
+                showModal();
+              }, 50);
+            };
+
+            socket.onerror = function () {
+              // Let onclose handle reconnect
+            };
+
+            socket.onclose = function () {
+              scheduleReconnect();
+            };
+          } catch (e) {
+            scheduleReconnect();
+          }
+        }
+
+        function startSocketWhenIdle() {
+          if (started) return;
+          started = true;
+
+          // Delay websocket connection slightly so normal page rendering gets priority first
+          const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+          let delay = 1200;
+          
+          if (conn){
+            if (conn.saveData) {
+              delay = 4000;
+            } else if ((conn.effectiveType || "").includes("2g")) {
+              delay = 3000;
+            } else if ((conn.effectiveType || "").includes("3g")) {
+              delay = 1800;
+            }
+          }
+
+          const kickOff = function () {
+            if (document.hidden || !navigator.onLine) {
+              scheduleReconnect();
+              return;
+            }
+            connect();
+          };
+
+          if ("requestIdleCallback" in window) {
+            window.requestIdleCallback(function () {
+              setTimeout(kickOff, delay);
+            }, { timeout: 2500 });
+          } else {
+            setTimeout(kickOff, delay);
+          }
+        }
+
+
+        window.addEventListener("online", function () {
+          if (!socket || socket.readyState === WebSocket.CLOSED) {
+            scheduleReconnect();
+          }
         });
 
-        declineBtn.addEventListener("click", function(){
-          const id = guard(); if (!id) return;
-          declineBtn.disabled = true;
-
-          postQuickRespond(id, "DECLINED")
-            .then(function(resp){
-              hideModal();
-              if (!resp || !resp.ok) { showToast("Error", "Could not send DECLINE. Please try again."); return; }
-              showToast("Declined", "Response sent.");
-            })
-            .catch(function(){ hideModal(); showToast("Error", "Network error while sending DECLINE."); })
-            .finally(function(){ declineBtn.disabled = false; });
+        document.addEventListener("visibilitychange", function () {
+          if (!document.hidden && (!socket || socket.readyState === WebSocket.CLOSED)) {
+            scheduleReconnect();
+          }
         });
 
-        delayBtn.addEventListener("click", function(){
-          const id = guard(); if (!id) return;
-          delayBtn.disabled = true;
-
-          postQuickRespond(id, "DELAYED")
-            .then(function(resp){
-              hideModal();
-              if (!resp || !resp.ok) { showToast("Error", "Could not send DELAY. Please try again."); return; }
-              showToast("Delayed", "Response sent.");
-            })
-            .catch(function(){ hideModal(); showToast("Error", "Network error while sending DELAY."); })
-            .finally(function(){ delayBtn.disabled = false; });
-        });
-      }
-
-      function connect() {
-        const socket = new WebSocket(socketUrl);
-
-        socket.onmessage = function(e){
-          const data = JSON.parse(e.data || "{}");
-          if (data.type !== "DONOR_PING") return;
-          currentPing = data;
-          setPingUI(data);
-          bindButtons();
-          showModal();
-        };
-
-        socket.onclose = function(){ setTimeout(connect, 2000); };
-      }
-
-      connect();
-    })();
+        if (document.readyState === "complete") {
+          startSocketWhenIdle();
+        } else {
+          window.addEventListener("load", startSocketWhenIdle);
+        }
+      })();
     </script>
     {% endif %}
 
+    {% block extra_js %}{% endblock %}
   </body>
 </html>
