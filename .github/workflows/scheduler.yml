@@ -1,10 +1,10 @@
-name: Share4Life Auto Scheduler
+name: Share4Life Scheduler
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # Every 5 minutes
-    - cron: "0 * * * *"     # Every hour
-    - cron: "0 2 * * *"     # Daily at 2 AM UTC
+    - cron: "*/5 * * * *"     # every 5 minutes
+    - cron: "0 * * * *"       # every hour
+    - cron: "0 */6 * * *"     # every 6 hours (points recalculation)
   workflow_dispatch:
 
 jobs:
@@ -15,12 +15,14 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_SSL_REQUIRE: ${{ secrets.DB_SSL_REQUIRE }}
       SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      DEFAULT_FROM_EMAIL: ${{ secrets.DEFAULT_FROM_EMAIL }}
       EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
       EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
-      DEFAULT_FROM_EMAIL: ${{ secrets.DEFAULT_FROM_EMAIL }}
       REDIS_URL: ${{ secrets.REDIS_URL }}
       SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
       ENABLE_SCHEDULED_EMAILS: ${{ secrets.ENABLE_SCHEDULED_EMAILS }}
+      BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+      EMAIL_TIMEOUT: ${{ secrets.EMAIL_TIMEOUT }}
 
     steps:
       - name: Checkout repository
@@ -36,19 +38,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Show active branch
+      # Manual full run
+      - name: Run all tasks manually
+        if: github.event_name == 'workflow_dispatch'
         run: |
-          git branch --show-current
+          python manage.py escalate_blood_requests
+          python manage.py process_blood_email_escalations
+          python manage.py send_queued_emails
+          python manage.py send_donor_eligibility_reminders
+          python manage.py remind_disbursement_proofs
+          python manage.py update_campaign_states
+          python manage.py update_campaign_statuses
+          python manage.py recalculate_points
 
-      # 5-minute tasks
+      # Every 5 minutes
       - name: Run 5-minute tasks
-        if: github.event.schedule == '*/5 * * * *' || github.event_name == 'workflow_dispatch'
+        if: github.event.schedule == '*/5 * * * *'
         run: |
           python manage.py escalate_blood_requests
           python manage.py process_blood_email_escalations
           python manage.py send_queued_emails
 
-      # Hourly tasks
+      # Every hour
       - name: Run hourly tasks
         if: github.event.schedule == '0 * * * *'
         run: |
@@ -57,8 +68,8 @@ jobs:
           python manage.py update_campaign_states
           python manage.py update_campaign_statuses
 
-      # Daily tasks
-      - name: Run daily tasks
-        if: github.event.schedule == '0 2 * * *'
+      # Every 6 hours
+      - name: Recalculate points every 6 hours
+        if: github.event.schedule == '0 */6 * * *'
         run: |
           python manage.py recalculate_points
