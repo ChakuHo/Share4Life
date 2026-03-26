@@ -1411,10 +1411,73 @@ def verify_donation_view(request, donation_id):
 
 # showing feed proof document
 def request_proof_view(request, request_id):
+    """
+    Secure proof viewer for blood request proof.
+    Opens proof inline in a viewer page (image/pdf) instead of forcing download.
+    """
+
     req = get_object_or_404(PublicBloodRequest, id=request_id)
+
     if not req.proof_document:
         raise Http404()
-    return FileResponse(req.proof_document.open("rb"), as_attachment=False)
+
+    # Access control: same spirit as request detail can_view_proof
+    org_membership_req = None
+
+    if request.user.is_authenticated:
+        memberships = (
+            OrganizationMembership.objects
+            .filter(user=request.user, is_active=True, organization__status="APPROVED")
+            .select_related("organization")
+            .order_by("-added_at")
+        )
+
+        req_city = (req.location_city or "").strip().lower()
+        target_org_id = req.target_organization_id
+
+        for m in memberships:
+            org = m.organization
+            org_city = (org.city or "").strip().lower()
+
+            allowed = False
+            if target_org_id:
+                allowed = (org.id == target_org_id)
+            else:
+                allowed = bool(req_city and org_city and req_city == org_city)
+
+            if allowed:
+                org_membership_req = m
+                break
+
+    can_view_proof = bool(
+        req.proof_document and (
+            request.user.is_authenticated and (
+                request.user.is_staff
+                or getattr(request.user, "is_hospital_admin", False)
+                or (req.created_by_id == request.user.id)
+                or (org_membership_req is not None)
+            )
+        )
+    )
+
+    if not can_view_proof:
+        raise Http404()
+
+    name = (req.proof_document.name or "").lower()
+    ext = os.path.splitext(name)[1].lower()
+
+    if ext == ".pdf":
+        kind = "pdf"
+    elif ext in [".jpg", ".jpeg", ".png", ".webp"]:
+        kind = "image"
+    else:
+        kind = "file"
+
+    return render(request, "blood/request_proof_viewer.html", {
+        "req": req,
+        "kind": kind,
+        "proof_url": req.proof_document.url,
+    })
 
 def blood_campaigns_view(request):
     today = timezone.localdate()
