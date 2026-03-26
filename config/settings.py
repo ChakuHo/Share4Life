@@ -148,7 +148,7 @@ if CLOUDINARY_URL:
 
     STORAGES = {
         "default": {
-            "BACKEND": "core.cloudinary_storage.AutoMediaCloudinaryStorage",
+            "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
         },
         "staticfiles": {
             "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
