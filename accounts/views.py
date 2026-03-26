@@ -22,6 +22,10 @@ from django.core.paginator import Paginator
 from django.db.models import Max
 from blood.matching import city_aliases, canonical_city
 import io
+import os
+from PIL import Image
+from django.core.files.base import ContentFile
+from cloudinary.exceptions import BadRequest as CloudinaryBadRequest
 from django.http import HttpResponse
 from django.db.models import Sum
 from reportlab.lib.pagesizes import A4
@@ -801,38 +805,123 @@ def emergency_profiles_list(request):
         "q": qtxt,
     })
 
-
 @login_required
 @transaction.atomic
 def kyc_submit(request):
     kyc, _ = KYCProfile.objects.get_or_create(user=request.user)
+
+    def normalize_image_upload(uploaded_file, *, label="File", allow_pdf=False):
+        """
+        Convert uploaded image to clean JPEG before saving to Cloudinary.
+        This avoids Cloudinary 'Invalid image file' for strange mobile/browser uploads.
+        If allow_pdf=True, PDFs are allowed unchanged.
+        """
+        if not uploaded_file:
+            return None
+
+        original_name = getattr(uploaded_file, "name", "upload")
+        ext = os.path.splitext(original_name)[1].lower()
+        content_type = (getattr(uploaded_file, "content_type", "") or "").lower()
+
+        # allow PDF only for selected fields
+        if allow_pdf and (ext == ".pdf" or content_type == "application/pdf"):
+            try:
+                uploaded_file.seek(0)
+            except Exception:
+                pass
+            return uploaded_file
+
+        # For image fields, normalize to JPEG
+        try:
+            try:
+                uploaded_file.seek(0)
+            except Exception:
+                pass
+
+            img = Image.open(uploaded_file)
+            img.load()
+
+            # normalize color modes
+            if img.mode not in ("RGB",):
+                img = img.convert("RGB")
+
+            output = io.BytesIO()
+            img.save(output, format="JPEG", quality=88, optimize=True)
+            output.seek(0)
+
+            base = os.path.splitext(os.path.basename(original_name))[0] or "upload"
+            return ContentFile(output.read(), name=f"{base}.jpg")
+
+        except Exception:
+            raise ValueError(
+                f"{label} is not a valid supported image. "
+                f"Please upload a clear JPG, JPEG, PNG, or WEBP file."
+            )
+
+    def save_doc(doc_type, f, *, label, allow_pdf=False):
+        if not f:
+            return
+
+        cleaned_file = normalize_image_upload(f, label=label, allow_pdf=allow_pdf)
+
+        KYCDocument.objects.update_or_create(
+            kyc=kyc,
+            doc_type=doc_type,
+            defaults={"file": cleaned_file},
+        )
 
     if request.method == "POST":
         profile_form = KYCProfileForm(request.POST, instance=kyc)
         upload_form = KYCUploadForm(request.POST, request.FILES)
 
         if profile_form.is_valid() and upload_form.is_valid():
-            profile_form.save()
+            try:
+                profile_form.save()
 
-            def save_doc(doc_type, f):
-                if not f:
-                    return
-                KYCDocument.objects.update_or_create(
-                    kyc=kyc,
-                    doc_type=doc_type,
-                    defaults={"file": f},
+                save_doc(
+                    "ID_FRONT",
+                    upload_form.cleaned_data["id_front"],
+                    label="ID Front",
+                    allow_pdf=False,
+                )
+                save_doc(
+                    "ID_BACK",
+                    upload_form.cleaned_data.get("id_back"),
+                    label="ID Back",
+                    allow_pdf=False,
+                )
+                save_doc(
+                    "SELFIE",
+                    upload_form.cleaned_data["selfie"],
+                    label="Selfie",
+                    allow_pdf=False,
+                )
+                save_doc(
+                    "ADDRESS_PROOF",
+                    upload_form.cleaned_data.get("address_proof"),
+                    label="Proof of Address",
+                    allow_pdf=True,
                 )
 
-            save_doc("ID_FRONT", upload_form.cleaned_data["id_front"])
-            save_doc("ID_BACK", upload_form.cleaned_data.get("id_back"))
-            save_doc("SELFIE", upload_form.cleaned_data["selfie"])
-            save_doc("ADDRESS_PROOF", upload_form.cleaned_data.get("address_proof"))
+                kyc.mark_submitted()
+                messages.success(request, "KYC submitted successfully. Pending admin review.")
+                return redirect("profile")
 
-            kyc.mark_submitted()
-            messages.success(request, "KYC submitted successfully. Pending admin review.")
-            return redirect("profile")
+            except ValueError as e:
+                messages.error(request, str(e))
 
-        messages.error(request, "Please fix the errors and try again.")
+            except CloudinaryBadRequest as e:
+                messages.error(
+                    request,
+                    f"Upload failed: {e}. Please upload JPG/JPEG/PNG/WEBP images "
+                    f"(and PDF only for address proof)."
+                )
+
+            except Exception as e:
+                messages.error(request, f"KYC upload failed. Please try again. ({e})")
+
+        else:
+            messages.error(request, "Please fix the errors and try again.")
     else:
         profile_form = KYCProfileForm(instance=kyc)
         upload_form = KYCUploadForm()
