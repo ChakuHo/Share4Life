@@ -94,11 +94,28 @@ def home(request):
       1) Crowdfunding (APPROVED + not expired)
       2) Blood campaign (if BloodCampaign model exists and has recognizable status fields)
     """
-    all_requests = (
+
+    # ---- TIME CUTOFF (same as public feed) ----
+    max_days = int(getattr(settings, "S4L_PUBLIC_FEED_MAX_DAYS", 7))
+    cutoff = timezone.now() - timedelta(days=max_days)
+
+    # ---- BASE: only truly active, non-rejected, recent requests ----
+    active_base = (
         PublicBloodRequest.objects
-        .filter(is_active=True)
+        .filter(
+            is_active=True,
+            status__in=["OPEN", "IN_PROGRESS"],
+            created_at__gte=cutoff,
+        )
+        .exclude(verification_status__in=["REJECTED", "UNVERIFIED"])
         .order_by("-is_emergency", "-created_at")
     )
+
+    # Urgent ticker: ONLY emergency requests
+    urgent_requests = active_base.filter(is_emergency=True)[:5]
+
+    # Active emergencies grid: all active (emergencies sorted first)
+    recent_requests = active_base[:4]
 
     featured_campaign = Campaign.objects.filter(
         is_featured=True,
@@ -118,7 +135,6 @@ def home(request):
     )
 
     if ongoing_cf:
-        # Use raised_total() for accurate amount 
         raised = ongoing_cf.raised_total()
         target = ongoing_cf.target_amount
         pct = ongoing_cf.get_percentage()
@@ -141,10 +157,10 @@ def home(request):
     if not home_popup:
         BloodCampaign = None
         try:
-            from hospitals.models import BloodCampaign as BloodCampaign  # if your command is in hospitals
+            from hospitals.models import BloodCampaign as BloodCampaign
         except Exception:
             try:
-                from blood.models import BloodCampaign as BloodCampaign  # if you put it in blood
+                from blood.models import BloodCampaign as BloodCampaign
             except Exception:
                 BloodCampaign = None
 
@@ -155,7 +171,6 @@ def home(request):
                 except (FieldError, Exception):
                     return None
 
-            # Try common statuses without breaking if field differs
             bc = (
                 safe_first({"status": "ONGOING"}, "-id")
                 or safe_first({"status": "ACTIVE"}, "-id")
@@ -187,10 +202,10 @@ def home(request):
                 }
 
     context = {
-        "urgent_requests": all_requests[:5],
-        "recent_requests": all_requests[:4],
+        "urgent_requests": urgent_requests,
+        "recent_requests": recent_requests,
         "featured_campaign": featured_campaign,
-        "home_popup": home_popup, 
+        "home_popup": home_popup,
     }
     return render(request, "core/home.html", context)
 

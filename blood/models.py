@@ -20,6 +20,7 @@ class PublicBloodRequest(models.Model):
         ("IN_PROGRESS", "In Progress"),
         ("FULFILLED", "Fulfilled"),
         ("CANCELLED", "Cancelled"),
+        ("EXPIRED", "Expired"), 
     ]
 
     BLOOD_GROUPS = [

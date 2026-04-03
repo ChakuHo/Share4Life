@@ -14,6 +14,8 @@
 {% url 'recipient_request' as recipient_request_url %}
 {% url 'blood_campaigns' as blood_campaigns_url %}
 {% url 'institutions_home' as institutions_home_url %}
+{% url 'institutions_directory' as institutions_directory_url %}
+{% url 'public_donor_directory' as public_donor_directory_url %}
 
 {% url 'campaign_list' as campaign_list_url %}
 {% if featured_campaign %}
@@ -151,11 +153,12 @@
 
     <marquee behavior="scroll" direction="left" scrollamount="6">
       {% for r in urgent_requests %}
-        <span class="mr-5">
+        <a href="{{ r.get_absolute_url }}" class="text-white text-decoration-none mr-5">
           <i class="fa fa-tint"></i> {{ r.blood_group }} needed
           {% if r.hospital_name %} at {{ r.hospital_name }}{% endif %}
           {% if r.location_city %} ({{ r.location_city }}){% endif %}
-        </span>
+          — {{ r.units_needed }} unit{{ r.units_needed|pluralize }}
+        </a>
       {% empty %}
         <span class="mr-5"><i class="fa fa-check-circle"></i> No urgent requests right now.</span>
       {% endfor %}
@@ -163,7 +166,7 @@
   </div>
 </div>
 
-<!-- ========================= 3. FEATURES ========================= -->
+<!-- ========================= 3. HOW YOU CAN HELP (6 cards) ========================= -->
 <section class="section-features padding-y bg-light">
   <div class="container">
     <div class="text-center mb-5">
@@ -171,6 +174,7 @@
       <p class="text-muted">Choose a category to start making an impact</p>
     </div>
 
+    <!-- Row 1: Blood, Institutions, Crowdfunding -->
     <div class="row">
       <div class="col-md-4">
         <div class="card card-hover border-0 shadow-sm mb-4">
@@ -195,7 +199,7 @@
                  style="width: 70px; height: 70px; font-size: 28px; background-color: #e8f0fe;">
               <i class="fa fa-file-medical"></i>
             </div>
-            <h5 class="font-weight-bold">Institutions</h5>
+            <h5 class="font-weight-bold">Institutions Portal</h5>
             <p class="text-muted">Hospitals/NGOs can verify requests, donations, and create camps.</p>
             <a href="{{ institutions_home_url|default:'#' }}" class="btn btn-outline-primary btn-sm rounded-pill px-4">
               Open Portal
@@ -219,8 +223,65 @@
           </div>
         </div>
       </div>
-
     </div>
+
+    <!-- Row 2: Donor Directory, Institutions Directory, Emergency Profiles -->
+    <div class="row">
+      <div class="col-md-4">
+        <div class="card card-hover border-0 shadow-sm mb-4">
+          <div class="card-body text-center p-4">
+            <div class="icon-box mb-3 mx-auto rounded-circle d-flex align-items-center justify-content-center"
+                 style="width: 70px; height: 70px; font-size: 28px; background-color: #eef2ff; color: #0a2558;">
+              <i class="fa fa-users"></i>
+            </div>
+            <h5 class="font-weight-bold">Donor Directory</h5>
+            <p class="text-muted">Find eligible, KYC-verified donors by blood group and city.</p>
+            <a href="{{ public_donor_directory_url|default:'#' }}" class="btn btn-outline-primary btn-sm rounded-pill px-4">
+              Browse Donors
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card card-hover border-0 shadow-sm mb-4">
+          <div class="card-body text-center p-4">
+            <div class="icon-box mb-3 mx-auto rounded-circle d-flex align-items-center justify-content-center"
+                 style="width: 70px; height: 70px; font-size: 28px; background-color: #f0f4f8; color: #6c757d;">
+              <i class="fa fa-hospital"></i>
+            </div>
+            <h5 class="font-weight-bold">Institutions Directory</h5>
+            <p class="text-muted">Search verified hospitals, blood banks, and NGOs near you.</p>
+            <a href="{{ institutions_directory_url|default:'#' }}" class="btn btn-outline-secondary btn-sm rounded-pill px-4">
+              Find Institutions
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card card-hover border-0 shadow-sm mb-4">
+          <div class="card-body text-center p-4">
+            <div class="icon-box mb-3 mx-auto rounded-circle d-flex align-items-center justify-content-center"
+                 style="width: 70px; height: 70px; font-size: 28px; background-color: #fff8e1; color: #e67e22;">
+              <i class="fa fa-exclamation-triangle"></i>
+            </div>
+            <h5 class="font-weight-bold">Emergency Profiles</h5>
+            <p class="text-muted">Save family members' medical info for quick access in emergencies.</p>
+            {% if request.user.is_authenticated %}
+              <a href="{% url 'emergency_profiles_list' %}" class="btn btn-outline-warning btn-sm rounded-pill px-4">
+                My Profiles
+              </a>
+            {% else %}
+              <a href="{{ login_url|default:'#' }}" class="btn btn-outline-warning btn-sm rounded-pill px-4">
+                Login to Access
+              </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </section>
 
@@ -228,7 +289,9 @@
 <section class="section-requests padding-y">
   <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h3 class="font-weight-bold" style="color: #0A2558;">Active Emergencies</h3>
+      <h3 class="font-weight-bold" style="color: #0A2558;">
+        <i class="fa fa-heartbeat text-danger mr-2"></i>Active Blood Requests
+      </h3>
       <a href="{{ blood_feed_url|default:'#' }}" class="text-danger font-weight-bold">
         View All <i class="fa fa-arrow-right"></i>
       </a>
@@ -240,16 +303,33 @@
           <div class="card mb-3 border border-light shadow-sm h-100">
             <div class="card-body">
               <div class="d-flex justify-content-between mb-2">
-                <span class="badge badge-danger">Urgent</span>
-                <small class="text-muted"><i class="fa fa-clock"></i> {{ r.created_at|timesince }} ago</small>
+                {% if r.is_emergency %}
+                  <span class="badge badge-danger"><i class="fa fa-bolt mr-1"></i>Emergency</span>
+                {% else %}
+                  <span class="badge badge-primary">Active</span>
+                {% endif %}
+
+                {% if r.status == "IN_PROGRESS" %}
+                  <span class="badge badge-warning">In Progress</span>
+                {% endif %}
               </div>
 
-              <div class="d-flex align-items-center mb-3">
+              <div class="d-flex align-items-center mb-2">
                 <div class="display-4 font-weight-bold text-danger mr-3">{{ r.blood_group }}</div>
                 <div style="line-height: 1.2;">
                   <strong>{{ r.patient_name|default:"Patient"|title }}</strong><br>
                   <small class="text-muted">{{ r.hospital_name|default:r.location_city|default:"Hospital"|title }}</small>
                 </div>
+              </div>
+
+              <div class="text-muted small mb-2">
+                <i class="fa fa-map-marker-alt mr-1"></i> {{ r.location_city|default:"—" }}
+                &middot;
+                <i class="fa fa-tint mr-1"></i> {{ r.units_needed }} unit{{ r.units_needed|pluralize }}
+              </div>
+
+              <div class="text-muted small mb-3">
+                <i class="fa fa-clock mr-1"></i> {{ r.created_at|timesince }} ago
               </div>
 
               <a href="{{ r.get_absolute_url }}" class="btn btn-block btn-primary btn-sm">
@@ -260,7 +340,10 @@
         </div>
       {% empty %}
         <div class="col-12">
-          <div class="alert alert-secondary">No active emergencies right now.</div>
+          <div class="alert alert-secondary text-center">
+            <i class="fa fa-check-circle mr-2"></i>No active blood requests right now. Check back later or
+            <a href="{{ blood_feed_url|default:'#' }}" class="font-weight-bold">browse the full feed</a>.
+          </div>
         </div>
       {% endfor %}
     </div>
@@ -413,9 +496,8 @@
       var id = "{{ home_popup.id|escapejs }}";
       var key = "s4l_home_popup_seen:" + kind + ":" + id;
 
-      // sessionStorage => not on refresh, yes after tab/browser close
       if (!sessionStorage.getItem(key)) {
-        sessionStorage.setItem(key, "1"); // set immediately (prevents repeat even if user clicks CTA)
+        sessionStorage.setItem(key, "1");
 
         if (window.jQuery) {
           window.jQuery("#s4lHomePopup").modal("show");
@@ -428,14 +510,14 @@
 {% endif %}
 
 <style>
-  .s4l-hero{
+  .s4l-hero {
     position: relative;
     min-height: 520px;
     display: flex;
     align-items: center;
     overflow: hidden;
   }
-  .s4l-hero-bg{
+  .s4l-hero-bg {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -443,7 +525,7 @@
     object-fit: cover;
     z-index: 0;
   }
-  .s4l-hero-overlay{
+  .s4l-hero-overlay {
     position: absolute;
     inset: 0;
     background: linear-gradient(rgba(10, 37, 88, 0.90), rgba(10, 37, 88, 0.80));
@@ -453,7 +535,6 @@
   .card-hover { transition: transform 0.3s ease, box-shadow 0.3s ease; }
   .card-hover:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important; }
   .custom-select-lg { font-size: 16px; color: #495057; }
-  .btn-primary { background: linear-gradient(135deg, #0a2558 0%, #061838 100%); border: none; }
 </style>
 
 <script>
