@@ -182,6 +182,14 @@ CHANNEL_LAYERS = {
     }
 }
 
+# Blood matching mode:
+# True  => EXACT match only (A+ request -> only A+ donors)
+# False => COMPATIBILITY match (A+ request -> O-, O+, A-, A+ donors)
+S4L_BLOOD_STRICT_MATCH = True
+
+# In strict mode, allow O- donors to respond/receive notifications for ALL requests (universal donor).
+S4L_BLOOD_STRICT_ALLOW_O_NEG = True
+
 # Guest emergency anti-spam limits
 S4L_GUEST_EMERGENCY_MIN_INTERVAL_SECONDS = 600   # 10 minutes per phone
 S4L_GUEST_EMERGENCY_MAX_PER_HOUR_IP = 5          # per IP per hour

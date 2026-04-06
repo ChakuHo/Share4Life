@@ -15,7 +15,7 @@
       </a>
     </div>
 
-    <!-- Request summary -->
+    <!-- ====== REQUEST SUMMARY ====== -->
     <div class="card s4l-card mb-4">
       <div class="card-body">
         <div class="d-flex flex-wrap justify-content-between">
@@ -24,7 +24,7 @@
 
             <div class="text-muted small">
               Blood: <strong>{{ req.blood_group }}</strong> • Units: <strong>{{ req.units_needed }}</strong><br>
-              Hospital/Institution: <strong>{{ req.hospital_name|title }}</strong> • City: <strong>{{ req.location_city|title }}</strong><br>
+              Hospital: <strong>{{ req.hospital_name|title }}</strong> • City: <strong>{{ req.location_city|title }}</strong><br>
               Contact: <strong>{{ req.contact_phone }}</strong>
             </div>
 
@@ -34,17 +34,13 @@
                  href="https://www.google.com/maps/search/?api=1&query={{ req.hospital_name|urlencode }}%20{{ req.location_city|urlencode }}">
                 <i class="fa fa-map-marker-alt"></i> Open in Maps
               </a>
-
               <a class="btn btn-outline-secondary btn-sm mr-2 mb-2"
                  href="{% url 'institutions_directory' %}?city={{ req.location_city|urlencode }}">
                 <i class="fa fa-hospital"></i> Nearby Institutions
               </a>
-
-              <a class="btn btn-outline-secondary btn-sm mr-2 mb-2"
-                 href="tel:{{ req.contact_phone }}">
+              <a class="btn btn-outline-secondary btn-sm mr-2 mb-2" href="tel:{{ req.contact_phone }}">
                 <i class="fa fa-phone"></i> Call
               </a>
-
               {% if req.proof_document and can_view_proof %}
                 <a class="btn btn-outline-danger btn-sm mb-2" target="_blank" rel="noopener noreferrer" href="{{ proof_url }}">
                   <i class="fa fa-file-medical"></i> View Proof
@@ -57,7 +53,6 @@
             <span class="s4l-pill">
               <i class="fa fa-flag"></i> {{ req.get_status_display }}
             </span>
-
             <div class="mt-2">
               {% if req.verification_status == "VERIFIED" %}
                 <span class="s4l-pill"><i class="fa fa-check-circle text-success"></i> Verified</span>
@@ -69,7 +64,6 @@
                 <span class="s4l-pill"><i class="fa fa-info-circle"></i> {{ req.verification_status|title }}</span>
               {% endif %}
             </div>
-
             <div class="text-muted small mt-2">
               Active: <strong>{% if req.is_active %}Yes{% else %}No{% endif %}</strong>
             </div>
@@ -88,34 +82,255 @@
           <div class="alert alert-secondary mb-0">
             This request is closed ({{ req.get_status_display }}).
           </div>
+
         {% else %}
 
-          {% if user.is_authenticated and req.created_by_id == user.id %}
+          {# ====== DONOR VIEWING: Primary alert ====== #}
+          {% if is_primary_donor %}
+            <div class="alert s4l-alert-primary-donor">
+              <div class="d-flex align-items-start">
+                <i class="fa fa-star fa-lg mt-1 mr-3"></i>
+                <div>
+                  <strong>You are the Primary Donor for this request.</strong><br>
+                  <span class="small">Please coordinate with the patient and proceed to the hospital. Once you donate, mark the donation as completed below.</span>
+                </div>
+              </div>
+            </div>
+          {% endif %}
+
+          {# ====== DONOR VIEWING: Standby alert ====== #}
+          {% if is_standby_donor %}
+            <div class="alert s4l-alert-standby-donor">
+              <div class="d-flex align-items-start">
+                <i class="fa fa-clock fa-lg mt-1 mr-3"></i>
+                <div>
+                  <strong>You are on Standby — thank you for your willingness!</strong><br>
+                  <span class="small">
+                    Another donor is currently the primary donor and is coordinating with the patient.
+                    If they don't show up, the requester will mark them as no-show and you will be
+                    <strong>automatically promoted to primary</strong> and notified immediately.
+                    We truly appreciate you standing by to help.
+                  </span>
+                </div>
+              </div>
+            </div>
+          {% endif %}
+
+          {# ====== REQUEST OWNER SECTION ====== #}
+          {% if is_request_owner %}
             <div class="alert alert-info">
-              You created this request. Please wait for other donors to respond.
+              <i class="fa fa-info-circle mr-2"></i>
+              You created this request. Monitor donor responses below.
+              {% if accepted_count > 0 %}
+                <strong>{{ accepted_count }} donor{{ accepted_count|pluralize }} accepted.</strong>
+              {% endif %}
             </div>
 
             <div class="d-flex flex-wrap">
               <a href="{{ edit_url|default:'#' }}" class="btn btn-outline-secondary mr-2 mb-2">
-                Edit Request
+                <i class="fa fa-edit mr-1"></i> Edit Request
               </a>
-
-              <form method="post" action="{{ cancel_url|default:'#' }}" class="mb-2">
+              <form method="post" action="{{ cancel_url|default:'#' }}" class="mb-2"
+                    onsubmit="return confirm('Are you sure you want to cancel this request?');">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-outline-danger">
-                  Cancel Request
+                  <i class="fa fa-times mr-1"></i> Cancel Request
                 </button>
               </form>
             </div>
 
-            {# Helpful note about primary/standby (new) #}
+            {# ---- DONOR STATUS OVERVIEW (for requester) ---- #}
+            {% if accepted_count > 0 %}
+              <div class="card mt-3 s4l-donor-overview">
+                <div class="card-body">
+                  <h6 class="mb-3" style="font-weight:800;">
+                    <i class="fa fa-users text-primary mr-2"></i> Donor Status Overview
+                    <span class="badge badge-primary ml-2">{{ accepted_count }} accepted</span>
+                  </h6>
+
+                  {# Primary Donor Card #}
+                  {% if primary_response %}
+                    <div class="s4l-donor-card s4l-donor-card-primary mb-3">
+                      <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                          <span class="s4l-donor-role-badge s4l-role-primary">
+                            <i class="fa fa-star mr-1"></i> PRIMARY DONOR
+                          </span>
+                          <div class="mt-2">
+                            <strong class="s4l-donor-name">
+                              {{ primary_response.donor.get_full_name|default:primary_response.donor.username|title }}
+                            </strong>
+                            <span class="text-muted small ml-1">@{{ primary_response.donor.username }}</span>
+                          </div>
+                          <div class="text-muted small mt-1">
+                            <i class="fa fa-phone mr-1"></i>
+                            {% if primary_response.donor.phone_number %}
+                              <a href="tel:{{ primary_response.donor.phone_number }}">{{ primary_response.donor.phone_number }}</a>
+                            {% else %}
+                              Not provided
+                            {% endif %}
+                            &middot;
+                            <i class="fa fa-map-marker-alt mr-1"></i>
+                            {{ primary_response.donor.profile.city|default:"—"|title }}
+                            &middot;
+                            <i class="fa fa-tint mr-1"></i>
+                            {{ primary_response.donor.profile.blood_group|default:"—" }}
+                          </div>
+                          <div class="text-muted small mt-1">
+                            Accepted: {{ primary_response.accepted_at|date:"Y-m-d H:i" }}
+                          </div>
+                          {% if primary_response.message %}
+                            <div class="small mt-1"><em>"{{ primary_response.message }}"</em></div>
+                          {% endif %}
+                        </div>
+                        <div class="text-right">
+                          {% if req.created_by_id %}
+                            <a class="btn btn-sm btn-outline-primary mb-1"
+                               href="{% url 'chat_start_blood' req.id primary_response.donor.id %}">
+                              <i class="fa fa-comments"></i> Chat
+                            </a>
+                          {% endif %}
+                          {% if primary_response.donor.phone_number %}
+                            <a class="btn btn-sm btn-outline-secondary mb-1"
+                               href="tel:{{ primary_response.donor.phone_number }}">
+                              <i class="fa fa-phone"></i> Call
+                            </a>
+                          {% endif %}
+
+                          {# No-show button #}
+                          <form method="post" action="{% url 'blood_remove_primary_donor' req.id %}"
+                                class="mt-2"
+                                onsubmit="return confirm('Mark this donor as no-show? The next standby donor will be promoted to primary.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                              <i class="fa fa-user-times mr-1"></i> No Show
+                            </button>
+                          </form>
+                        </div>
+                      </div>
+                    </div>
+                  {% endif %}
+
+                  {# Standby Donors #}
+                  {% if standby_responses %}
+                    <div class="text-muted small mb-2" style="font-weight:700;">
+                      <i class="fa fa-layer-group mr-1"></i>
+                      STANDBY DONORS ({{ standby_responses|length }})
+                      — will be promoted if the primary donor doesn't show up
+                    </div>
+
+                    {% for sr in standby_responses %}
+                      <div class="s4l-donor-card s4l-donor-card-standby mb-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                          <div>
+                            <span class="s4l-donor-role-badge s4l-role-standby">
+                              <i class="fa fa-clock mr-1"></i> STANDBY #{{ forloop.counter }}
+                            </span>
+                            <div class="mt-1">
+                              <strong>{{ sr.donor.get_full_name|default:sr.donor.username|title }}</strong>
+                              <span class="text-muted small ml-1">@{{ sr.donor.username }}</span>
+                            </div>
+                            <div class="text-muted small mt-1">
+                              <i class="fa fa-phone mr-1"></i>
+                              {% if sr.donor.phone_number %}
+                                <a href="tel:{{ sr.donor.phone_number }}">{{ sr.donor.phone_number }}</a>
+                              {% else %}
+                                Not provided
+                              {% endif %}
+                              &middot;
+                              <i class="fa fa-map-marker-alt mr-1"></i>
+                              {{ sr.donor.profile.city|default:"—"|title }}
+                              &middot;
+                              <i class="fa fa-tint mr-1"></i>
+                              {{ sr.donor.profile.blood_group|default:"—" }}
+                            </div>
+                            {% if sr.message %}
+                              <div class="small mt-1"><em>"{{ sr.message }}"</em></div>
+                            {% endif %}
+                          </div>
+                          <div class="text-right">
+                            {% if req.created_by_id %}
+                              <a class="btn btn-sm btn-outline-primary"
+                                 href="{% url 'chat_start_blood' req.id sr.donor.id %}">
+                                <i class="fa fa-comments"></i> Chat
+                              </a>
+                            {% endif %}
+                          </div>
+                        </div>
+                      </div>
+                    {% endfor %}
+                  {% endif %}
+
+                  {% if not primary_response and not standby_responses %}
+                    <div class="text-muted small">No accepted donors yet.</div>
+                  {% endif %}
+                </div>
+              </div>
+            {% endif %}
+
+            {# ---- Receiver confirm donation ---- #}
+            {% if receiver_can_confirm %}
+              <div class="card mt-3" style="border-radius:14px; border-left: 4px solid #e63946;">
+                <div class="card-body">
+                  <h6 class="mb-2" style="font-weight:800;">
+                    <i class="fa fa-check-double text-danger mr-2"></i> Received Blood? Confirm Donation
+                  </h6>
+                  <p class="text-muted small mb-3">
+                    If you have received blood from a donor, confirm it here. Select the donor
+                    and the institution will verify it afterwards. This helps keep records accurate and
+                    rewards the donor.
+                  </p>
+
+                  {% for dr in donor_responses %}
+                    {% if dr.status == "ACCEPTED" %}
+                      <div class="border rounded p-3 mb-2 bg-light">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <div>
+                            <strong>{{ dr.donor.get_full_name|default:dr.donor.username|title }}</strong>
+                            {% if dr.is_primary %}
+                              <span class="badge badge-success ml-1">Primary</span>
+                            {% else %}
+                              <span class="badge badge-secondary ml-1">Standby</span>
+                            {% endif %}
+                            <div class="text-muted small">
+                              {{ dr.donor.profile.blood_group|default:"—" }} • {{ dr.donor.profile.city|default:"—"|title }}
+                            </div>
+                          </div>
+
+                          {% if dr.donor.id in donation_donor_ids %}
+                            <span class="text-success font-weight-bold small">
+                              <i class="fa fa-check-circle mr-1"></i> Already recorded
+                            </span>
+                          {% else %}
+                            {# CHANGED: POST to receiver_confirm_donation (not donation_create) #}
+                            <form method="post" action="{% url 'receiver_confirm_donation' req.id %}" class="m-0">
+                              {% csrf_token %}
+                              <input type="hidden" name="donor_id" value="{{ dr.donor.id }}">
+                              <button type="submit" class="btn btn-sm btn-danger"
+                                      onclick="return confirm('Confirm donation from this donor? This will create a donation record awaiting verification.');">
+                                <i class="fa fa-check mr-1"></i> Confirm Donation
+                              </button>
+                            </form>
+                          {% endif %}
+                        </div>
+                      </div>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+
+            {# ---- Primary & Standby explanation ---- #}
             <div class="alert alert-light mt-3" style="border-radius:12px;">
-              <strong>Primary & Standby offers:</strong>
-              The first accepted donor becomes <strong>Primary</strong>. Other accepted donors are saved as <strong>Standby</strong>
-              in case the primary donor cannot proceed.
+              <i class="fa fa-info-circle text-primary mr-2"></i>
+              <strong>How Primary & Standby works:</strong>
+              The first donor to accept becomes the <strong>Primary Donor</strong> and should coordinate directly with you.
+              Additional donors who accept are saved as <strong>Standby</strong>. If the primary donor
+              doesn't show up, click <strong>"No Show"</strong> to remove them — the next standby donor
+              is automatically promoted and notified.
             </div>
 
-            {# ---------------- EMERGENCY NETWORK ---------------- #}
+            {# ---- EMERGENCY NETWORK ---- #}
             <div class="card mt-3" style="border-radius:14px;">
               <div class="card-body">
 
@@ -148,21 +363,17 @@
                 {% if sos_share_text %}
                   <div class="mt-3 d-flex flex-wrap" style="gap:.5rem;">
                     {% if whatsapp_share_url %}
-                      <a class="btn btn-outline-success"
-                         target="_blank" rel="noopener noreferrer"
+                      <a class="btn btn-outline-success" target="_blank" rel="noopener noreferrer"
                          href="{{ whatsapp_share_url }}">
                         <i class="fab fa-whatsapp"></i> Share via WhatsApp
                       </a>
                     {% endif %}
-
                     {% if whatsapp_emergency_url %}
-                      <a class="btn btn-success"
-                         target="_blank" rel="noopener noreferrer"
+                      <a class="btn btn-success" target="_blank" rel="noopener noreferrer"
                          href="{{ whatsapp_emergency_url }}">
                         <i class="fab fa-whatsapp"></i> WhatsApp Emergency Contact
                       </a>
                     {% endif %}
-
                     <button type="button" class="btn btn-outline-secondary" id="copy-sos-btn">
                       <i class="fa fa-copy"></i> Copy SOS Message
                     </button>
@@ -175,7 +386,6 @@
                     const btn = document.getElementById("copy-sos-btn");
                     const ta  = document.getElementById("sosText");
                     if (!btn || !ta) return;
-
                     async function copyText(text) {
                       if (navigator.clipboard && window.isSecureContext) {
                         return navigator.clipboard.writeText(text);
@@ -193,7 +403,6 @@
                       document.body.removeChild(tmp);
                       if (!ok) throw new Error("Copy failed");
                     }
-
                     btn.addEventListener("click", async function(){
                       try {
                         await copyText(ta.value);
@@ -222,14 +431,13 @@
                       </div>
                     {% else %}
                       <div class="text-muted small">
-                        No emergency contact set. Add it in <a href="{% url 'profile_edit' %}">Edit Profile</a>.
+                        No emergency contact set. <a href="{% url 'profile_edit' %}">Edit Profile</a>.
                       </div>
                     {% endif %}
                   </div>
 
                   <div class="col-md-6 mb-3">
                     <div class="text-muted small">Emergency Profiles</div>
-
                     {% if emergency_profiles %}
                       {% for fm in emergency_profiles %}
                         <div class="border rounded p-2 mb-2 bg-light">
@@ -243,19 +451,17 @@
                               </div>
                             </div>
                             {% if fm.phone_number %}
-                              <a class="btn btn-sm btn-outline-secondary" href="tel:{{ fm.phone_number }}">
-                                Call
-                              </a>
+                              <a class="btn btn-sm btn-outline-secondary" href="tel:{{ fm.phone_number }}">Call</a>
                             {% endif %}
                           </div>
                         </div>
                       {% endfor %}
                       <div class="text-muted small">
-                        Manage emergency profiles in <a href="{% url 'emergency_profiles_list' %}">Emergency Profiles</a>.
+                        Manage in <a href="{% url 'emergency_profiles_list' %}">Emergency Profiles</a>.
                       </div>
                     {% else %}
                       <div class="text-muted small">
-                        No emergency profiles added. Add one in <a href="{% url 'family_add' %}">Add Family</a> and enable “Emergency Profile”.
+                        No emergency profiles. <a href="{% url 'family_add' %}">Add Family</a> and enable "Emergency Profile".
                       </div>
                     {% endif %}
                   </div>
@@ -263,42 +469,73 @@
 
               </div>
             </div>
-            {# ---------------- END EMERGENCY NETWORK ---------------- #}
 
+          {# ====== NON-OWNER ACTIONS (donors, guests) ====== #}
           {% else %}
             <div class="d-flex flex-wrap align-items-center">
 
               {% if not user.is_authenticated %}
                 <a href="{{ guest_url|default:'#' }}" class="btn btn-outline-danger mr-2 mb-2">
-                  Help as Guest
+                  <i class="fa fa-hand-holding-heart mr-1"></i> Help as Guest
                 </a>
               {% endif %}
 
               {% if user.is_authenticated and user.is_donor %}
                 {% if eligible_info and not eligible_info.eligible %}
                   <button class="btn btn-secondary mr-2 mb-2" disabled>
-                    Not eligible until {{ eligible_info.next_date|date:"Y-m-d" }}
+                    <i class="fa fa-ban mr-1"></i> Not eligible until {{ eligible_info.next_date|date:"Y-m-d" }}
                   </button>
+
                 {% else %}
-                  {% if can_respond %}
-                    <a href="{{ donor_resp_url|default:'#' }}" class="btn btn-primary mr-2 mb-2">
-                      Respond as Donor
-                    </a>
-                  {% endif %}
-                  {% if can_mark_donation %}
-                    <a href="{{ donation_create_url|default:'#' }}" class="btn btn-danger mb-2">
-                      Mark Donation Completed
-                    </a>
+                  {% if my_response %}
+                    {% if my_response.status == "ACCEPTED" %}
+                      {# Already accepted — show mark donation if allowed, no re-respond #}
+                      {% if can_mark_donation %}
+                        <a href="{{ donation_create_url|default:'#' }}" class="btn btn-danger mr-2 mb-2">
+                          <i class="fa fa-check-double mr-1"></i> Mark Donation Completed
+                        </a>
+                      {% endif %}
+
+                    {% elif my_response.status == "DECLINED" %}
+                      <span class="s4l-resp-inline s4l-resp-inline-declined mr-2 mb-2">
+                        <i class="fa fa-times-circle mr-1"></i> You declined this request
+                      </span>
+
+                    {% elif my_response.status == "DELAYED" %}
+                      <span class="s4l-resp-inline s4l-resp-inline-delayed mr-2 mb-2">
+                        <i class="fa fa-clock mr-1"></i> You delayed your response
+                      </span>
+                      {% if can_respond %}
+                        <a href="{{ donor_resp_url|default:'#' }}" class="btn btn-outline-primary mr-2 mb-2">
+                          <i class="fa fa-redo mr-1"></i> Update Response
+                        </a>
+                      {% endif %}
+
+                    {% else %}
+                      {% if can_respond %}
+                        <a href="{{ donor_resp_url|default:'#' }}" class="btn btn-primary mr-2 mb-2">
+                          <i class="fa fa-hand-holding-heart mr-1"></i> Respond as Donor
+                        </a>
+                      {% endif %}
+                    {% endif %}
+
+                  {% else %}
+                    {# Never responded #}
+                    {% if can_respond %}
+                      <a href="{{ donor_resp_url|default:'#' }}" class="btn btn-primary mr-2 mb-2">
+                        <i class="fa fa-hand-holding-heart mr-1"></i> Respond as Donor
+                      </a>
+                    {% endif %}
                   {% endif %}
                 {% endif %}
               {% endif %}
             </div>
           {% endif %}
 
+          {# ====== INSTITUTION VERIFICATION ====== #}
           {% if org_can_verify %}
             <div class="mt-3 p-3 border rounded bg-light">
               <h6 class="mb-2"><i class="fa fa-shield-alt text-primary"></i> Institution Verification</h6>
-
               {% if req.verification_status != "VERIFIED" %}
                 <form method="post" action="{% url 'verify_request' req.id %}" class="d-inline-block mr-2 mb-2">
                   {% csrf_token %}
@@ -306,7 +543,6 @@
                     Approve Request
                   </button>
                 </form>
-
                 <form method="post" action="{% url 'verify_request' req.id %}" class="d-inline-block mb-2">
                   {% csrf_token %}
                   <div class="d-flex flex-wrap align-items-center">
@@ -327,6 +563,7 @@
       </div>
     </div>
 
+    <!-- ====== RESPONSES ROW ====== -->
     <div class="row">
 
       <!-- Guest Responses -->
@@ -336,7 +573,6 @@
             <h5 class="mb-3" style="font-weight:800;">
               <i class="fa fa-user-friends text-primary"></i> Guest Responses
             </h5>
-
             {% for gr in guest_responses %}
               <div class="border rounded p-3 mb-2">
                 <div class="d-flex justify-content-between">
@@ -367,14 +603,11 @@
             <h5 class="mb-3" style="font-weight:800;">
               <i class="fa fa-user-shield text-primary"></i> Registered Donor Responses
             </h5>
-
             {% for dr in donor_responses %}
-              <div class="border rounded p-3 mb-2">
+              <div class="border rounded p-3 mb-2 {% if dr.status == 'ACCEPTED' and dr.is_primary %}s4l-resp-primary-bg{% elif dr.status == 'ACCEPTED' %}s4l-resp-standby-bg{% endif %}">
                 <div class="d-flex justify-content-between">
                   <div>
-                    <strong>
-                      {{ dr.donor.get_full_name|default:dr.donor.username|title }}
-                    </strong>
+                    <strong>{{ dr.donor.get_full_name|default:dr.donor.username|title }}</strong>
                     <div class="text-muted small">@{{ dr.donor.username }}</div>
                   </div>
                   <small class="text-muted">
@@ -382,57 +615,59 @@
                   </small>
                 </div>
 
-                <div class="text-muted small mt-2">
-                  Status: <strong>{{ dr.get_status_display }}</strong>
-
+                <div class="mt-2">
                   {% if dr.status == "ACCEPTED" %}
-                    <div class="mt-2">
-                      {% if dr.is_primary %}
-                        <span class="badge badge-success">Primary Donor</span>
-                      {% else %}
-                        <span class="badge badge-secondary">Standby Donor</span>
-                      {% endif %}
-                    </div>
-
-                    {% if can_view_donor_contact %}
-                      <div class="mt-2">
-                        Phone:
-                        {% if dr.donor.phone_number %}
-                          <a href="tel:{{ dr.donor.phone_number }}"><strong>{{ dr.donor.phone_number }}</strong></a>
-                        {% else %}
-                          <strong>—</strong>
-                        {% endif %}
-                      </div>
-                      <div class="mt-1">
-                        City: <strong>{{ dr.donor.profile.city|default:"—"|title }}</strong>
-                      </div>
+                    {% if dr.is_primary %}
+                      <span class="badge badge-success"><i class="fa fa-star mr-1"></i> Primary Donor</span>
                     {% else %}
-                      <div class="mt-2 text-muted">
-                        Contact details are visible to the requester after acceptance.
-                      </div>
+                      <span class="badge badge-secondary"><i class="fa fa-clock mr-1"></i> Standby</span>
                     {% endif %}
-
-                    {% if req.created_by_id and user.is_authenticated %}
-                      {% if user.id == req.created_by_id or user.id == dr.donor.id %}
-                        <div class="mt-2">
-                          <a class="btn btn-sm btn-outline-primary"
-                             href="{% url 'chat_start_blood' req.id dr.donor.id %}">
-                            <i class="fa fa-comments"></i> Chat
-                          </a>
-                        </div>
-                      {% endif %}
-                    {% endif %}
-
+                  {% elif dr.status == "DECLINED" %}
+                    <span class="badge badge-danger">Declined</span>
+                  {% elif dr.status == "DELAYED" %}
+                    <span class="badge badge-warning">Delayed</span>
                   {% else %}
-                    <div class="mt-2 text-muted">
-                      Contact details will appear after the donor accepts.
-                    </div>
-                  {% endif %}
-
-                  {% if dr.message %}
-                    <div class="mt-2">{{ dr.message }}</div>
+                    <span class="badge badge-light">{{ dr.get_status_display }}</span>
                   {% endif %}
                 </div>
+
+                {% if dr.status == "ACCEPTED" %}
+                  {% if can_view_donor_contact %}
+                    <div class="text-muted small mt-2">
+                      <i class="fa fa-phone mr-1"></i>
+                      {% if dr.donor.phone_number %}
+                        <a href="tel:{{ dr.donor.phone_number }}">{{ dr.donor.phone_number }}</a>
+                      {% else %}
+                        Not provided
+                      {% endif %}
+                      &middot;
+                      <i class="fa fa-map-marker-alt mr-1"></i>
+                      {{ dr.donor.profile.city|default:"—"|title }}
+                      &middot;
+                      <i class="fa fa-tint mr-1"></i>
+                      {{ dr.donor.profile.blood_group|default:"—" }}
+                    </div>
+                  {% else %}
+                    <div class="text-muted small mt-2">Contact visible to the requester.</div>
+                  {% endif %}
+
+                  {% if req.created_by_id and user.is_authenticated %}
+                    {% if user.id == req.created_by_id or user.id == dr.donor.id %}
+                      <div class="mt-2">
+                        <a class="btn btn-sm btn-outline-primary"
+                           href="{% url 'chat_start_blood' req.id dr.donor.id %}">
+                          <i class="fa fa-comments"></i> Chat
+                        </a>
+                      </div>
+                    {% endif %}
+                  {% endif %}
+                {% else %}
+                  <div class="text-muted small mt-2">Contact details appear after acceptance.</div>
+                {% endif %}
+
+                {% if dr.message %}
+                  <div class="small mt-2 text-muted"><em>"{{ dr.message }}"</em></div>
+                {% endif %}
               </div>
             {% empty %}
               <div class="text-muted">No donor responses yet.</div>
@@ -443,13 +678,12 @@
 
     </div>
 
-    <!-- Donations -->
+    <!-- ====== DONATIONS ====== -->
     <div class="card s4l-card">
       <div class="card-body">
         <h5 class="mb-3" style="font-weight:800;">
           <i class="fa fa-history text-primary"></i> Donations Linked to This Request
         </h5>
-
         {% for d in donations %}
           <div class="border rounded p-3 mb-2">
             <div class="d-flex justify-content-between">
@@ -457,14 +691,24 @@
               <small class="text-muted">{{ d.donated_at|date:"Y-m-d H:i" }}</small>
             </div>
             <div class="text-muted small">
-              Status: <strong>{{ d.status }}</strong> • Units: {{ d.units }} • Hospital: {{ d.hospital_name|default:req.hospital_name|title }}
+              Status:
+              {% if d.status == "VERIFIED" %}
+                <span class="text-success font-weight-bold">✓ Verified</span>
+              {% elif d.status == "COMPLETED" %}
+                <span class="text-warning font-weight-bold">Awaiting Verification</span>
+              {% elif d.status == "REJECTED" %}
+                <span class="text-danger font-weight-bold">Rejected</span>
+              {% else %}
+                <strong>{{ d.status }}</strong>
+              {% endif %}
+              • Units: {{ d.units }}
+              • Hospital: {{ d.hospital_name|default:req.hospital_name|title }}
             </div>
-
             {% if org_can_verify and d.status == "COMPLETED" %}
               <form method="post" action="{% url 'org_verify_donation' d.id %}" class="mt-2">
                 {% csrf_token %}
                 <button class="btn btn-sm btn-success" type="submit">
-                  Verify Donation
+                  <i class="fa fa-check-circle mr-1"></i> Verify Donation
                 </button>
               </form>
             {% endif %}
@@ -496,6 +740,89 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+  }
+
+  .s4l-alert-primary-donor {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-left: 5px solid #28a745;
+    color: #155724;
+    border-radius: 12px;
+    padding: 16px 20px;
+  }
+  .s4l-alert-standby-donor {
+    background: #fff8e1;
+    border: 1px solid #ffeeba;
+    border-left: 5px solid #ffc107;
+    color: #856404;
+    border-radius: 12px;
+    padding: 16px 20px;
+  }
+
+  .s4l-donor-overview {
+    border-radius: 14px;
+    border: 1px solid rgba(0,0,0,0.08);
+  }
+  .s4l-donor-card {
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid rgba(0,0,0,0.08);
+  }
+  .s4l-donor-card-primary {
+    background: linear-gradient(135deg, #d4edda 0%, #f0fff4 100%);
+    border-color: #a3d9a5;
+  }
+  .s4l-donor-card-standby {
+    background: #f8f9fa;
+    border-color: #dee2e6;
+  }
+  .s4l-donor-role-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+  .s4l-role-primary {
+    background: #28a745;
+    color: #fff;
+  }
+  .s4l-role-standby {
+    background: #6c757d;
+    color: #fff;
+  }
+  .s4l-donor-name {
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .s4l-resp-primary-bg {
+    background: #f0fff4 !important;
+    border-color: #a3d9a5 !important;
+  }
+  .s4l-resp-standby-bg {
+    background: #fafafa !important;
+  }
+
+  .s4l-resp-inline {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .s4l-resp-inline-declined {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+  .s4l-resp-inline-delayed {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
   }
 </style>
 

@@ -18,7 +18,7 @@
     <div class="card s4l-card">
       <div class="card-body">
         <div class="table-responsive">
-          <table class="table mb-0 align-middle">
+          <table class="table mb-0 align-middle s4l-table">
             <thead>
               <tr class="text-muted">
                 <th style="min-width:140px;">Created</th>
@@ -28,7 +28,7 @@
                 <th style="min-width:180px;">Hospital</th>
                 <th>Verification</th>
                 <th>Status</th>
-                <th class="text-right" style="min-width:320px;"></th>
+                <th class="text-right text-end s4l-actions-col">Actions</th>
               </tr>
             </thead>
 
@@ -88,28 +88,38 @@
                     {% endif %}
                   </td>
 
-                  <td class="text-right">
-                    <a href="{{ r.get_absolute_url }}" class="btn btn-sm btn-primary">View</a>
+                  <td class="text-right text-end">
+                    <div class="s4l-actions">
+                      <a href="{{ r.get_absolute_url }}" class="btn btn-sm btn-primary">
+                        View
+                      </a>
 
-                    {% if r.is_active and r.status != "FULFILLED" and r.status != "CANCELLED" %}
-                      <a href="{{ edit_url|default:'#' }}" class="btn btn-sm btn-outline-secondary ml-2">Edit</a>
+                      {% if r.is_active and r.status != "FULFILLED" and r.status != "CANCELLED" %}
+                        <a href="{{ edit_url|default:'#' }}" class="btn btn-sm btn-outline-secondary">
+                          Edit
+                        </a>
 
-                      <form method="post" action="{{ cancel_url|default:'#' }}" class="d-inline-block ml-2"
-                            onsubmit="return confirm('Cancel this request?');">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-outline-danger">Cancel</button>
-                      </form>
-
-                      {% if not r.is_emergency %}
-                        <form method="post" action="{{ make_emergency_url }}" class="d-inline-block ml-2"
-                              onsubmit="return confirm('Upgrade to EMERGENCY? This will notify donors immediately and alert institutions in your city.');">
+                        <form method="post" action="{{ cancel_url|default:'#' }}" class="s4l-inline-form"
+                              onsubmit="return confirm('Cancel this request?');">
                           {% csrf_token %}
-                          <button type="submit" class="btn btn-sm btn-danger">
-                            <i class="fa fa-bullhorn"></i> Make Emergency
+                          <button type="submit" class="btn btn-sm btn-outline-danger">
+                            Cancel
                           </button>
                         </form>
+
+                        {% if not r.is_emergency %}
+                          <form method="post" action="{{ make_emergency_url|default:'#' }}" class="s4l-inline-form"
+                                onsubmit="return confirm('Upgrade to EMERGENCY? This will notify donors immediately and alert institutions in your city.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-danger">
+                              <i class="fa fa-bullhorn mr-1"></i>
+                              <span class="d-none d-md-inline">Make Emergency</span>
+                              <span class="d-inline d-md-none">Emergency</span>
+                            </button>
+                          </form>
+                        {% endif %}
                       {% endif %}
-                    {% endif %}
+                    </div>
                   </td>
                 </tr>
 
@@ -135,16 +145,43 @@
     box-shadow: 0 6px 18px rgba(0,0,0,0.04);
     border-radius: 14px;
   }
+
   .s4l-badge {
     border-radius: 999px;
     padding: 6px 10px;
     font-weight: 700;
     font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
   }
   .s4l-badge-soft {
     background: #f8f9fa;
     border: 1px solid rgba(0,0,0,0.08);
     color: #495057;
+  }
+
+  .s4l-actions-col {
+    min-width: 240px;   /* smaller than 320 so it doesn't create huge empty space */
+    white-space: nowrap;
+  }
+
+  .s4l-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;        /* wraps nicely on smaller screens */
+    gap: .5rem;             /* consistent spacing instead of ml-2 */
+    align-items: center;
+  }
+
+  .s4l-inline-form {
+    display: inline-block;
+    margin: 0;              /* removing default form spacing */
+  }
+
+  /* table look clean */
+  .s4l-table td, .s4l-table th {
+    vertical-align: middle;
   }
 </style>
 

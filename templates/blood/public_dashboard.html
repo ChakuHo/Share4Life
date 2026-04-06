@@ -31,9 +31,9 @@
       </a>
     </div>
 
-    {# show donor eligibility once #}
     {% if user.is_authenticated and user.is_donor and donor_eligible == False and donor_next_eligible %}
       <div class="alert alert-warning">
+        <i class="fa fa-clock mr-2"></i>
         <strong>Not eligible to donate right now.</strong>
         You can donate again on <strong>{{ donor_next_eligible|date:"Y-m-d" }}</strong>.
       </div>
@@ -51,7 +51,6 @@
           <div class="card s4l-card h-100">
             <div class="card-body">
 
-              <!-- Top row -->
               <div class="d-flex justify-content-between align-items-center s4l-toprow">
                 <span class="s4l-chip">{{ r.blood_group }}</span>
 
@@ -60,11 +59,10 @@
                 </span>
               </div>
 
-              <!-- Minimal status row (less colors) -->
               <div class="d-flex flex-wrap mt-2">
                 {% if r.is_emergency %}
                   <span class="s4l-pill s4l-pill-emergency">
-                    EMERGENCY
+                    <i class="fa fa-bolt mr-1"></i> EMERGENCY
                   </span>
                 {% endif %}
 
@@ -85,14 +83,22 @@
                 <span class="s4l-pill">
                   <i class="fa fa-flag mr-1"></i> {{ r.get_status_display }}
                 </span>
+
+                {% if user.is_authenticated and user.is_donor and r.user_blood_missing %}
+                  <span class="s4l-pill">
+                    <i class="fa fa-exclamation-triangle mr-1 text-warning"></i> Set blood group in profile
+                  </span>
+                {% elif user.is_authenticated and user.is_donor and r.user_blood_mismatch and not r.user_responded %}
+                  <span class="s4l-pill">
+                    <i class="fa fa-ban mr-1 text-danger"></i> Blood group mismatch
+                  </span>
+                {% endif %}
               </div>
 
-              <!-- Name (Title Case) -->
               <div class="s4l-name">
                 {{ r.patient_name|title }}
               </div>
 
-              <!-- Details -->
               <div class="s4l-meta mt-2">
                 <div class="mb-1">
                   <i class="fa fa-hospital mr-2"></i>{{ r.hospital_name|title }}
@@ -105,7 +111,6 @@
                 </div>
               </div>
 
-              <!-- Actions -->
               <div class="d-flex flex-wrap s4l-actions mt-3">
 
                 <a href="{{ detail_url|default:'#' }}" class="btn btn-s4l-primary btn-sm mr-2 mb-2">
@@ -116,8 +121,8 @@
                   <a href="{{ edit_url|default:'#' }}" class="btn btn-outline-secondary btn-s4l-outline btn-sm mr-2 mb-2">
                     Edit
                   </a>
-
-                  <form method="post" action="{{ cancel_url|default:'#' }}" class="mb-2">
+                  <form method="post" action="{{ cancel_url|default:'#' }}" class="mb-2"
+                        onsubmit="return confirm('Cancel this request?');">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-outline-danger btn-s4l-outline btn-sm">
                       Cancel
@@ -132,10 +137,61 @@
                     </a>
                   {% endif %}
 
-                  {% if user.is_authenticated and user.is_donor and donor_eligible %}
-                    <a href="{{ donor_respond_url|default:'#' }}" class="btn btn-outline-primary btn-s4l-outline btn-sm mb-2">
-                      Respond
-                    </a>
+                  {% if user.is_authenticated and user.is_donor %}
+
+                    {% if r.user_responded %}
+
+                      {% if r.user_accepted %}
+                        <span class="s4l-resp-badge s4l-resp-accepted mr-2 mb-2">
+                          <i class="fa fa-check-circle mr-1"></i> Accepted
+                          {% if r.user_is_primary %}
+                            <span class="s4l-resp-tag">Primary</span>
+                          {% else %}
+                            <span class="s4l-resp-tag s4l-resp-tag-standby">Standby</span>
+                          {% endif %}
+                        </span>
+                      {% elif r.user_declined %}
+                        <span class="s4l-resp-badge s4l-resp-declined mr-2 mb-2">
+                          <i class="fa fa-times-circle mr-1"></i> Declined
+                        </span>
+                      {% elif r.user_delayed %}
+                        <span class="s4l-resp-badge s4l-resp-delayed mr-2 mb-2">
+                          <i class="fa fa-clock mr-1"></i> Delayed
+                        </span>
+                        <a href="{{ donor_respond_url|default:'#' }}" class="btn btn-outline-primary btn-s4l-outline btn-sm mb-2">
+                          Update Response
+                        </a>
+                      {% else %}
+                        <span class="s4l-resp-badge s4l-resp-other mr-2 mb-2">
+                          {{ r.user_response_status }}
+                        </span>
+                      {% endif %}
+
+                    {% else %}
+
+                      {% if r.user_blood_missing %}
+                        <a href="{% url 'profile_edit' %}" class="btn btn-outline-warning btn-s4l-outline btn-sm mb-2">
+                          <i class="fa fa-user-edit mr-1"></i> Set Blood Group
+                        </a>
+
+                      {% elif r.user_blood_mismatch %}
+                        <span class="text-muted small mb-2 ml-2">
+                          <i class="fa fa-ban mr-1"></i> Need {{ r.blood_group }} donors
+                        </span>
+
+                      {% elif donor_eligible %}
+                        <a href="{{ donor_respond_url|default:'#' }}" class="btn btn-outline-primary btn-s4l-outline btn-sm mb-2">
+                          <i class="fa fa-hand-holding-heart mr-1"></i> Respond as Donor
+                        </a>
+
+                      {% elif donor_eligible == False %}
+                        <span class="text-muted small mb-2 ml-2">
+                          <i class="fa fa-ban mr-1"></i> Not eligible yet
+                        </span>
+                      {% endif %}
+
+                    {% endif %}
+
                   {% endif %}
 
                 {% endif %}
@@ -148,7 +204,9 @@
 
       {% empty %}
         <div class="col-12">
-          <div class="alert alert-secondary">No active requests right now.</div>
+          <div class="alert alert-secondary text-center">
+            <i class="fa fa-check-circle mr-2"></i> No active requests right now. Check back later.
+          </div>
         </div>
       {% endfor %}
     </div>
@@ -163,24 +221,22 @@
     box-shadow: 0 6px 18px rgba(0,0,0,0.04);
     border-radius: 14px;
   }
-  .s4l-card .card-body{
-    display:flex;
-    flex-direction:column;
-    height:100%;
+  .s4l-card .card-body {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
     padding: 18px;
   }
 
-  /* header row */
-  .s4l-toprow{ min-height: 32px; }
-  .s4l-time{ white-space: nowrap; font-size: 12px; opacity: .75; }
+  .s4l-toprow { min-height: 32px; }
+  .s4l-time { white-space: nowrap; font-size: 12px; opacity: .75; }
 
-  /* blood group chip */
-  .s4l-chip{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    min-width:42px;
-    height:34px;
+  .s4l-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    height: 34px;
     padding: 0 10px;
     border-radius: 10px;
     font-weight: 800;
@@ -189,9 +245,9 @@
     color: #c92a35;
   }
 
-  .s4l-pill{
-    display:inline-flex;
-    align-items:center;
+  .s4l-pill {
+    display: inline-flex;
+    align-items: center;
     border: 1px solid rgba(0,0,0,0.10);
     background: #f8f9fa;
     color: #495057;
@@ -202,34 +258,30 @@
     margin-right: 8px;
     margin-bottom: 8px;
   }
-  .s4l-pill-emergency{
+  .s4l-pill-emergency {
     background: #e63946;
     border-color: #e63946;
     color: #fff;
   }
 
-  /* title */
-  .s4l-name{
+  .s4l-name {
     margin-top: 6px;
     font-weight: 550;
     letter-spacing: -0.2px;
     font-size: 22px;
-    min-height: 52px;     /* keeps cards aligned */
+    min-height: 52px;
   }
 
-  /* meta */
-  .s4l-meta{
+  .s4l-meta {
     color: #6c757d;
     font-size: 14px;
     min-height: 84px;
   }
   .s4l-meta i { opacity: .75; }
 
-  /* actions bottom */
-  .s4l-actions{ margin-top:auto; }
+  .s4l-actions { margin-top: auto; }
 
-  /* View Details buttons styling */
-  .btn-s4l-primary{
+  .btn-s4l-primary {
     background: #0a2558;
     border-color: #0a2558;
     color: #fff;
@@ -237,15 +289,60 @@
     border-radius: 10px;
     padding: 8px 12px;
   }
-  .btn-s4l-primary:hover{
+  .btn-s4l-primary:hover {
     background: #061838;
     border-color: #061838;
     color: #fff;
   }
-  .btn-s4l-outline{
+  .btn-s4l-outline {
     border-radius: 10px;
     font-weight: 700;
     padding: 8px 12px;
+  }
+
+  .s4l-resp-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 14px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  .s4l-resp-accepted {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+  .s4l-resp-declined {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+  .s4l-resp-delayed {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
+  }
+  .s4l-resp-other {
+    background: #f8f9fa;
+    color: #495057;
+    border: 1px solid #dee2e6;
+  }
+  .s4l-resp-tag {
+    display: inline-block;
+    background: #155724;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .s4l-resp-tag-standby {
+    background: #6c757d;
   }
 </style>
 

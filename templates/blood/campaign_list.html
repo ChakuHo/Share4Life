@@ -26,7 +26,7 @@
     </div>
 
     <!-- Impact summary -->
-    <div class="card shadow-sm mb-3">
+    <div class="card shadow-sm mb-3" style="border-radius:14px;">
       <div class="card-body">
         <div class="row text-center">
           <div class="col-md-4 mb-2 mb-md-0">
@@ -58,16 +58,24 @@
     <h5 class="mb-2">Upcoming / Ongoing</h5>
     <div class="row">
       {% for c in campaigns %}
+        {% url "blood_campaign_detail" c.id as detail_url %}
         <div class="col-md-6 col-lg-4">
-          <div class="card mb-3 shadow-sm h-100">
-            <div class="card-body">
+          <div class="card mb-3 shadow-sm h-100 s4l-camp-card" style="border-radius:14px; overflow:hidden;">
+
+            {% if c.cover_image %}
+              <img src="{{ c.cover_image.url }}" class="card-img-top" alt="Campaign cover"
+                   style="object-fit:cover; height:170px;">
+            {% endif %}
+
+            <div class="card-body d-flex flex-column">
 
               <div class="d-flex justify-content-between mb-2">
                 <span class="badge badge-danger p-2">{{ c.organization.get_org_type_display }}</span>
                 <small class="text-muted">{{ c.date|date:"Y-m-d" }}</small>
               </div>
 
-              <h5 class="mb-1">{{ c.title }}</h5>
+              <h5 class="mb-1" style="font-weight:800;">{{ c.title }}</h5>
+
               <div class="text-muted small mb-2">
                 By <strong>{{ c.organization.name }}</strong><br>
                 Venue: {{ c.venue_name }}{% if c.city %}, {{ c.city }}{% endif %}
@@ -85,11 +93,29 @@
                 <br>Status: <strong>{{ c.get_status_display }}</strong>
               </div>
 
-              <div class="mt-3 d-flex flex-wrap" style="gap:.5rem;">
+              <!-- ACTIONS -->
+              <div class="mt-3 d-flex flex-wrap" style="gap:.5rem; margin-top:auto;">
+                <a class="btn btn-sm btn-primary"
+                   href="{{ detail_url }}">
+                  <i class="fa fa-eye"></i> View Details
+                </a>
+
                 <a class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener"
                    href="https://www.google.com/maps/search/?api=1&query={{ c.venue_name|urlencode }}%20{{ c.city|urlencode }}">
                   <i class="fa fa-map-marker-alt"></i> Map
                 </a>
+
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        onclick="s4lShareCamp('{{ detail_url|escapejs }}', '{{ c.title|escapejs }}')">
+                  <i class="fa fa-share-alt"></i> Share
+                </button>
+
+                <button type="button"
+                        class="btn btn-sm btn-outline-success"
+                        onclick="s4lShareCampWhatsApp('{{ detail_url|escapejs }}', '{{ c.title|escapejs }}')">
+                  <i class="fab fa-whatsapp"></i> WhatsApp
+                </button>
               </div>
 
             </div>
@@ -106,21 +132,22 @@
     <h5 class="mt-4 mb-2">Past Successful Camps</h5>
     <div class="row">
       {% for c in past_campaigns %}
+        {% url "blood_campaign_detail" c.id as detail_url %}
         <div class="col-md-6 col-lg-4">
-          <div class="card mb-3 shadow-sm h-100">
+          <div class="card mb-3 shadow-sm h-100 s4l-camp-card" style="border-radius:14px; overflow:hidden;">
 
             {% if c.cover_image %}
               <img src="{{ c.cover_image.url }}" class="card-img-top" alt="Campaign cover"
                    style="object-fit:cover; height:170px;">
             {% endif %}
 
-            <div class="card-body">
+            <div class="card-body d-flex flex-column">
               <div class="d-flex justify-content-between mb-2">
                 <span class="badge badge-secondary p-2">{{ c.organization.get_org_type_display }}</span>
                 <small class="text-muted">{{ c.date|date:"Y-m-d" }}</small>
               </div>
 
-              <h5 class="mb-1">{{ c.title }}</h5>
+              <h5 class="mb-1" style="font-weight:800;">{{ c.title }}</h5>
               <div class="text-muted small mb-2">
                 By <strong>{{ c.organization.name }}</strong><br>
                 Venue: {{ c.venue_name }}{% if c.city %}, {{ c.city }}{% endif %}
@@ -142,23 +169,41 @@
                 </div>
               {% endif %}
 
-              <div class="mt-3 d-flex flex-wrap" style="gap:.5rem;">
+              <!-- ACTIONS -->
+              <div class="mt-3 d-flex flex-wrap" style="gap:.5rem; margin-top:auto;">
+                <a class="btn btn-sm btn-primary"
+                   href="{{ detail_url }}">
+                  <i class="fa fa-eye"></i> View Details
+                </a>
+
                 {% if c.completion_report %}
                   <a class="btn btn-sm btn-outline-primary"
                      href="{% url 'campaign_proof_viewer' c.id %}">
-                    View Proof
+                    <i class="fa fa-file-medical"></i> View Proof
                   </a>
 
                   <a class="btn btn-sm btn-outline-secondary"
                      href="{{ c.completion_report.url }}" download>
-                    Download
+                    <i class="fa fa-download"></i> Download
                   </a>
                 {% endif %}
 
                 <a class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener"
                    href="https://www.google.com/maps/search/?api=1&query={{ c.venue_name|urlencode }}%20{{ c.city|urlencode }}">
-                  Map
+                  <i class="fa fa-map-marker-alt"></i> Map
                 </a>
+
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        onclick="s4lShareCamp('{{ detail_url|escapejs }}', '{{ c.title|escapejs }}')">
+                  <i class="fa fa-share-alt"></i> Share
+                </button>
+
+                <button type="button"
+                        class="btn btn-sm btn-outline-success"
+                        onclick="s4lShareCampWhatsApp('{{ detail_url|escapejs }}', '{{ c.title|escapejs }}')">
+                  <i class="fab fa-whatsapp"></i> WhatsApp
+                </button>
               </div>
 
               {% if not c.actual_units_collected and not c.completion_report and not c.impact_highlights %}
@@ -167,6 +212,7 @@
                 </div>
               {% endif %}
             </div>
+
           </div>
         </div>
       {% empty %}
@@ -178,5 +224,46 @@
 
   </div>
 </section>
+
+<script>
+function s4lAbsUrl(relUrl) {
+  // relUrl like "/blood/campaign/12/"
+  // works on local + deployed without needing view context
+  return window.location.origin + relUrl;
+}
+
+function s4lShareCamp(relUrl, title) {
+  const url = s4lAbsUrl(relUrl);
+  const text = `Share4Life Blood Donation Camp: ${title}\n${url}`;
+
+  if (navigator.share) {
+    navigator.share({ title: title, text: text, url: url }).catch(() => {});
+    return;
+  }
+
+  // fallback copy
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(url).then(() => {
+      alert("Link copied to clipboard.");
+    }).catch(() => {
+      prompt("Copy this link:", url);
+    });
+    return;
+  }
+
+  prompt("Copy this link:", url);
+}
+
+function s4lShareCampWhatsApp(relUrl, title) {
+  const url = s4lAbsUrl(relUrl);
+  const msg = `Share4Life Blood Donation Camp: ${title}\nOpen: ${url}`;
+  const wa = "https://wa.me/?text=" + encodeURIComponent(msg);
+  window.open(wa, "_blank", "noopener");
+}
+</script>
+
+<style>
+  .s4l-camp-card { border: 1px solid rgba(0,0,0,0.06); }
+</style>
 
 {% endblock %}

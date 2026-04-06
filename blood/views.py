@@ -46,6 +46,29 @@ from django.db.models import Q
 
 #------------------------------------------------------------------------------------------------
 
+def is_blood_compatible(donor_bg, patient_bg):
+    """
+    Standard Medical Blood Compatibility Logic
+    Donor -> Patient
+    """
+    if not donor_bg or not patient_bg:
+        return False
+    
+    donor_bg = donor_bg.strip().upper()
+    patient_bg = patient_bg.strip().upper()
+
+    matrix = {
+        'A+': ['A+', 'AB+'],
+        'A-': ['A+', 'A-', 'AB+', 'AB-'],
+        'B+': ['B+', 'AB+'],
+        'B-': ['B+', 'B-', 'AB+', 'AB-'],
+        'AB+': ['AB+'],
+        'AB-': ['AB+', 'AB-'],
+        'O+': ['A+', 'B+', 'AB+', 'O+'],
+        'O-': ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
+    }
+    return patient_bg in matrix.get(donor_bg, [])
+
 def _wa_number(phone: str) -> str:
     """
     Normalize phone for WhatsApp wa.me links.
@@ -582,7 +605,6 @@ def public_dashboard_view(request):
         .exclude(verification_status__in=["REJECTED", "UNVERIFIED"])
     )
 
-    # show only last N days on public feed
     max_days = int(getattr(settings, "S4L_PUBLIC_FEED_MAX_DAYS", 7))
     show = (request.GET.get("show") or "").strip().lower()
 
@@ -590,7 +612,6 @@ def public_dashboard_view(request):
         cutoff = timezone.now() - timedelta(days=max_days)
         qs = qs.filter(created_at__gte=cutoff)
 
-    # filters
     blood_group = (request.GET.get("blood_group") or "").strip()
     city = (request.GET.get("city") or "").strip()
 
@@ -606,12 +627,55 @@ def public_dashboard_view(request):
 
     donor_eligible = None
     donor_next_eligible = None
+
+    donor_bg = ""
     if request.user.is_authenticated and getattr(request.user, "is_donor", False):
         donor_eligible = is_eligible(request.user)
         donor_next_eligible = next_eligible_datetime(request.user)
+        donor_bg = (getattr(getattr(request.user, "profile", None), "blood_group", "") or "").strip().upper()
+
+    requests_list = list(qs)
+
+    # donor response info + mismatch flags
+    if request.user.is_authenticated and getattr(request.user, "is_donor", False):
+        user_responses = {
+            r.request_id: r
+            for r in DonorResponse.objects.filter(
+                donor=request.user,
+                request_id__in=[req.id for req in requests_list],
+            )
+        }
+
+        # strict matching check (uses matching.py which respects S4L_BLOOD_STRICT_MATCH)
+        from .matching import blood_group_allowed
+
+        for req_obj in requests_list:
+            resp = user_responses.get(req_obj.id)
+            req_obj.user_response = resp
+            req_obj.user_responded = bool(resp)
+            req_obj.user_accepted = bool(resp and resp.status == "ACCEPTED")
+            req_obj.user_declined = bool(resp and resp.status == "DECLINED")
+            req_obj.user_delayed = bool(resp and resp.status == "DELAYED")
+            req_obj.user_response_status = resp.get_status_display() if resp else ""
+            req_obj.user_is_primary = bool(resp and resp.is_primary)
+
+            # mismatch badge
+            req_obj.user_blood_mismatch = (not blood_group_allowed(req_obj.blood_group, donor_bg))
+            req_obj.user_blood_missing = (not bool(donor_bg))
+    else:
+        for req_obj in requests_list:
+            req_obj.user_response = None
+            req_obj.user_responded = False
+            req_obj.user_accepted = False
+            req_obj.user_declined = False
+            req_obj.user_delayed = False
+            req_obj.user_response_status = ""
+            req_obj.user_is_primary = False
+            req_obj.user_blood_mismatch = False
+            req_obj.user_blood_missing = False
 
     return render(request, "blood/public_dashboard.html", {
-        "requests": qs,
+        "requests": requests_list,
         "donor_eligible": donor_eligible,
         "donor_next_eligible": donor_next_eligible,
         "feed_max_days": max_days,
@@ -630,7 +694,9 @@ def request_detail_view(request, request_id, slug=None):
             return redirect(canonical, permanent=True)
 
     guest_responses = blood_req.responses.order_by("-responded_at")
-    donor_responses = blood_req.donor_responses.select_related("donor").order_by("-is_primary", "-accepted_at", "-responded_at", "-created_at")
+    donor_responses = blood_req.donor_responses.select_related("donor", "donor__profile").order_by(
+        "-is_primary", "-accepted_at", "-responded_at", "-created_at"
+    )
     donations = blood_req.donations.select_related("donor_user").order_by("-donated_at")
 
     is_active_request = bool(blood_req.is_active and blood_req.status in ("OPEN", "IN_PROGRESS"))
@@ -685,7 +751,6 @@ def request_detail_view(request, request_id, slug=None):
         )
     )
 
-    # who can see guest donor phone numbers
     can_view_guest_contact = (
         request.user.is_authenticated and (
             request.user.is_staff
@@ -699,6 +764,8 @@ def request_detail_view(request, request_id, slug=None):
     my_donation = None
     can_mark_donation = False
     can_respond = False
+    is_primary_donor = False
+    is_standby_donor = False
 
     if request.user.is_authenticated and getattr(request.user, "is_donor", False):
         eligible = is_eligible(request.user)
@@ -719,6 +786,40 @@ def request_detail_view(request, request_id, slug=None):
             and my_response is not None
             and my_response.status == "ACCEPTED"
         )
+
+        is_primary_donor = bool(my_response and my_response.status == "ACCEPTED" and my_response.is_primary)
+        is_standby_donor = bool(my_response and my_response.status == "ACCEPTED" and not my_response.is_primary)
+
+    # --- Primary / Standby donor info ---
+    primary_response = (
+        DonorResponse.objects
+        .filter(request=blood_req, status="ACCEPTED", is_primary=True)
+        .select_related("donor", "donor__profile")
+        .first()
+    )
+
+    standby_responses = list(
+        DonorResponse.objects
+        .filter(request=blood_req, status="ACCEPTED", is_primary=False)
+        .select_related("donor", "donor__profile")
+        .order_by("accepted_at", "responded_at")
+    )
+
+    accepted_count = (1 if primary_response else 0) + len(standby_responses)
+
+    # --- Build set of donor IDs that already have a donation recorded ---
+    donation_donor_ids = set(
+        blood_req.donations.filter(donor_user__isnull=False)
+        .values_list("donor_user_id", flat=True)
+    )
+
+    # --- Receiver can confirm donation (request owner) ---
+    is_request_owner = bool(request.user.is_authenticated and blood_req.created_by_id == request.user.id)
+    receiver_can_confirm = bool(
+        is_request_owner
+        and is_active_request
+        and accepted_count > 0
+    )
 
     # Emergency Network UI (only for request owner)
     emergency_contact = None
@@ -781,7 +882,7 @@ def request_detail_view(request, request_id, slug=None):
         "can_mark_donation": can_mark_donation,
         "can_respond": can_respond,
         "can_view_donor_contact": can_view_donor_contact,
-        "can_view_guest_contact": can_view_guest_contact,  
+        "can_view_guest_contact": can_view_guest_contact,
         "emergency_contact": emergency_contact,
         "emergency_profiles": emergency_profiles,
         "sos_recent": sos_recent,
@@ -789,7 +890,88 @@ def request_detail_view(request, request_id, slug=None):
         "sos_share_text": sos_share_text,
         "whatsapp_share_url": whatsapp_share_url,
         "whatsapp_emergency_url": whatsapp_emergency_url,
+        # Primary / Standby context
+        "primary_response": primary_response,
+        "standby_responses": standby_responses,
+        "accepted_count": accepted_count,
+        "is_primary_donor": is_primary_donor,
+        "is_standby_donor": is_standby_donor,
+        "is_request_owner": is_request_owner,
+        "receiver_can_confirm": receiver_can_confirm,
+        "donation_donor_ids": donation_donor_ids,
     })
+
+@require_POST
+@login_required
+@recipient_required
+def blood_remove_primary_donor(request, request_id):
+    """
+    Requester marks the primary donor as no-show.
+    - Primary donor response → DECLINED (with note)
+    - Next standby auto-promoted to primary
+    - Both donors notified
+    """
+    blood_req = get_object_or_404(PublicBloodRequest, id=request_id, created_by=request.user)
+
+    if not blood_req.is_active or blood_req.status in ("FULFILLED", "CANCELLED", "EXPIRED"):
+        messages.error(request, "This request is closed.")
+        return redirect(blood_req.get_absolute_url())
+
+    primary = DonorResponse.objects.filter(
+        request=blood_req, status="ACCEPTED", is_primary=True
+    ).select_related("donor").first()
+
+    if not primary:
+        messages.info(request, "No primary donor to remove.")
+        return redirect(blood_req.get_absolute_url())
+
+    old_donor = primary.donor
+
+    # Mark primary as no-show
+    primary.status = "DECLINED"
+    primary.is_primary = False
+    primary.message = (primary.message or "").strip()
+    if primary.message:
+        primary.message += " | "
+    primary.message += "Marked no-show by requester"
+    primary.save(update_fields=["status", "is_primary", "message"])
+
+    # Notify the removed donor
+    _notify_user(
+        old_donor,
+        "Removed as primary donor",
+        f"The requester marked you as no-show for request #{blood_req.id}. "
+        f"If this was a mistake, please contact them.",
+        url=blood_req.get_absolute_url(),
+        level="WARNING",
+    )
+
+    # Promote next standby
+    new_primary = _promote_next_primary_if_needed(blood_req)
+
+    if new_primary:
+        # Notify the newly promoted donor
+        _notify_user(
+            new_primary.donor,
+            "You are now the Primary Donor!",
+            f"The previous primary donor did not show up for request #{blood_req.id}. "
+            f"You have been promoted to primary. Please coordinate with the patient immediately.",
+            url=blood_req.get_absolute_url(),
+            level="SUCCESS",
+        )
+
+        messages.success(
+            request,
+            f"Primary donor removed. {new_primary.donor.get_full_name() or new_primary.donor.username} "
+            f"has been promoted to primary and notified."
+        )
+    else:
+        messages.warning(
+            request,
+            "Primary donor removed. No standby donors available to promote."
+        )
+
+    return redirect(blood_req.get_absolute_url())
 
 @require_POST
 @login_required
@@ -884,17 +1066,25 @@ def guest_donate_view(request, request_id):
 def donor_respond_view(request, request_id):
     blood_req = get_object_or_404(PublicBloodRequest, id=request_id)
 
-    # block self-response
     if blood_req.created_by_id and blood_req.created_by_id == request.user.id:
         messages.error(request, "You created this request. You cannot respond as a donor to your own request.")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
-    # closed?
     if blood_req.status in ("FULFILLED", "CANCELLED") or not blood_req.is_active:
         messages.error(request, "This request is closed.")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
-    # eligibility check
+    # STRICT blood group check (exact match if enabled)
+    from .matching import blood_group_allowed
+    donor_bg = (getattr(getattr(request.user, "profile", None), "blood_group", "") or "").strip().upper()
+    if not donor_bg:
+        messages.error(request, "Set your blood group in your profile to respond to requests.")
+        return redirect("profile_edit")
+
+    if not blood_group_allowed(blood_req.blood_group, donor_bg):
+        messages.error(request, f"Blood group mismatch. Only {blood_req.blood_group} donors can respond to this request.")
+        return redirect("blood_request_detail", request_id=blood_req.id)
+
     if not is_eligible(request.user):
         nxt = next_eligible_datetime(request.user)
         messages.error(request, f"You are not eligible yet. Eligible again on: {nxt.date() if nxt else 'N/A'}")
@@ -906,20 +1096,22 @@ def donor_respond_view(request, request_id):
         if obj is None:
             obj = DonorResponse(request=blood_req, donor=request.user)
 
-        old_status = obj.status  # capture before saving
+        old_status = obj.status
 
         form = DonorResponseForm(request.POST, instance=obj)
         if form.is_valid():
             resp = form.save(commit=False)
             resp.responded_at = timezone.now()
+
+            if resp.status == "ACCEPTED" and resp.accepted_at is None:
+                resp.accepted_at = timezone.now()
+
             resp.save()
 
-            # move request to IN_PROGRESS if it was OPEN and donor accepted
             if resp.status == "ACCEPTED" and blood_req.status == "OPEN":
                 blood_req.status = "IN_PROGRESS"
                 blood_req.save(update_fields=["status"])
 
-            # notify requester (avoid spam if same status submitted repeatedly)
             if blood_req.created_by_id and old_status != resp.status:
                 phone = (request.user.phone_number or "").strip()
                 phone_txt = f" Phone: {phone}" if phone else ""
@@ -931,14 +1123,13 @@ def donor_respond_view(request, request_id):
                     level="INFO",
                 )
 
-            # --- CHAT: only when donor becomes ACCEPTED (transition) and request has owner ---
+            # chat unlock on accept transition
             if blood_req.created_by_id and resp.status == "ACCEPTED" and old_status != "ACCEPTED":
                 req_id = blood_req.id
                 donor_id = request.user.id
                 requester_id = blood_req.created_by_id
 
                 def _after_commit():
-                    # create thread (idempotent due to unique constraint)
                     try:
                         from communication.models import ChatThread
                         thread, _ = ChatThread.objects.get_or_create(
@@ -948,7 +1139,6 @@ def donor_respond_view(request, request_id):
                         )
                         thread_url = reverse("chat_thread_detail", args=[thread.id])
 
-                        # notify requester + donor with CHAT category
                         Notification.objects.create(
                             user_id=requester_id,
                             category="CHAT",
@@ -966,7 +1156,6 @@ def donor_respond_view(request, request_id):
                             level="INFO",
                         )
                     except Exception:
-                        # never break donor flow if chat fails
                         pass
 
                 transaction.on_commit(_after_commit)
@@ -987,23 +1176,30 @@ def donor_respond_view(request, request_id):
 def donation_create_view(request, request_id):
     blood_req = get_object_or_404(PublicBloodRequest, id=request_id)
 
-    # block self-donation (request owner cannot record donation for own request)
     if blood_req.created_by_id and blood_req.created_by_id == request.user.id:
         messages.error(request, "You created this request. You cannot record donation to your own request.")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
-    # block if request is closed
     if blood_req.status in ("FULFILLED", "CANCELLED") or not blood_req.is_active:
         messages.error(request, "This request is closed.")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
-    # donor eligibility check
+    # STRICT blood group check
+    from .matching import blood_group_allowed
+    donor_bg = (getattr(getattr(request.user, "profile", None), "blood_group", "") or "").strip().upper()
+    if not donor_bg:
+        messages.error(request, "Set your blood group in your profile to record a donation.")
+        return redirect("profile_edit")
+
+    if not blood_group_allowed(blood_req.blood_group, donor_bg):
+        messages.error(request, f"Blood group mismatch. Only {blood_req.blood_group} donors can donate for this request.")
+        return redirect("blood_request_detail", request_id=blood_req.id)
+
     if not is_eligible(request.user):
         nxt = next_eligible_datetime(request.user)
         messages.error(request, f"You are not eligible yet. Eligible again on: {nxt.date() if nxt else 'N/A'}")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
-    # quick check
     existing = BloodDonation.objects.filter(request=blood_req, donor_user=request.user).first()
     if existing:
         messages.info(request, "You already recorded a donation for this request.")
@@ -1034,12 +1230,10 @@ def donation_create_view(request, request_id):
                 messages.info(request, "You already recorded a donation for this request.")
                 return redirect("donor_history")
 
-            # Move request to IN_PROGRESS if it was OPEN
             if blood_req.status == "OPEN":
                 blood_req.status = "IN_PROGRESS"
                 blood_req.save(update_fields=["status"])
 
-            # notify requester if exists
             if blood_req.created_by_id:
                 _notify_user(
                     blood_req.created_by,
@@ -1049,7 +1243,6 @@ def donation_create_view(request, request_id):
                     level="SUCCESS",
                 )
 
-            # Notify org members (if request is linked to an org)
             if blood_req.target_organization_id:
                 _notify_org_members(
                     blood_req.target_organization,
@@ -1070,6 +1263,90 @@ def donation_create_view(request, request_id):
         })
 
     return render(request, "blood/donation_create.html", {"form": form, "req": blood_req})
+
+
+@require_POST
+@login_required
+@recipient_required
+def receiver_confirm_donation_view(request, request_id):
+    """
+    Request owner confirms that an ACCEPTED donor has donated.
+    Creates a BloodDonation record in COMPLETED status (awaiting verification).
+
+    Rules:
+      - Only request owner can do this
+      - Donor must have ACCEPTED the request
+      - Prevent duplicates (one donation per donor per request)
+      - Does NOT remove/replace donor's own donation flow; it's an extra power for recipients.
+    """
+    blood_req = get_object_or_404(PublicBloodRequest, id=request_id, created_by=request.user)
+
+    # allow only on active requests
+    if (not blood_req.is_active) or (blood_req.status in ("FULFILLED", "CANCELLED", "EXPIRED")):
+        messages.error(request, "This request is closed.")
+        return redirect(blood_req.get_absolute_url())
+
+    donor_id = (request.POST.get("donor_id") or "").strip()
+    if not donor_id.isdigit():
+        messages.error(request, "Invalid donor.")
+        return redirect(blood_req.get_absolute_url())
+
+    donor = get_object_or_404(CustomUser, id=int(donor_id), is_active=True)
+
+    # donor must have ACCEPTED
+    accepted = DonorResponse.objects.filter(
+        request=blood_req,
+        donor=donor,
+        status="ACCEPTED",
+    ).exists()
+    if not accepted:
+        messages.error(request, "You can only confirm donation for donors who accepted this request.")
+        return redirect(blood_req.get_absolute_url())
+
+    # prevent duplicates
+    existing = BloodDonation.objects.filter(request=blood_req, donor_user=donor).first()
+    if existing:
+        messages.info(request, "Donation is already recorded for this donor.")
+        return redirect(blood_req.get_absolute_url())
+
+    # create donation record (awaiting verification)
+    with transaction.atomic():
+        donation = BloodDonation.objects.create(
+            request=blood_req,
+            donor_user=donor,
+            hospital_name=blood_req.hospital_name,
+            units=int(blood_req.units_needed or 1),
+            donated_at=timezone.now(),
+            blood_group=(getattr(getattr(donor, "profile", None), "blood_group", "") or ""),
+            status="COMPLETED",
+        )
+
+        # Move request to IN_PROGRESS if it was OPEN
+        if blood_req.status == "OPEN":
+            blood_req.status = "IN_PROGRESS"
+            blood_req.save(update_fields=["status"])
+
+    # Notify donor
+    _notify_user(
+        donor,
+        "Donation recorded by requester",
+        f"The requester recorded your donation for request #{blood_req.id}. Awaiting verification by an institution.",
+        url=blood_req.get_absolute_url(),
+        level="INFO",
+    )
+
+    # Notify org members (if request is linked to an org)
+    if blood_req.target_organization_id:
+        _notify_org_members(
+            blood_req.target_organization,
+            "Donation awaiting verification",
+            f"Donation marked COMPLETED (recorded by requester) for request #{blood_req.id}.",
+            url="/institutions/portal/",
+            level="INFO",
+        )
+
+    messages.success(request, "Donation recorded. Awaiting verification.")
+    return redirect(blood_req.get_absolute_url())
 
 
 # Donor history
@@ -1408,7 +1685,6 @@ def blood_campaigns_view(request):
         .order_by("-date", "-created_at")
     )[:24]
 
-    # Impact stats (only count where numbers exist)
     stats_qs = BloodCampaign.objects.filter(
         organization__status="APPROVED",
         status="COMPLETED",
@@ -1423,6 +1699,52 @@ def blood_campaigns_view(request):
         "campaigns": upcoming,
         "past_campaigns": past,
         "totals": totals,
+    })
+
+
+def blood_campaign_detail_view(request, campaign_id):
+    camp = get_object_or_404(
+        BloodCampaign.objects.select_related("organization"),
+        id=campaign_id,
+        organization__status="APPROVED",
+    )
+
+    abs_url = request.build_absolute_uri(reverse("blood_campaign_detail", args=[camp.id]))
+
+    when = camp.date.strftime("%Y-%m-%d") if camp.date else "—"
+    time_txt = ""
+    try:
+        if camp.start_time and camp.end_time:
+            time_txt = f"{camp.start_time.strftime('%H:%M')} - {camp.end_time.strftime('%H:%M')}"
+        elif camp.start_time:
+            time_txt = f"Starts {camp.start_time.strftime('%H:%M')}"
+    except Exception:
+        time_txt = ""
+
+    city = (camp.city or (camp.organization.city if camp.organization else "") or "").strip()
+
+    share_text = (
+        f"Share4Life Blood Donation Camp\n"
+        f"Title: {camp.title}\n"
+        f"Organization: {camp.organization.name if camp.organization else ''}\n"
+        f"Date: {when} {time_txt}\n"
+        f"Venue: {camp.venue_name}\n"
+        f"City: {city}\n"
+        f"Open: {abs_url}"
+    )
+
+    whatsapp_share_url = "https://wa.me/?text=" + quote(share_text)
+
+    proof_url = ""
+    if camp.completion_report:
+        proof_url = reverse("campaign_proof_viewer", args=[camp.id])
+
+    return render(request, "blood/campaign_detail.html", {
+        "camp": camp,
+        "abs_url": abs_url,
+        "share_text": share_text,
+        "whatsapp_share_url": whatsapp_share_url,
+        "proof_url": proof_url,
     })
 
 @require_POST
@@ -1448,6 +1770,22 @@ def quick_respond_view(request, request_id):
         if wants_json:
             return _json_error("This request is closed.", status=409, redirect_url=blood_req.get_absolute_url())
         messages.error(request, "This request is closed.")
+        return redirect(blood_req.get_absolute_url())
+
+    # STRICT blood group check
+    from .matching import blood_group_allowed
+    donor_bg = (getattr(getattr(request.user, "profile", None), "blood_group", "") or "").strip().upper()
+    if not donor_bg:
+        if wants_json:
+            return _json_error("Set your blood group in profile to respond.", status=403, redirect_url=reverse("profile_edit"))
+        messages.error(request, "Set your blood group in your profile to respond to requests.")
+        return redirect("profile_edit")
+
+    if not blood_group_allowed(blood_req.blood_group, donor_bg):
+        msg = f"Blood group mismatch. Only {blood_req.blood_group} donors can respond to this request."
+        if wants_json:
+            return _json_error(msg, status=403, redirect_url=blood_req.get_absolute_url())
+        messages.error(request, msg)
         return redirect(blood_req.get_absolute_url())
 
     if not is_eligible(request.user):
@@ -1478,7 +1816,6 @@ def quick_respond_view(request, request_id):
 
     obj.save(update_fields=["status", "message", "responded_at", "accepted_at"])
 
-    # If donor left ACCEPTED and was primary, promote next standby
     if old_status == "ACCEPTED" and status in ("DECLINED", "DELAYED"):
         if old_primary:
             obj.is_primary = False
@@ -1488,17 +1825,13 @@ def quick_respond_view(request, request_id):
     became_primary = False
     if status == "ACCEPTED":
         with transaction.atomic():
-            # lock all responses for this request to avoid race
             DonorResponse.objects.select_for_update().filter(request=blood_req)
-
             became_primary = _set_primary_on_accept(blood_req, obj)
 
-        # Request goes IN_PROGRESS once first accept happens
         if blood_req.status == "OPEN":
             blood_req.status = "IN_PROGRESS"
             blood_req.save(update_fields=["status"])
 
-    # notify requester only if status changed
     if blood_req.created_by_id and old_status != status:
         phone = (request.user.phone_number or "").strip()
         phone_txt = f" Phone: {phone}" if phone else ""
@@ -1510,12 +1843,17 @@ def quick_respond_view(request, request_id):
             level="INFO",
         )
 
-    # Primary/standby message (only for normal form post)
     if not wants_json and status == "ACCEPTED":
         if became_primary:
-            messages.success(request, "Accepted. You are the PRIMARY donor for this request. Please coordinate with the patient.")
+            messages.success(request, "Accepted. You are the PRIMARY donor for this request. Please coordinate with the patient, if possible proceed to the hospital.")
         else:
-            messages.info(request, "Accepted. Another donor is already primary. You are saved as STANDBY—thank you for your willingness to help.")
+            messages.info(
+                request,
+                "Accepted! Another donor is already on the way as the primary donor. "
+                "You are saved as STANDBY — if the primary donor doesn't show up, "
+                "the requester will mark them as no-show and you'll be promoted to primary "
+                "and notified immediately. Thank you for standing by to help!"
+            )
 
     push_request_event(blood_req.id, {
         "type": "DONOR_RESPONSE",
@@ -1536,6 +1874,7 @@ def quick_respond_view(request, request_id):
         })
 
     return redirect(blood_req.get_absolute_url())
+
 
 
 def campaign_proof_viewer(request, campaign_id):

@@ -1,9 +1,12 @@
 import math
+from datetime import timedelta
+
+from django.conf import settings
 from django.db.models import Q
+from django.utils import timezone
+
 from accounts.models import CustomUser
 from blood.eligibility import is_eligible
-from datetime import timedelta
-from django.utils import timezone
 from .models import BloodDonation
 
 
@@ -18,6 +21,38 @@ COMPATIBLE_DONORS = {
     "AB-": {"O-", "A-", "B-", "AB-"},
     "AB+": {"O-", "O+", "A-", "A+", "B-", "B+", "AB-", "AB+"},
 }
+
+
+def strict_exact_match_enabled() -> bool:
+    return bool(getattr(settings, "S4L_BLOOD_STRICT_MATCH", True))
+
+
+def strict_allow_o_negative() -> bool:
+    return bool(getattr(settings, "S4L_BLOOD_STRICT_ALLOW_O_NEG", True))
+
+
+def allowed_donor_groups_for_request(req_blood_group: str) -> set:
+    """
+    Returns allowed donor blood groups for a request.
+
+    Modes:
+      - Strict mode (S4L_BLOOD_STRICT_MATCH=True):
+          allow ONLY exact match, plus OPTIONAL universal donor exception for O-
+      - Compatibility mode (S4L_BLOOD_STRICT_MATCH=False):
+          allow COMPATIBLE_DONORS matrix (original behavior)
+    """
+    bg = (req_blood_group or "").strip().upper()
+    if not bg:
+        return set()
+
+    if strict_exact_match_enabled():
+        allowed = {bg}
+        # Universal donor exception (production-friendly)
+        if strict_allow_o_negative():
+            allowed.add("O-")
+        return allowed
+
+    return COMPATIBLE_DONORS.get(bg, set())
 
 
 # -------- City normalization / synonyms --------
@@ -41,19 +76,12 @@ CANON_ALIASES = {
     "bhaktapur": {"bhaktapur", "bkt"},
 }
 
-# -------- Neighbor Groups (expand city -> nearby cities) --------
 NEIGHBOR_GROUPS = [
-    {"kathmandu", "lalitpur", "bhaktapur"},   # Kathmandu Valley group
-    # Examples (we can add these anytime but first we neeed to check that we support these in CITY_CANON later):
-    # {"pokhara", "lekhnath"},
-    # {"biratnagar", "itahari", "dharan"},
+    {"kathmandu", "lalitpur", "bhaktapur"},
 ]
 
+
 def nearby_city_canons(canon: str):
-    """
-    Returns a list of canonical city names considered neighbors of the given city.
-    Example: Lalitpur -> Kathmandu + Bhaktapur (valley group).
-    """
     canon = (canon or "").strip().lower()
     if not canon:
         return []
@@ -65,14 +93,6 @@ def nearby_city_canons(canon: str):
 
 
 def canonical_city(value: str) -> str:
-    """
-    Normalize city input. Supports:
-      - "Lalitpur"
-      - "Mangalbazar, Lalitpur"  -> "lalitpur"
-      - "Asan, Kathmandu"        -> "kathmandu"
-      - "KTM"                    -> "kathmandu"
-      - "Kathmandu Valley"       -> "kathmandu"
-    """
     raw = (value or "").strip().lower()
     if not raw:
         return ""
@@ -80,33 +100,26 @@ def canonical_city(value: str) -> str:
     raw = " ".join(raw.split())
     raw = raw.replace("|", ",").replace("/", ",").replace(";", ",")
 
-    # Try exact mapping first (works for "ktm", "lalitpur city", etc.)
     if raw in CITY_CANON:
         return CITY_CANON[raw]
 
-    # If contains comma, last part is usually the main city
     parts = [p.strip() for p in raw.split(",") if p.strip()]
 
-    # Prefer a part that matches CITY_CANON (scan from end)
     for p in reversed(parts):
         if p in CITY_CANON:
             return CITY_CANON[p]
-
-        # also check last word of that part (handles "asan kathmandu")
         toks = p.split()
         if toks:
             last = toks[-1]
             if last in CITY_CANON:
                 return CITY_CANON[last]
 
-    # If no comma match, check last token of the whole string
     toks = raw.split()
     if toks:
         last = toks[-1]
         if last in CITY_CANON:
             return CITY_CANON[last]
 
-    # fallback: return raw
     return CITY_CANON.get(raw, raw)
 
 
@@ -136,7 +149,7 @@ def eligible_donors_queryset():
 
 
 def blood_group_allowed(req_blood_group: str, donor_blood_group: str) -> bool:
-    allowed = COMPATIBLE_DONORS.get((req_blood_group or "").strip().upper())
+    allowed = allowed_donor_groups_for_request(req_blood_group)
     if not allowed:
         return False
     return (donor_blood_group or "").strip().upper() in allowed
@@ -151,7 +164,7 @@ def match_city(req):
     canon_targets = {canonical_city(a) for a in aliases if a}
     now = timezone.now()
 
-    allowed_groups = COMPATIBLE_DONORS.get((req.blood_group or "").strip().upper(), set())
+    allowed_groups = allowed_donor_groups_for_request(req.blood_group)
     if not allowed_groups:
         return []
 
@@ -161,8 +174,6 @@ def match_city(req):
         .exclude(profile__city__exact="")
     )
 
-    # city match: prefer canon field (fast) but keep backward compatibility
-    # (if some old profiles have empty city_canon)
     q_city = Q(profile__city_canon__in=list(canon_targets))
     for a in aliases:
         if a:
@@ -173,22 +184,20 @@ def match_city(req):
     # eligibility using cached next_eligible_at (fast)
     qs = qs.filter(Q(profile__next_eligible_at__isnull=True) | Q(profile__next_eligible_at__lte=now))
 
-    # Return list (compat with your realtime ping code)
     return list(qs)
 
 
 def match_radius(req, radius_km: float):
-    # require request coords
     if getattr(req, "latitude", None) is None or getattr(req, "longitude", None) is None:
         return []
 
-    qs = eligible_donors_queryset()
     donors = []
+    qs = eligible_donors_queryset()
+
     for u in qs:
         if not is_eligible(u):
             continue
 
-        # blood compatibility
         if not blood_group_allowed(req.blood_group, getattr(u.profile, "blood_group", "")):
             continue
 
@@ -204,12 +213,10 @@ def match_radius(req, radius_km: float):
 
 
 def match_city_then_radius(req):
-    # 1) City first
     donors = match_city(req)
     if donors:
         return donors
 
-    # 2) fallback radius: 5km then 10km
     donors_5 = match_radius(req, 5)
     if donors_5:
         return donors_5

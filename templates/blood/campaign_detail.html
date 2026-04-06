@@ -1,0 +1,191 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1" style="font-weight:900;">Camp Details</h3>
+        <div class="text-muted">View schedule, venue, impact and share this camp.</div>
+      </div>
+      <a href="{% url 'blood_campaigns' %}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left mr-1"></i> Back to Camps
+      </a>
+    </div>
+
+    <div class="card shadow-sm" style="border-radius:14px; overflow:hidden;">
+      {% if camp.cover_image %}
+        <img src="{{ camp.cover_image.url }}" alt="Camp cover" style="width:100%; height:280px; object-fit:cover;">
+      {% endif %}
+
+      <div class="card-body">
+
+        <div class="d-flex flex-wrap justify-content-between align-items-start">
+          <div>
+            <div class="text-muted small">{{ camp.organization.name }} • {{ camp.organization.get_org_type_display }}</div>
+            <h4 class="mb-1" style="font-weight:900;">{{ camp.title }}</h4>
+            {% if camp.description %}
+              <div class="text-muted">{{ camp.description }}</div>
+            {% endif %}
+          </div>
+
+          <div class="text-right mt-2 mt-md-0">
+            <span class="badge badge-pill badge-info" style="padding:8px 12px;">
+              {{ camp.get_status_display }}
+            </span>
+          </div>
+        </div>
+
+        <hr>
+
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <div class="text-muted small">Date</div>
+            <div style="font-weight:800;">{{ camp.date|date:"Y-m-d" }}</div>
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <div class="text-muted small">Time</div>
+            <div style="font-weight:800;">
+              {% if camp.start_time %}{{ camp.start_time }}{% else %}—{% endif %}
+              {% if camp.end_time %} - {{ camp.end_time }}{% endif %}
+            </div>
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <div class="text-muted small">Venue</div>
+            <div style="font-weight:800;">{{ camp.venue_name }}</div>
+            <div class="text-muted small">
+              {% if camp.address %}{{ camp.address }}{% endif %}
+              {% if camp.city %}{% if camp.address %} • {% endif %}{{ camp.city }}{% endif %}
+            </div>
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <div class="text-muted small">Targets / Needed</div>
+            <div class="d-flex flex-wrap" style="gap:.5rem;">
+              <span class="badge badge-light border">Target Units: {{ camp.target_units|default:0 }}</span>
+              {% if camp.blood_groups_needed %}
+                <span class="badge badge-light border">Needed: {{ camp.blood_groups_needed }}</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="col-12 mb-3">
+            <a class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener noreferrer"
+               href="https://www.google.com/maps/search/?api=1&query={{ camp.venue_name|urlencode }}%20{{ camp.city|urlencode }}">
+              <i class="fa fa-map-marker-alt mr-1"></i> Open in Maps
+            </a>
+          </div>
+        </div>
+
+        {% if camp.status == "COMPLETED" %}
+          <hr>
+          <h6 style="font-weight:900;">Impact (Reported)</h6>
+
+          <div class="row">
+            <div class="col-md-4 mb-2">
+              <div class="alert alert-light border mb-0" style="border-radius:12px;">
+                <div class="text-muted small">Units Collected</div>
+                <div style="font-size:22px; font-weight:900;">{{ camp.actual_units_collected|default:0 }}</div>
+              </div>
+            </div>
+            <div class="col-md-4 mb-2">
+              <div class="alert alert-light border mb-0" style="border-radius:12px;">
+                <div class="text-muted small">Donors</div>
+                <div style="font-size:22px; font-weight:900;">{{ camp.actual_donors_count|default:0 }}</div>
+              </div>
+            </div>
+            <div class="col-md-4 mb-2">
+              <div class="alert alert-light border mb-0" style="border-radius:12px;">
+                <div class="text-muted small">Proof</div>
+                {% if proof_url %}
+                  <a class="btn btn-sm btn-outline-danger mt-1" href="{{ proof_url }}">
+                    <i class="fa fa-file-medical mr-1"></i> View Proof
+                  </a>
+                {% else %}
+                  <div class="text-muted small">Not uploaded</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          {% if camp.impact_highlights %}
+            <div class="mt-2 text-muted">{{ camp.impact_highlights }}</div>
+          {% endif %}
+        {% endif %}
+
+        <hr>
+
+        <div class="d-flex flex-wrap" style="gap:.5rem;">
+          {% if whatsapp_share_url %}
+            <a class="btn btn-outline-success" target="_blank" rel="noopener noreferrer" href="{{ whatsapp_share_url }}">
+              <i class="fab fa-whatsapp mr-1"></i> Share via WhatsApp
+            </a>
+          {% endif %}
+
+          <button type="button" class="btn btn-outline-secondary" id="copyCampLinkBtn">
+            <i class="fa fa-copy mr-1"></i> Copy Link
+          </button>
+
+          <button type="button" class="btn btn-secondary" id="webShareBtn">
+            <i class="fa fa-share-alt mr-1"></i> Share
+          </button>
+        </div>
+
+        <textarea id="campShareText" class="form-control mt-3" rows="5" readonly style="font-size:13px;">{{ share_text }}</textarea>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+(function(){
+  const absUrl = "{{ abs_url|escapejs }}";
+  const ta = document.getElementById("campShareText");
+  const shareText = (ta && ta.value) ? ta.value : absUrl;
+
+  const copyBtn = document.getElementById("copyCampLinkBtn");
+  const webBtn  = document.getElementById("webShareBtn");
+
+  if (copyBtn) {
+    copyBtn.addEventListener("click", async function(){
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(absUrl);
+        } else {
+          const tmp = document.createElement("textarea");
+          tmp.value = absUrl;
+          tmp.setAttribute("readonly", "");
+          tmp.style.position = "fixed";
+          tmp.style.left = "-9999px";
+          document.body.appendChild(tmp);
+          tmp.select();
+          document.execCommand("copy");
+          document.body.removeChild(tmp);
+        }
+        alert("Link copied.");
+      } catch(e) {
+        prompt("Copy this link:", absUrl);
+      }
+    });
+  }
+
+  if (webBtn) {
+    webBtn.addEventListener("click", async function(){
+      if (!navigator.share) {
+        alert("Share is not supported on this device. Use Copy Link or WhatsApp.");
+        return;
+      }
+      try {
+        await navigator.share({ title: "Share4Life Blood Camp", text: shareText, url: absUrl });
+      } catch(e) {}
+    });
+  }
+})();
+</script>
+
+{% endblock %}

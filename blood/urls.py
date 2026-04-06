@@ -10,13 +10,13 @@ urlpatterns = [
     path('request/<int:request_id>/respond/', views.donor_respond_view, name='donor_respond'),
     path('request/<int:request_id>/donation/', views.donation_create_view, name='donation_create'),
 
-    # donor history + reports
+    path('request/<int:request_id>/confirm-donation/', views.receiver_confirm_donation_view, name='receiver_confirm_donation'),
+
     path('donor/history/', views.donor_history_view, name='donor_history'),
     path('donation/<int:donation_id>/report/upload/', views.donation_report_upload_view, name='donation_report_upload'),
     path('report/<int:report_id>/download/', views.donation_report_download_view, name='donation_report_download'),
     path("donation/<int:donation_id>/verify/", views.verify_donation_view, name="org_verify_donation"),
-    
-    # donor verify request and manage
+
     path("request/new/", views.recipient_request_view, name="recipient_request"),
     path("my/requests/", views.my_blood_requests_view, name="my_blood_requests"),
     path("request/<int:request_id>/verify/", views.verify_request_view, name="verify_request"),
@@ -25,8 +25,15 @@ urlpatterns = [
 
     path("request/<int:request_id>/edit/", views.blood_request_edit_view, name="blood_request_edit"),
     path("request/<int:request_id>/cancel/", views.blood_request_cancel_view, name="blood_request_cancel"),
+
     path("campaigns/", views.blood_campaigns_view, name="blood_campaigns"),
+
+    # NEW: campaign detail
+    path("campaign/<int:campaign_id>/", views.blood_campaign_detail_view, name="blood_campaign_detail"),
+
     path("request/<int:request_id>/quick-respond/", views.quick_respond_view, name="quick_respond"),
+    path("request/<int:request_id>/remove-primary/", views.blood_remove_primary_donor, name="blood_remove_primary_donor"),
+
     path("campaign/<int:campaign_id>/proof/", views.campaign_proof_viewer, name="campaign_proof_viewer"),
 
     path("request/<int:request_id>/sos/", views.blood_sos_broadcast_view, name="blood_sos_broadcast"),
