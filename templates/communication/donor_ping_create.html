@@ -1,0 +1,91 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1" style="font-weight:900;">Ping Donor</h3>
+        <div class="text-muted">Send a safe contact request. Expires in {{ expire_minutes }} minutes.</div>
+      </div>
+      <a href="{% url 'public_donor_directory' %}" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i> Back to Directory
+      </a>
+    </div>
+
+    <div class="card shadow-sm" style="border-radius:14px;">
+      <div class="card-body">
+
+        <div class="alert alert-light border">
+          <div style="font-weight:800;">
+            Donor: {{ donor.get_full_name|default:donor.username }}
+          </div>
+          <div class="text-muted small">
+            Blood Group: <b>{{ donor.profile.blood_group }}</b> • City: <b>{{ donor.profile.city|default:"—"|title }}</b>
+          </div>
+        </div>
+
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="form-row">
+            <div class="form-group col-md-3">
+              <label class="font-weight-bold">Blood Needed</label>
+              <select name="blood_group_needed" class="form-control" required>
+                {% for bg, bg_label in blood_groups %}
+                  <option value="{{ bg }}">{{ bg_label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="form-group col-md-2">
+              <label class="font-weight-bold">Units</label>
+              <input type="number" name="units_needed" min="1" value="1" class="form-control" required>
+            </div>
+
+            <div class="form-group col-md-4">
+              <label class="font-weight-bold">Hospital</label>
+              <input type="text" name="hospital_name" class="form-control" placeholder="e.g. KIST Medical Hospital" required>
+            </div>
+
+            <div class="form-group col-md-3">
+              <label class="font-weight-bold">City</label>
+              <input type="text" name="city" value="{{ initial_city }}" class="form-control" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group col-md-4">
+              <label class="font-weight-bold">Your Phone (shared with donor)</label>
+              <input type="text" name="requester_phone" value="{{ initial_phone }}" class="form-control" placeholder="+97798XXXXXXXX">
+              <div class="text-muted small mt-1">Donor needs a way to reach you after accepting.</div>
+            </div>
+
+            <div class="form-group col-md-3 d-flex align-items-end">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="is_emergency" id="is_emergency" checked>
+                <label class="form-check-label font-weight-bold" for="is_emergency">
+                  Emergency
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group col-md-12">
+              <label class="font-weight-bold">Message (optional)</label>
+              <textarea name="message" class="form-control" rows="3" placeholder="Add details: patient condition, time urgency, ward, etc."></textarea>
+            </div>
+          </div>
+
+          <button class="btn btn-danger">
+            <i class="fa fa-paper-plane mr-1"></i> Send Ping
+          </button>
+        </form>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

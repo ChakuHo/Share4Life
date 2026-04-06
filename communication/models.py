@@ -18,7 +18,6 @@ class Notification(models.Model):
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
 
-    # new category field to allow filtering and user preferences
     category = models.CharField(max_length=20, choices=CATEGORIES, default="SYSTEM", db_index=True)
 
     title = models.CharField(max_length=120)
@@ -43,11 +42,6 @@ class Notification(models.Model):
 
 
 class NotificationPreference(models.Model):
-    """
-    Per-user notification preferences:
-      - Mute categories
-      - Email preferences (if/when email queue is used)
-    """
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notif_pref")
 
     mute_system = models.BooleanField(default=False)
@@ -165,3 +159,63 @@ class ChatMessage(models.Model):
 
     def __str__(self):
         return f"Msg#{self.id} Thread#{self.thread_id}"
+
+
+# -------------------- DIRECTORY DONOR PING (NEW) --------------------
+
+class DirectDonorPing(models.Model):
+    """
+    Safe contact workflow for Public Donor Directory:
+      - Recipient pings a donor with request details
+      - Donor accepts/declines/delays
+      - Donor phone is only shown to requester AFTER ACCEPT
+    """
+
+    STATUS = [
+        ("PENDING", "Pending"),
+        ("ACCEPTED", "Accepted"),
+        ("DECLINED", "Declined"),
+        ("DELAYED", "Delayed"),
+        ("EXPIRED", "Expired"),
+    ]
+
+    requester = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="direct_pings_sent",
+    )
+    donor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="direct_pings_received",
+    )
+
+    # request details
+    blood_group_needed = models.CharField(max_length=5)
+    units_needed = models.PositiveIntegerField(default=1)
+    hospital_name = models.CharField(max_length=150)
+    city = models.CharField(max_length=100)
+    is_emergency = models.BooleanField(default=True)
+
+    requester_phone = models.CharField(max_length=30, blank=True)
+    message = models.TextField(blank=True)
+
+    status = models.CharField(max_length=10, choices=STATUS, default="PENDING", db_index=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    responded_at = models.DateTimeField(null=True, blank=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["donor", "status", "created_at"]),
+            models.Index(fields=["requester", "created_at"]),
+        ]
+
+    def is_expired(self) -> bool:
+        return bool(self.expires_at and timezone.now() >= self.expires_at)
+
+    def __str__(self):
+        return f"Ping#{self.id} {self.requester_id}->{self.donor_id} [{self.status}]"

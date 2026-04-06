@@ -14,4 +14,10 @@ urlpatterns = [
     path("chat/", views.chat_threads, name="chat_threads"),
     path("chat/thread/<int:thread_id>/", views.chat_thread_detail, name="chat_thread_detail"),
     path("chat/blood/<int:request_id>/with/<int:donor_id>/", views.start_blood_chat, name="chat_start_blood"),
+
+    # NEW: directory donor ping
+    path("pings/", views.donor_ping_inbox, name="donor_ping_inbox"),
+    path("pings/to/<int:donor_id>/", views.donor_ping_create, name="donor_ping_create"),
+    path("pings/<int:ping_id>/", views.donor_ping_detail, name="donor_ping_detail"),
+    path("pings/<int:ping_id>/respond/", views.donor_ping_respond, name="donor_ping_respond"),
 ]

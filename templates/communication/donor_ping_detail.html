@@ -1,0 +1,140 @@
+{% extends "master/base.html" %}
+{% block content %}
+
+<section class="section-content padding-y" style="min-height:84vh;">
+  <div class="container">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <div>
+        <h3 class="mb-1" style="font-weight:900;">Ping Details</h3>
+        <div class="text-muted">Safe contact request from the donor directory.</div>
+      </div>
+
+      {% if user.is_donor %}
+        <a href="{% url 'donor_ping_inbox' %}" class="btn btn-outline-secondary">
+          <i class="fa fa-arrow-left"></i> Back to Pings
+        </a>
+      {% else %}
+        <a href="{% url 'public_donor_directory' %}" class="btn btn-outline-secondary">
+          <i class="fa fa-arrow-left"></i> Back to Directory
+        </a>
+      {% endif %}
+    </div>
+
+    {% if expired and ping.status == "PENDING" %}
+      <div class="alert alert-warning">
+        This ping has expired.
+      </div>
+    {% endif %}
+
+    <div class="card shadow-sm mb-3" style="border-radius:14px;">
+      <div class="card-body">
+
+        <div class="d-flex flex-wrap justify-content-between">
+          <div>
+            <div class="text-muted small">Need</div>
+            <div style="font-weight:900; font-size:20px;">
+              {{ ping.blood_group_needed }} • {{ ping.units_needed }} unit(s)
+              {% if ping.is_emergency %}<span class="badge badge-danger ml-2">EMERGENCY</span>{% endif %}
+            </div>
+            <div class="text-muted">
+              Hospital: <b>{{ ping.hospital_name }}</b> • City: <b>{{ ping.city|title }}</b>
+            </div>
+          </div>
+
+          <div class="text-end text-right mt-2 mt-md-0">
+            <div class="text-muted small">Status</div>
+            <span class="badge badge-light border" style="padding:8px 12px;">{{ ping.get_status_display }}</span>
+            <div class="text-muted small mt-2">
+              Created: {{ ping.created_at|date:"Y-m-d H:i" }}
+            </div>
+          </div>
+        </div>
+
+        {% if ping.message %}
+          <hr>
+          <div class="text-muted small">Message</div>
+          <div class="border rounded p-2 bg-light">{{ ping.message }}</div>
+        {% endif %}
+
+        <hr>
+
+        {# Donor view #}
+        {% if user.id == ping.donor_id %}
+          <div class="alert alert-light border">
+            <div style="font-weight:800;">Requester Contact (visible to you)</div>
+            <div class="text-muted small">
+              Requester: <b>{{ ping.requester.get_full_name|default:ping.requester.username }}</b>
+              {% if ping.requester_phone %}
+                • Phone: <a href="tel:{{ ping.requester_phone }}"><b>{{ ping.requester_phone }}</b></a>
+              {% else %}
+                • Phone: <b>Not provided</b>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if can_donor_respond %}
+            <div class="d-flex flex-wrap" style="gap:.5rem;">
+              <form method="post" action="{% url 'donor_ping_respond' ping.id %}">
+                {% csrf_token %}
+                <button class="btn btn-success" name="action" value="ACCEPTED"
+                        onclick="return confirm('Accept this ping? Your phone will be shown to the requester.');">
+                  <i class="fa fa-check mr-1"></i> Accept
+                </button>
+              </form>
+
+              <form method="post" action="{% url 'donor_ping_respond' ping.id %}">
+                {% csrf_token %}
+                <button class="btn btn-warning" name="action" value="DELAYED">
+                  <i class="fa fa-clock mr-1"></i> Delay
+                </button>
+              </form>
+
+              <form method="post" action="{% url 'donor_ping_respond' ping.id %}">
+                {% csrf_token %}
+                <button class="btn btn-outline-danger" name="action" value="DECLINED">
+                  <i class="fa fa-times mr-1"></i> Decline
+                </button>
+              </form>
+            </div>
+          {% else %}
+            <div class="text-muted small">You can’t respond (already responded or expired).</div>
+          {% endif %}
+        {% endif %}
+
+        {# Requester view #}
+        {% if user.id == ping.requester_id %}
+          <div class="alert alert-light border">
+            <div style="font-weight:800;">Donor</div>
+            <div class="text-muted small">
+              Donor: <b>{{ ping.donor.get_full_name|default:ping.donor.username }}</b>
+              • Blood: <b>{{ ping.donor.profile.blood_group }}</b>
+              • City: <b>{{ ping.donor.profile.city|default:"—"|title }}</b>
+            </div>
+
+            {% if show_donor_contact_to_requester %}
+              <div class="mt-2">
+                <div class="text-muted small">Donor Phone (unlocked after accept)</div>
+                {% if ping.donor.phone_number %}
+                  <a class="btn btn-sm btn-success" href="tel:{{ ping.donor.phone_number }}">
+                    <i class="fa fa-phone mr-1"></i> Call {{ ping.donor.phone_number }}
+                  </a>
+                {% else %}
+                  <div class="text-muted small">Donor phone not provided.</div>
+                {% endif %}
+              </div>
+            {% else %}
+              <div class="text-muted small mt-2">
+                Donor phone stays hidden until they accept.
+              </div>
+            {% endif %}
+          </div>
+        {% endif %}
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

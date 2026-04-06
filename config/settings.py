@@ -251,3 +251,9 @@ S4L_ELIGIBILITY_REMIND_REPEAT_DAYS = 7  # don’t remind again for same user for
 
 S4L_CAMPAIGN_REMIND_DAYS_BEFORE = 2     # remind 2 days before camp date
 S4L_CAMPAIGN_REMIND_REPEAT_DAYS = 7
+
+# --- Donor Directory Ping (anti-spam + expiry) ---
+S4L_DONOR_PING_EXPIRE_MINUTES = 60           # ping expires in 60 minutes
+S4L_DONOR_PING_PAIR_COOLDOWN_SECONDS = 600   # same requester -> same donor cooldown (10 min)
+S4L_DONOR_PING_MAX_PER_DAY_PER_REQUESTER = 10
+S4L_DONOR_PING_MAX_PER_DAY_PER_DONOR = 15

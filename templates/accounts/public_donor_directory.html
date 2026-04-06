@@ -53,8 +53,8 @@
     <div class="row">
       {% for u in page_obj.object_list %}
         <div class="col-md-6 col-lg-4 mb-3">
-          <div class="card shadow-sm h-100">
-            <div class="card-body">
+          <div class="card shadow-sm h-100" style="border-radius:14px;">
+            <div class="card-body d-flex flex-column">
 
               <div class="d-flex justify-content-between align-items-center mb-2">
                 <span class="badge badge-danger p-2">{{ u.profile.blood_group }}</span>
@@ -82,7 +82,27 @@
               </div>
 
               <div class="text-muted small mt-2">
-                Contact details are protected. Use the blood request flow to connect safely.
+                Contact details are protected to prevent spam.
+              </div>
+
+              <div class="mt-3" style="margin-top:auto;">
+                {% if user.is_authenticated and user.is_recipient %}
+                  <a href="{% url 'donor_ping_create' u.id %}" class="btn btn-sm btn-danger btn-block">
+                    <i class="fa fa-paper-plane mr-1"></i> Ping Donor
+                  </a>
+                  <div class="text-muted small mt-2">
+                    Donor will accept/decline. Contact unlocks only after accept.
+                  </div>
+                {% elif user.is_authenticated %}
+                  <div class="alert alert-light border small mb-0">
+                    Enable <b>Recipient</b> role in profile to ping donors.
+                    <a href="{% url 'profile_edit' %}">Edit Profile</a>
+                  </div>
+                {% else %}
+                  <a href="{% url 'login' %}?next={% url 'public_donor_directory' %}" class="btn btn-sm btn-outline-primary btn-block">
+                    Login to Ping
+                  </a>
+                {% endif %}
               </div>
 
             </div>
