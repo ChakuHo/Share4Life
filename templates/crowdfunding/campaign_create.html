@@ -9,7 +9,7 @@
       <div>
         <h3 class="mb-1" style="font-weight:900;color:#0a2558;">Create Campaign</h3>
         <div class="text-muted small">
-          Submit a verified medical fundraising campaign. Admin approval may be required.
+          Submit a verified medical fundraising campaign. Admin approval is be required. Please be patient after submission.
         </div>
       </div>
 
@@ -28,6 +28,77 @@
         <li>Campaign goes public after approval (staff may auto-approve).</li>
       </ul>
     </div>
+
+    <!-- ===================== NEW: FreeHealth integration (Supervisor requirement) ===================== -->
+    <div class="alert alert-light border" style="border-radius:12px;">
+      <div class="d-flex flex-wrap justify-content-between align-items-start">
+        <div class="pr-3">
+          <div class="font-weight-bold mb-1" style="color:#0a2558;">
+            Government Free Health Option (MoHP Nepal)
+          </div>
+          <div class="text-muted small mb-2">
+            Before starting medical crowdfunding, please check if the Government of Nepal provides free health care
+            for the patient. You can open the official portal or load a quick preview list here.
+          </div>
+          <div class="text-muted small">
+            Source: <a href="https://freehealth.mohp.gov.np/" target="_blank" rel="noopener noreferrer">freehealth.mohp.gov.np</a>
+          </div>
+        </div>
+
+        <div class="mt-2">
+          <a class="btn btn-outline-primary btn-sm"
+             href="https://freehealth.mohp.gov.np/"
+             target="_blank" rel="noopener noreferrer">
+            Open Portal
+          </a>
+
+          <button id="fhLoadBtn" type="button" class="btn btn-primary btn-sm ml-2">
+            Load Preview
+          </button>
+        </div>
+      </div>
+
+      <div class="row mt-3">
+        <div class="col-md-8">
+          <label class="small text-muted mb-1">Search keyword (try hospital city / district / organization name)</label>
+          <input id="fhQuery" type="text" class="form-control form-control-sm"
+                 placeholder="e.g. Lalitpur, Kathmandu, Bhaktapur, hospital name">
+        </div>
+        <div class="col-md-4 mt-3 mt-md-0">
+          <label class="small text-muted mb-1">Max results</label>
+          <select id="fhLimit" class="form-control form-control-sm">
+            <option value="20">20</option>
+            <option value="30" selected>30</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="fhStatus" class="small text-muted mt-3" style="display:none;"></div>
+      <div id="fhError" class="small text-danger mt-2" style="display:none;"></div>
+
+      <div class="table-responsive mt-3" id="fhTableWrap" style="display:none;">
+        <table class="table table-sm table-bordered mb-0">
+          <thead class="thead-light">
+            <tr>
+              <th style="min-width:260px;">Organization</th>
+              <th style="min-width:190px;">District / Municipality</th>
+              <th style="min-width:170px;">Province</th>
+              <th style="min-width:120px;">Available Beds</th>
+              <th style="min-width:110px;">Free Beds</th>
+              <th style="min-width:170px;">Contact</th>
+            </tr>
+          </thead>
+          <tbody id="fhRows"></tbody>
+        </table>
+      </div>
+
+      <div class="small text-muted mt-2">
+        Note: This preview is for convenience. Always verify details on the official portal.
+      </div>
+    </div>
+    <!-- ===================== /NEW: FreeHealth integration ===================== -->
 
     <div class="card shadow-sm" style="border-radius:14px;">
       <div class="card-body">
@@ -64,7 +135,7 @@
 
           <!-- Image -->
           <div class="form-group">
-            <label class="font-weight-bold">Campaign image (optional)</label>
+            <label class="font-weight-bold">Campaign image [Front Page View]</label>
             {{ form.image }}
             {% for e in form.image.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
             <small class="text-muted">Recommended: clear photo/banner. JPG/PNG.</small>
@@ -82,7 +153,6 @@
               <label class="font-weight-bold">Deadline</label>
               {{ form.deadline }}
               {% for e in form.deadline.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-              <small class="text-muted">Cannot be in the past.</small>
             </div>
           </div>
 
@@ -146,13 +216,10 @@
   </div>
 </section>
 
-
 <style>
-  small, .small {
-    font-size: 78%;
-    font-weight: 400;
-}
+  small, .small { font-size: 78%; font-weight: 400; }
 </style>
+
 <script>
 (function(){
   function setMinDate(){
@@ -180,10 +247,141 @@
     });
   }
 
+  // ---------------- FreeHealth UI ----------------
+  function $(id){ return document.getElementById(id); }
+
+  function show(el){ if (el) el.style.display = ""; }
+  function hide(el){ if (el) el.style.display = "none"; }
+
+  function escapeHtml(s){
+    s = (s === null || s === undefined) ? "" : String(s);
+    return s.replace(/[&<>"']/g, function(m){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]);
+    });
+  }
+
+  function getHospitalCityValue(){
+    var inp = document.querySelector('[name="{{ form.hospital_city.name }}"]');
+    return inp ? (inp.value || "").trim() : "";
+  }
+
+  async function loadFreeHealth(){
+    var status = $("fhStatus");
+    var err = $("fhError");
+    var tableWrap = $("fhTableWrap");
+    var rows = $("fhRows");
+    var btn = $("fhLoadBtn");
+
+    hide(err);
+    show(status);
+    hide(tableWrap);
+
+    status.textContent = "Loading FreeHealth organizations preview…";
+    rows.innerHTML = "";
+
+    var qInput = $("fhQuery");
+    var limitSel = $("fhLimit");
+
+    var q = (qInput && qInput.value ? qInput.value : "").trim();
+    if (!q) {
+      q = getHospitalCityValue();
+      if (q && qInput) qInput.value = q;
+    }
+
+    var limit = (limitSel && limitSel.value) ? limitSel.value : "30";
+
+    var url = "{% url 'freehealth_organizations' %}" + "?q=" + encodeURIComponent(q) + "&limit=" + encodeURIComponent(limit);
+
+    try {
+      if (btn) btn.disabled = true;
+
+      const resp = await fetch(url, { headers: { "Accept": "application/json" } });
+      const data = await resp.json();
+
+      if (!data || !data.ok) {
+        throw new Error((data && data.error) ? data.error : "Unknown error");
+      }
+
+      var items = data.items || [];
+      status.textContent = "Showing " + items.length + " result(s)"
+        + (data.count ? (" (matched: " + data.count + ")") : "")
+        + (data.from_cache ? " • cached" : " • live");
+
+      if (!items.length) {
+        rows.innerHTML = '<tr><td colspan="6" class="text-muted small">No results found. Try another keyword (district/city/organization name).</td></tr>';
+        show(tableWrap);
+        return;
+      }
+
+      var html = "";
+      for (var i=0; i<items.length; i++){
+        var it = items[i] || {};
+
+        var name = escapeHtml(it.name || "—");
+        var district = escapeHtml(it.district || "");
+        var muni = escapeHtml(it.municipality || "");
+        var prov = escapeHtml(it.province || "");
+
+        var available = (it.available_beds === null || it.available_beds === undefined || it.available_beds === "")
+          ? "—" : escapeHtml(it.available_beds);
+
+        var freeBeds = (it.free_beds === null || it.free_beds === undefined || it.free_beds === "")
+          ? "—" : escapeHtml(it.free_beds);
+
+        var phone = escapeHtml(it.phone || "—");
+        var person = escapeHtml(it.contact_person || "");
+
+        var loc = (district || muni) ? (district + (muni ? (" / " + muni) : "")) : "—";
+        var provTxt = prov || "—";
+
+        var contactHtml = "<div>" + phone + "</div>";
+        if (person) {
+          contactHtml += "<div class='small text-muted'>" + person + "</div>";
+        }
+
+        html += "<tr>"
+          + "<td><div class='font-weight-bold'>" + name + "</div>"
+          + (it.ownership_type ? ("<div class='small text-muted'>" + escapeHtml(it.ownership_type) + "</div>") : "")
+          + "</td>"
+          + "<td>" + loc + "</td>"
+          + "<td>" + provTxt + "</td>"
+          + "<td>" + available + "</td>"
+          + "<td>" + freeBeds + "</td>"
+          + "<td>" + contactHtml + "</td>"
+          + "</tr>";
+      }
+
+      rows.innerHTML = html;
+      show(tableWrap);
+
+    } catch (e) {
+      hide(tableWrap);
+      status.textContent = "";
+      hide(status);
+      show(err);
+      err.textContent = "FreeHealth preview failed. Please open the official portal. Error: " + (e && e.message ? e.message : e);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", function(){
     setMinDate();
     bindFileName('input[type="file"][name="{{ form.image.name }}"]', "#imgName", "Selected image");
     bindFileName('input[type="file"][name="{{ form.proof_file.name }}"]', "#proofName", "Selected proof");
+
+    var btn = $("fhLoadBtn");
+    if (btn) btn.addEventListener("click", loadFreeHealth);
+
+    var q = $("fhQuery");
+    if (q) {
+      q.addEventListener("keydown", function(ev){
+        if (ev.key === "Enter") {
+          ev.preventDefault();
+          loadFreeHealth();
+        }
+      });
+    }
   });
 })();
 </script>

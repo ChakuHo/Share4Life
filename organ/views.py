@@ -191,7 +191,7 @@ def pledge_submit(request, pledge_id):
         pledge.consent_at = timezone.now()
     pledge.save(update_fields=["status", "submitted_at", "consent_at"])
 
-    # Donor notification (already)
+    # Donor notification
     _notify_user(
         request.user,
         "Organ pledge submitted",
@@ -383,7 +383,7 @@ def organ_request_doc_upload(request, request_id):
     return redirect("organ_request_detail", request_id=obj.id)
 
 
-# ---------------- Org portal (serious workflow) ----------------
+# ---------------- Org portal ----------------
 @org_member_required(roles=["ADMIN", "VERIFIER", "STAFF"])
 def organ_portal(request):
     org = request.organization

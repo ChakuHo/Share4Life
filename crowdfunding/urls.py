@@ -1,4 +1,5 @@
 from django.urls import path
+from .freehealth import freehealth_organizations
 from . import views
 
 urlpatterns = [
@@ -23,4 +24,7 @@ urlpatterns = [
     path("esewa/return/<int:donation_id>/", views.esewa_return, name="esewa_return"),
 
     path("my/donations/", views.my_donations, name="my_donations"),
+
+    # FreeHealth API proxy
+    path("freehealth/organizations/", freehealth_organizations, name="freehealth_organizations"),
 ]

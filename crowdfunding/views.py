@@ -73,7 +73,7 @@ def _client_ip(request):
 
 
 def campaign_list(request):
-    # include ARCHIVED so success stories remain visible
+    # showing ARCHIVED too so success stories remain visible
     qs = (
         Campaign.objects
         .filter(status__in=["APPROVED", "COMPLETED", "EXPIRED", "ARCHIVED"])

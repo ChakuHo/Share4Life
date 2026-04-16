@@ -257,3 +257,8 @@ S4L_DONOR_PING_EXPIRE_MINUTES = 60           # ping expires in 60 minutes
 S4L_DONOR_PING_PAIR_COOLDOWN_SECONDS = 600   # same requester -> same donor cooldown (10 min)
 S4L_DONOR_PING_MAX_PER_DAY_PER_REQUESTER = 10
 S4L_DONOR_PING_MAX_PER_DAY_PER_DONOR = 15
+
+S4L_FREEHEALTH_ENABLED = True  # set False to disable quickly
+S4L_FREEHEALTH_ORGS_API_URL = "https://freehealth.mohp.gov.np/api/organizations"
+S4L_FREEHEALTH_CACHE_SECONDS = 60 * 60  # 1 hour
+S4L_FREEHEALTH_TIMEOUT_SECONDS = 8

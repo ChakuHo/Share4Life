@@ -1074,7 +1074,7 @@ def donor_respond_view(request, request_id):
         messages.error(request, "This request is closed.")
         return redirect("blood_request_detail", request_id=blood_req.id)
 
-    # STRICT blood group check (exact match if enabled)
+    # STRICT blood group check if enabled (uses matching.py which respects S4L_BLOOD_STRICT_MATCH)
     from .matching import blood_group_allowed
     donor_bg = (getattr(getattr(request.user, "profile", None), "blood_group", "") or "").strip().upper()
     if not donor_bg:
@@ -1272,12 +1272,9 @@ def receiver_confirm_donation_view(request, request_id):
     """
     Request owner confirms that an ACCEPTED donor has donated.
     Creates a BloodDonation record in COMPLETED status (awaiting verification).
-
-    Rules:
       - Only request owner can do this
       - Donor must have ACCEPTED the request
       - Prevent duplicates (one donation per donor per request)
-      - Does NOT remove/replace donor's own donation flow; it's an extra power for recipients.
     """
     blood_req = get_object_or_404(PublicBloodRequest, id=request_id, created_by=request.user)
 

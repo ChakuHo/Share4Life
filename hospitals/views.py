@@ -238,7 +238,6 @@ def org_campaign_create(request):
               if start_time exists and now < start_time -> UPCOMING
               elif end_time exists and now > end_time -> COMPLETED
               else -> ONGOING
-        Note: we do NOT auto-set past dates here; form validation handles that.
         """
         today = timezone.localdate()
         now_t = timezone.localtime().time()
@@ -553,8 +552,6 @@ def institutions_directory(request):
     """
     Public institutions directory:
       - filters: type + city aliases + token search
-      - optional: lat/lng -> nearest sort + distance
-      - campaigns shown inline (active + past) WITHOUT org portal access
     """
     active_campaigns = (
         BloodCampaign.objects

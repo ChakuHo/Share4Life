@@ -25,6 +25,9 @@
 {% url 'inbox' as inbox_url %}
 {% url 'chat_threads' as chat_threads_url %}
 
+{# NEW: Directory Pings inbox (donor) #}
+{% url 'donor_ping_inbox' as donor_ping_inbox_url %}
+
 {# Organization (Institutions) links #}
 {% url 'institutions_home' as institutions_home_url %}
 {% url 'org_register' as org_register_url %}
@@ -125,8 +128,6 @@
 
           {% url 'about' as about_url %}
           <a class="nav-link" href="{{ about_url|default:'#' }}">About</a>
-
-          {# Donor Directory intentionally not on main navbar #}
         </nav>
       </div>
 
@@ -159,8 +160,9 @@
                 </div>
               {% endif %}
 
-              {% if unread_notifications_count|default:0 %}
-                <span class="s4l-notif-dot" title="You have notifications"></span>
+              {# UPDATED: show dot if notifications OR pings exist #}
+              {% if unread_notifications_count|default:0 or pending_pings_count|default:0 %}
+                <span class="s4l-notif-dot" title="You have updates"></span>
               {% endif %}
 
               <div class="d-none d-md-block text-left" style="line-height: 1.1;">
@@ -184,6 +186,18 @@
                   {% if unread_chat_count|default:0 %}
                     <span class="badge badge-danger" style="border-radius:999px; min-width:22px;">
                       {{ unread_chat_count }}
+                    </span>
+                  {% endif %}
+                </a>
+              {% endif %}
+
+              {# NEW: Directory Pings for Donors #}
+              {% if user.is_donor and donor_ping_inbox_url %}
+                <a class="dropdown-item d-flex justify-content-between align-items-center" href="{{ donor_ping_inbox_url }}">
+                  <span><i class="fa fa-paper-plane mr-2 text-primary"></i> Directory Pings</span>
+                  {% if pending_pings_count|default:0 %}
+                    <span class="badge badge-danger" style="border-radius:999px; min-width:22px;">
+                      {{ pending_pings_count }}
                     </span>
                   {% endif %}
                 </a>
@@ -345,12 +359,22 @@
       <a href="{{ blood_campaigns_url }}" class="d-block py-2 text-dark border-bottom">Donation Camps</a>
       <a href="{{ campaign_list_url|default:'#' }}" class="d-block py-2 text-dark border-bottom">Crowdfunding</a>
 
-      {# Keep donor directory hidden from guests; show only when logged in (mobile) #}
       {% if user.is_authenticated and donor_directory_url %}
         <a href="{{ donor_directory_url }}" class="d-block py-2 text-dark border-bottom">Donor Directory</a>
       {% endif %}
 
-      {# Chats link for mobile (logged in only) #}
+      {# NEW: Directory Pings on mobile for donors #}
+      {% if user.is_authenticated and user.is_donor and donor_ping_inbox_url %}
+        <a href="{{ donor_ping_inbox_url }}" class="d-flex justify-content-between align-items-center py-2 text-dark border-bottom">
+          <span>Directory Pings</span>
+          {% if pending_pings_count|default:0 %}
+            <span class="badge badge-danger" style="border-radius:999px; min-width:22px;">
+              {{ pending_pings_count }}
+            </span>
+          {% endif %}
+        </a>
+      {% endif %}
+
       {% if user.is_authenticated and chat_threads_url %}
         <a href="{{ chat_threads_url }}" class="d-flex justify-content-between align-items-center py-2 text-dark border-bottom">
           <span>Chats</span>
@@ -362,47 +386,10 @@
         </a>
       {% endif %}
 
-      {# Organ links #}
-      {% if user.is_authenticated %}
-        {% if user.is_donor and organ_pledge_list_url %}
-          <a href="{{ organ_pledge_list_url }}" class="d-block py-2 text-dark border-bottom">Organ Pledges</a>
-        {% elif user.is_recipient and organ_request_list_url %}
-          <a href="{{ organ_request_list_url }}" class="d-block py-2 text-dark border-bottom">Organ Requests</a>
-        {% elif organ_pledge_create_url %}
-          <a href="{{ organ_pledge_create_url }}" class="d-block py-2 text-dark border-bottom">Organ</a>
-        {% endif %}
-      {% else %}
-        <a href="{{ login_url }}" class="d-block py-2 text-dark border-bottom">Organ</a>
-      {% endif %}
-
-      {% if user.is_authenticated %}
-        {% if org_membership %}
-          <a href="{{ org_portal_url }}" class="d-block py-2 text-dark border-bottom">Institutions</a>
-          {% if organ_portal_url %}
-            <a href="{{ organ_portal_url }}" class="d-block py-2 text-dark border-bottom">Organ Portal</a>
-          {% endif %}
-        {% elif org_application %}
-          <a href="{{ org_pending_url }}" class="d-block py-2 text-dark border-bottom">Institutions</a>
-        {% else %}
-          <a href="{{ org_register_url }}" class="d-block py-2 text-dark border-bottom">Institutions</a>
-        {% endif %}
-      {% else %}
-        <a href="{{ institutions_home_url }}" class="d-block py-2 text-dark border-bottom">Institutions</a>
-      {% endif %}
-
-      {% url 'about' as about_url %}
-      <a href="{{ about_url|default:'#' }}" class="d-block py-2 text-dark border-bottom">About</a>
-
       {% if user.is_authenticated %}
         {% if profile_url %}<a href="{{ profile_url }}" class="d-block py-2 text-dark border-bottom">Profile</a>{% endif %}
         {% if user.is_recipient %}<a href="{{ my_requests_url }}" class="d-block py-2 text-dark border-bottom">My Blood Requests</a>{% endif %}
         {% if user.is_donor %}<a href="{{ donor_history_url }}" class="d-block py-2 text-dark border-bottom">Donation History</a>{% endif %}
-
-        {% if my_donations_url %}
-          <a href="{{ my_donations_url }}" class="d-block py-2 text-dark border-bottom">
-            My Contributions
-          </a>
-        {% endif %}
 
         {% if inbox_url %}
           <a href="{{ inbox_url }}" class="d-flex justify-content-between align-items-center py-2 text-dark border-bottom">
@@ -415,7 +402,6 @@
           </a>
         {% endif %}
 
-        {% if kyc_submit_url %}<a href="{{ kyc_submit_url }}" class="d-block py-2 text-dark border-bottom">KYC</a>{% endif %}
         {% if logout_url %}<a href="{{ logout_url }}" class="d-block py-2 text-danger font-weight-bold">Logout</a>{% endif %}
       {% else %}
         {% if login_url %}<a href="{{ login_url }}" class="btn btn-outline-primary btn-block mt-3">Log In</a>{% endif %}
@@ -454,15 +440,13 @@
   .s4l-brand-text { font-weight: 900; color: var(--primary-color); letter-spacing: -1px; }
 
   .s4l-center-col { position: relative; z-index: 3; }
-  .s4l-menu { position: relative; z-index: 3; }
+  .s4l-menu { position: relative; z-index: 3; flex-wrap: nowrap; }
   .s4l-right-col { position: relative; z-index: 2; }
 
   @media (min-width: 992px){ .s4l-right-col { padding-right: 26px; } }
 
-  .s4l-menu .nav-link { color:#444; font-weight:700; font-size:15px; padding:0.35rem 0.9rem; }
+  .s4l-menu .nav-link { color:#444; font-weight:700; font-size:15px; padding:0.35rem 0.9rem; white-space: nowrap; }
   .s4l-menu .nav-link:hover { color: var(--primary-color); }
-  .s4l-menu { flex-wrap: nowrap; }
-  .s4l-menu .nav-link { white-space: nowrap; }
 
   .s4l-avatar { width:36px; height:36px; border-radius:999px; object-fit:cover; border:2px solid #e9ecef; }
   .s4l-avatar-fallback { width:36px; height:36px; border-radius:999px; background:#f1f3f5; color:var(--primary-color); display:flex; align-items:center; justify-content:center; border:2px solid #e9ecef; }

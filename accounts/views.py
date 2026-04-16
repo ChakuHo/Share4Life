@@ -114,7 +114,7 @@ def home(request):
     # Urgent ticker: ONLY emergency requests
     urgent_requests = active_base.filter(is_emergency=True)[:5]
 
-    # Active emergencies grid: all active (emergencies sorted first)
+    # Active emergencies grid: all active (emergencies first)
     recent_requests = active_base[:4]
 
     featured_campaign = Campaign.objects.filter(
@@ -374,12 +374,12 @@ def register(request):
                         phone_number=phone,
                     )
 
-                    # profile + set city (IMPORTANT: save without limiting update_fields)
+                    # profile + set city (save without limiting update_fields)
                     profile, _ = UserProfile.objects.get_or_create(user=user)
                     profile.city = city
                     profile.save() 
 
-                    # Ensure KYC exists (safe)
+                    # Ensure KYC exists 
                     KYCProfile.objects.get_or_create(user=user)
 
                 # Send email verification (don’t block registration if email fails)

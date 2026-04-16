@@ -170,7 +170,7 @@ def notification_settings_view(request):
     return render(request, "communication/notification_settings.html", {"form": form})
 
 
-# ---------------- Directory Donor Ping (NEW) ----------------
+# ---------------- Directory Donor Ping----------------
 
 def _cache_incr(key: str, ttl_seconds: int) -> int:
     try:
@@ -189,7 +189,7 @@ def _cache_incr(key: str, ttl_seconds: int) -> int:
 def donor_ping_create(request, donor_id):
     """
     Recipient pings a donor from Public Donor Directory.
-    Donor receives in-app notification + queued email (preferences respected).
+    Donor receives in-app notification + queued emaiL.
     """
     donor = get_object_or_404(
         CustomUser.objects.select_related("profile", "kyc"),
@@ -345,7 +345,7 @@ def donor_ping_inbox(request):
         .select_related("requester", "donor")
         .order_by("-created_at")
     )
-    # mark expired visually (we don't auto-update DB to keep it simple)
+    # mark expired visually
     return render(request, "communication/donor_ping_inbox.html", {"items": qs[:200]})
 
 
